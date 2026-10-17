@@ -3,10 +3,10 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 1 of 5 · Plan
-- **Doing:** PRD revised after the owner's first review (`docs/product/prd.md`, status draft); asked for approval and one open question (uncited statements in the quality check). No UX spec: owner decided the PRD's Design section is enough
+- **Doing:** PRD approved (`docs/product/prd.md`); no UX spec (owner's choice). MVP scope interview started with `.kit/planning/mvp-scope.md`, PRD as input; round 1 asked: core hypothesis, early-adopter subset, drafting in one go with a drop order
 - **Unverified:** provider research: Gemini free tier ruled out for EEA users (confirmed in its terms); Mistral leading; 402-on-exhausted and the account-wide shared allowance are confirmed; its free limits, public-demo terms and training default are unconfirmed (see Deferred)
-- **Next:** revise the PRD from the owner's review and its open questions, then mark it approved; then the MVP scope interview (`.kit/planning/mvp-scope.md`)
-- **Waiting on the owner:** PRD approval and the uncited-statements answer
+- **Next:** continue the MVP scope interview from the owner's answers, draft `docs/product/mvp.md`, get approval; then set the stage to 2 of 5 · Decide
+- **Waiting on the owner:** answers to MVP scope round 1
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.

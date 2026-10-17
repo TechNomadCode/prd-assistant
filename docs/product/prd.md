@@ -1,6 +1,6 @@
 # PRD: PRD Assistant
 
-**Status:** draft for owner review, not approved · 2026-10-17 (revised after the owner's first review)
+**Status:** approved by the owner · 2026-10-17
 **Sources:** `docs/product/brief.md` and the owner's answers in `docs/decisions.md`. Points the sources don't state directly are marked *(assumption)* and repeated under Open Questions.
 
 ---
@@ -54,7 +54,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - As a user, where the notes contradict each other, I see both views with their citations, and the choice between them is listed under Open Questions.
 - As a user, my PRD is still there after a reload, and "Start over" clears it.
 - As a user, I download the PRD as a Markdown file.
-- As a reviewer on a phone, I switch between the chat and the PRD with two tabs.
+- As a reviewer on a phone, I see the chat and the PRD stacked on one page.
 - As a reviewer who arrives after the free quota is used up, the chat input is hidden, and a friendly message links to the README's screen recording and to the repository.
 - As a self-hoster, I run the whole app locally on fakes without any key or account, and I deploy my own copy for real answers.
 - As an engineer reviewer, I see the loaded sample notes on a page of their own.
@@ -113,7 +113,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Quality check**
 - Five fixed requests against the sample notes, including one that depends on the deliberate gap and one that touches the contradiction.
 - Runs with the real model on staging and is started by the owner. It never runs on the development machine.
-- It passes when every citation passes the quote check, the gap is listed under Open Questions, and the contradiction shows both views with their citations plus an open question.
+- It passes when every citation passes the quote check, every statement outside Open Questions has at least one citation, the gap is listed under Open Questions, and the contradiction shows both views with their citations plus an open question.
 - It prints the total tokens used.
 
 **Providers**
@@ -159,7 +159,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **Devices**
 - Desktop first.
-- On a phone, the chat and the PRD become two tabs. Usable, not polished.
+- On a phone, the chat and the PRD stack on one page. Usable, not polished.
 
 **Discoverability**
 - The demo runs on the host's default address with `noindex`.
@@ -177,7 +177,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Design Considerations / Mockups
 
 **Screens**
-- Home: the chat with the PRD next to it. On a phone they become two tabs.
+- Home: the chat with the PRD next to it. On a phone they stack.
 - A page listing the sample notes.
 - Cited passages open in a pop-over.
 
@@ -192,7 +192,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Success Metrics
 
 - **Time to first cited section:** under 2 minutes from opening the demo to a saved section whose citations passed the check. With no tracking, the owner times this on staging and production *(assumption about how it's measured)*.
-- **Quality check:** all five requests pass. Every citation passes the quote check, the deliberate gap appears under Open Questions, and the contradiction shows both views plus an open question.
+- **Quality check:** all five requests pass. Every citation passes the quote check, every statement outside Open Questions has a citation, the deliberate gap appears under Open Questions, and the contradiction shows both views plus an open question.
 
 ---
 
@@ -204,7 +204,6 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
   - Mistral is the leading candidate. Confirmed: its free mode needs no card. Once the included monthly usage runs out and pay-as-you-go is off, requests fail with error 402. That allowance is shared by the whole account across the API, the chat app and the coding tools (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/resources/error-glossary.md).
   - Mistral, still unconfirmed: the actual free limits (visible only when logged in), whether its terms allow a public demo, and the default setting for training on API data.
 - **Legal basis for the IP-based rate limit:** the owner decides, with the official sources listed in `docs/decisions.md`. This isn't legal advice.
-- **Uncited statements in the quality check:** should a flagged statement with no citation also fail the quality check? *(Assumption: yes, except in the Open Questions section, where statements describe what the notes lack.)*
 
 **Later, not in the first version**
 - Uploading your own notes in the app (needs separation and deletion per visitor).

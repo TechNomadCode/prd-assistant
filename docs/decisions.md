@@ -3,7 +3,7 @@
 Decisions that shape the app, one line each: `YYYY-MM-DD · decision · consequence`. When a decision changes, replace its line; Git keeps the old one. Agents read the section their task touches.
 
 ## Design
-- 2026-10-17 · Desktop first; on a phone the chat and the PRD become two tabs, usable not polished; home page is the chat with the PRD beside it; cited passages open in a pop-over; no separate UX document · The PRD's Design section is the design brief
+- 2026-10-17 · Desktop first; on a phone the chat and the PRD stack on one page, usable not polished; home page is the chat with the PRD beside it; cited passages open in a pop-over; no separate UX document · The PRD's Design section is the design brief
 - 2026-10-17 · Black and white colour scheme: black dominant (main backgrounds and large surfaces), white in support (text, lines, accents). Not allowed: cream or off-white backgrounds, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons · Feeds the PRD's Design Considerations and every UI piece
 
 ## Environments and accounts
@@ -12,7 +12,7 @@ Decisions that shape the app, one line each: `YYYY-MM-DD · decision · conseque
 - <date> · Development uses a local database and fake providers; staging and production are separate Supabase projects; hosted credentials never sit on a development machine · Agents can't reach hosted systems, and production changes run only from the production workflow
 
 ## Data
-- 2026-10-17 · `saveSection` takes a section as a list of statements, each with its citations; the code flags statements without any citation; a quote passes when it has the same words in the same order, ignoring case, spacing, quote style and punctuation at the ends; contradictions show both views with citations and the choice goes under Open Questions · Defines the citation check
+- 2026-10-17 · `saveSection` takes a section as a list of statements, each with its citations; the code flags statements without any citation; a quote passes when it has the same words in the same order, ignoring case, spacing, quote style and punctuation at the ends; contradictions show both views with citations and the choice goes under Open Questions; a statement with no citation fails the quality check, except in the Open Questions section · Defines the citation check and the quality check
 - 2026-10-17 · Sample notes: fictional interviews about a shared household grocery list app; deliberate gap: offline use in a store with bad signal; deliberate contradiction: a notification for every added item is wanted by some and a reason to uninstall for others · Drives the quality check
 - 2026-10-17 · The PRD lives in the visitor's browser and survives a reload; a "Start over" button clears it; sections change only through the chat · Every change to the PRD goes through the citation check
 
