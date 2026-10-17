@@ -3,15 +3,16 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 4, *System prompt from the toolkit*, is done on branch `feat/system-prompt-from-toolkit` (01eb723), not pushed yet. `src/server/prompts/system-prompt.ts`, version 1, copies the toolkit's `prd.md` and borrows the traceability rules of `research-to-prd.md`, both at toolkit commit cb7956e, taken from the owner's clone of the toolkit (the same commit as GitHub). Until slice 5, the assistant writes each drafted section in its reply, one statement per line with its citations. Local checks on 2026-10-17: `verify` and `test:integration` pass.
+- **Doing:** slice 4, *System prompt from the toolkit*, is merged (197c29d), but its staging check on 2026-10-17 failed. Asked for the first section, gpt-oss either searched five times and had no model calls left for the reply ("finish reason tool-calls", 11,970 tokens in 5 calls), or stopped at Cloudflare's default of 256 output tokens before writing anything ("finish reason length"). The fix is on branch `fix/finish-section-drafts` (419bfea), not pushed yet. After three searches the chat offers no tools, every call allows 4,096 output tokens, an answer cut off at that limit ends with an error, and the prompt is version 2. Local checks on 2026-10-17: `verify` and `test:integration` pass.
 - **Unverified:**
-  - The new prompt hasn't met the real model. After the merge, on staging: "Draft the first section" should search, then draft Introduction / Overview without asking anything first, each statement with quotes that appear in the transcripts, and end by asking to confirm before Goals / Objectives. "Users asked for grocery delivery, add it" should get a plain answer that none of the six interviews says so, with no interview cited.
-  - The prompt is about 1,550 tokens (four characters a token), up from about 190, and every model call sends it: about 2,700 more input tokens for a two-call answer, which is still under the 6,000 input tokens the estimate of about 70 answers a day assumed. The quality check (slice 9) prints the real neurons per answer, and so how many answers the daily 10,000 last.
+  - The fix hasn't met the real model. After the merge, rerun the staging check. "Draft the first section" should draft Introduction / Overview without asking anything first, each statement with quotes that appear in the transcripts, and end by asking to confirm before Goals / Objectives; Vercel should log at most four model calls for it. "Users asked for grocery delivery, add it" should get a plain answer that none of the six interviews says so, with no interview cited.
+  - Cloudflare's schema allows the last call without tools after tool calls in the conversation, but only staging shows how gpt-oss handles it.
+  - Tokens: a section draft with three searches makes four model calls. By the staging numbers that's about 8,500 input tokens, some 10,000 with the reply, above the 6,000 input and 1,000 output a turn behind the estimate of about 70 answers a day. The quality check (slice 9) prints the real neurons per answer; KI-1 is the main lever.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-  - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
-- **Next:** the owner pushes the branch and merges its pull request (rebase merge), then runs the staging check above. Then slice 5, *Save sections with the citation check*, on a new branch from an up-to-date `main`; it changes the prompt, so the prompt gets version 2. The legal basis is due by slice 8.
-- **Waiting on the owner:** pushing `feat/system-prompt-from-toolkit` and merging its pull request, then the staging check.
+  - KI-1: every model call sends earlier passages again. Slice 5 decides how older passages reach the model.
+- **Next:** the owner pushes `fix/finish-section-drafts`, merges its pull request (rebase merge) and reruns the staging check above. Then slice 5, *Save sections with the citation check*, on a new branch from an up-to-date `main`; it changes the prompt again, so the prompt gets version 3. The legal basis is due by slice 8.
+- **Waiting on the owner:** pushing and merging `fix/finish-section-drafts`, then the staging check.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -31,7 +32,7 @@
 
 ### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: done (d01eb3a)
 
-### 4 · System prompt from the toolkit · risk: normal · status: done (01eb723)
+### 4 · System prompt from the toolkit · risk: normal · status: done (197c29d, with fix 419bfea)
 
 ### 5 · Save sections with the citation check · risk: normal · status: todo
 - **Goal:** the model saves each drafted section, and the app's code checks every quote before the visitor sees it.
