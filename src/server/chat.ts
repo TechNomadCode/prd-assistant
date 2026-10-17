@@ -208,9 +208,12 @@ export function streamAnswer(
   const { model, search } = dependencies ?? connect();
   const tools = createTools(search);
   const steps: LanguageModelUsage[] = [];
+  let lastFinishReason: string | undefined;
 
   return createUIMessageStream<ChatMessage>({
     async execute({ writer }) {
+      let answered = false;
+      let failed = false;
       try {
         const result = streamText({
           model,
@@ -222,8 +225,9 @@ export function streamAnswer(
           tools,
           stopWhen: isStepCount(MAX_STEPS),
           abortSignal,
-          onStepEnd: ({ usage }) => {
+          onStepEnd: ({ usage, finishReason }) => {
             steps.push(usage);
+            lastFinishReason = finishReason;
           },
           // Errors the provider reports; the stream carries on to its end.
           onError: ({ error }) => {
@@ -238,7 +242,18 @@ export function streamAnswer(
           sendReasoning: false,
           onError: describeError,
         })) {
+          if (chunk.type === "text-delta" && chunk.delta !== "")
+            answered = true;
+          if (chunk.type === "error") failed = true;
           writer.write(chunk);
+        }
+        // A model can stop after only reasoning. Without this, the visitor
+        // would see nothing at all, not even an error.
+        if (!answered && !failed) {
+          console.error(
+            `The chat model ended without an answer: finish reason ${lastFinishReason ?? "unknown"}.`,
+          );
+          writer.write({ type: "error", errorText: NO_ANSWER });
         }
       } finally {
         // Here rather than in `onEnd`, which doesn't run when a stream breaks.
@@ -252,6 +267,8 @@ export function streamAnswer(
     },
   });
 }
+
+const NO_ANSWER = "The assistant ended without an answer.";
 
 /** What the visitor sees when something fails: plain words, no internals. */
 function describeError(error: unknown): string {

@@ -12,6 +12,7 @@ Versions: `ai` 7.0.143, `@ai-sdk/openai-compatible` 3.0.71 and `@ai-sdk/react` 4
   - A provider error, before the first word or partway, arrives as an error part: `streamText`'s `onError` logs it, and the stream carries on to its end.
   - A broken stream throws instead. `createUIMessageStream` catches it in `execute` and writes an error chunk; its `onError` logs it.
   - `toUIMessageStream`'s `onError` writes the text the browser sees, for stream errors and for tool errors. Only our own plain messages pass; anything else becomes one generic sentence.
+  - An answer with no text and no error (a model that only reasoned, then stopped) gets an error chunk and a logged finish reason, so the visitor sees the error and "Try again" instead of nothing.
 - **Tool errors:** the model gets the thrown error's message, so a refused query (`SearchQueryError`) lets it try again. Any other search failure is logged and replaced by `SearchFailedError`, so neither the model nor the browser sees internals.
 - **Token usage:** `onEnd` doesn't run when a stream breaks, and after a failed call it reports only that call. So `onStepEnd` collects each finished call's usage, and the `finally` in `execute` logs the sum once per answer.
 - **Retries:** the SDK retries a retryable provider error twice by default (`maxRetries`). The fake's failures are not retryable, or the retry would hide them.
@@ -19,7 +20,8 @@ Versions: `ai` 7.0.143, `@ai-sdk/openai-compatible` 3.0.71 and `@ai-sdk/react` 4
 
 ## Cloudflare Workers AI (`ai/cloudflare.ts`)
 - **Endpoint:** `createOpenAICompatible` with `baseURL` `https://api.cloudflare.com/client/v4/accounts/<account ID>/ai/v1` and the token as `apiKey` (sent as `Authorization: Bearer`). Chat goes to `/chat/completions` (`chatModel`), embeddings to `/embeddings` (`embeddingModel`). Settings: `CLOUDFLARE_ACCOUNT_ID` (32 hexadecimal characters, checked in `env.ts`) and `CLOUDFLARE_API_TOKEN`.
-- **`includeUsage: true`** is required: without it, a streamed answer reports no tokens.
+- **Whole replies for chat:** streamed, Cloudflare sends gpt-oss's tool call as `reasoning_content` text (the bare JSON arguments, no tool name, no `tool_calls`) and ends with `finish_reason: "stop"`, so the search never runs (staging, 2026-10-17; raw stream in `docs/plan.md` history). Whole replies carry proper `tool_calls`, as the owner's first test showed. `createCloudflareChatModel` wraps the model in `simulateStreamingMiddleware` (https://ai-sdk.dev/docs/reference/ai-sdk-core/simulate-streaming-middleware), so `streamText` still works and each reply arrives in one piece. Cloudflare's own `workers-ai-provider` 4.0.0 also falls back to non-streaming for gpt-oss. Recheck before streaming again.
+- **`includeUsage: true`** makes streamed replies report tokens; kept for when streaming returns.
 - **No token count for embeddings:** on staging (2026-10-17) Cloudflare's `/embeddings` reply had no `usage`, and the AI SDK then reports `NaN` tokens. `cloudflare-embedder.ts` logs "Cloudflare reported no token count" instead.
 - **Embedding batches:** Cloudflare's bge models take at most 100 texts a call; the package would send 2,048, so `cloudflare-embedder.ts` splits them.
 - **512 input tokens:** the docs don't say whether a longer text is refused or cut. `ai/embedding-input.ts` bounds the tokens without a tokenizer (lowercase, remove accents, count non-space characters, add the two markers) and refuses any text over 512 before a call. The loader names every passage over the bound and loads nothing.

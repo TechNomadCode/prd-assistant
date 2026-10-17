@@ -1,6 +1,7 @@
-import { streamText } from "ai";
+import { streamText, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createCloudflare } from "@/server/ai/cloudflare";
+import { z } from "zod";
+import { createCloudflareChatModel } from "@/server/ai/cloudflare";
 import { createCloudflareEmbedder } from "@/server/ai/cloudflare-embedder";
 import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
 
@@ -149,51 +150,86 @@ describe("the Cloudflare embedder", () => {
   });
 });
 
-/** A streamed chat completion: one word, then the token count. */
-function chatStreamReply() {
-  const chunk = (value: object) => `data: ${JSON.stringify(value)}\n\n`;
-  const base = { id: "c1", object: "chat.completion.chunk", created: 0 };
-  return new Response(
-    chunk({
-      ...base,
+/** A whole chat completion, as Cloudflare returns it without streaming. */
+function chatReply(message: object, finishReason: string) {
+  return () =>
+    Response.json({
+      id: "c1",
+      object: "chat.completion",
+      created: 0,
       model: CHAT_MODEL,
-      choices: [
-        {
-          index: 0,
-          delta: { role: "assistant", content: "Hello" },
-          finish_reason: null,
-        },
-      ],
-    }) +
-      chunk({
-        ...base,
-        model: CHAT_MODEL,
-        choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-        usage: { prompt_tokens: 12, completion_tokens: 1, total_tokens: 13 },
-      }) +
-      "data: [DONE]\n\n",
-    { headers: { "content-type": "text/event-stream" } },
-  );
+      choices: [{ index: 0, message, finish_reason: finishReason }],
+      usage: { prompt_tokens: 344, completion_tokens: 30, total_tokens: 374 },
+    });
 }
 
+function chatModel(reply: () => Response) {
+  const { sent, fetch } = recordingFetch(reply);
+  const model = createCloudflareChatModel({
+    accountId: ACCOUNT,
+    apiToken: "test",
+    fetch,
+  });
+  return { sent, model };
+}
+
+// Cloudflare streams gpt-oss's tool calls as reasoning text, without the
+// tool's name, and ends with "stop" (seen on staging, 2026-10-17). Whole
+// replies carry proper tool calls, so the chat model asks for those.
 describe("the Cloudflare chat model", () => {
-  it("streams from the account's endpoint and reports the tokens", async () => {
-    const { sent, fetch } = recordingFetch(chatStreamReply);
-    const model = createCloudflare({
-      accountId: ACCOUNT,
-      apiToken: "test",
-      fetch,
-    }).chatModel(CHAT_MODEL);
+  it("asks for a whole reply, never a stream, and passes on its text and tokens", async () => {
+    const { sent, model } = chatModel(
+      chatReply({ role: "assistant", content: "Hello" }, "stop"),
+    );
 
     const result = streamText({ model, prompt: "Hi" });
 
     expect(await result.text).toBe("Hello");
-    expect((await result.usage).totalTokens).toBe(13);
+    expect((await result.usage).totalTokens).toBe(374);
+    expect(sent).toHaveLength(1);
     expect(sent[0]?.url).toBe(`${BASE}/chat/completions`);
-    expect(sent[0]?.body).toMatchObject({
-      model: CHAT_MODEL,
-      stream: true,
-      stream_options: { include_usage: true },
+    expect(sent[0]?.body).toMatchObject({ model: CHAT_MODEL });
+    expect(sent[0]?.body.stream).not.toBe(true);
+  });
+
+  it("passes on the search a reply asks for as a tool call", async () => {
+    const { model } = chatModel(
+      chatReply(
+        {
+          role: "assistant",
+          content: null,
+          reasoning_content: "We need to search.",
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: {
+                name: "searchNotes",
+                arguments: '{"query":"notification for every new item"}',
+              },
+            },
+          ],
+        },
+        "tool_calls",
+      ),
+    );
+
+    const result = streamText({
+      model,
+      prompt: "Who wants a notification for every item someone adds?",
+      tools: {
+        searchNotes: tool({
+          inputSchema: z.object({ query: z.string() }),
+        }),
+      },
     });
+
+    expect(await result.toolCalls).toEqual([
+      expect.objectContaining({
+        toolName: "searchNotes",
+        input: { query: "notification for every new item" },
+      }),
+    ]);
+    expect(await result.finishReason).toBe("tool-calls");
   });
 });

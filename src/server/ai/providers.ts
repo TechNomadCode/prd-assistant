@@ -1,10 +1,12 @@
-import { createCloudflare, type CloudflareSettings } from "./cloudflare.ts";
+import {
+  createCloudflareChatModel,
+  type CloudflareSettings,
+} from "./cloudflare.ts";
 import { createCloudflareEmbedder } from "./cloudflare-embedder.ts";
 import type { ChatModel } from "./chat-model.ts";
 import type { Embedder } from "./embedder.ts";
 import { createFakeChatModel } from "./fake-chat-model.ts";
 import { createFakeEmbedder } from "./fake-embedder.ts";
-import { CHAT_MODEL } from "./models.ts";
 
 // AI_PROVIDER picks the implementation: "fake" on development machines and in
 // CI, "cloudflare" on staging and production. Anything else is an error, so a
@@ -35,9 +37,7 @@ export function createChatModel(settings: ProviderSettings): ChatModel {
     case "fake":
       return createFakeChatModel();
     case "cloudflare":
-      return createCloudflare(requireCloudflare(settings)).chatModel(
-        CHAT_MODEL,
-      );
+      return createCloudflareChatModel(requireCloudflare(settings));
     default:
       throw unknownProvider(settings.provider);
   }
