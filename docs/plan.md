@@ -3,14 +3,14 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, is merged into `main` (2ddd70b, 2c50299), with two fixes from the staging check (78fca33, d6e3e39): the embedding log says "Cloudflare reported no token count" instead of NaN, and the chat model asks for whole replies. A third fix is on `fix/cloudflare-tool-call-content`.
+- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, is done and checked on staging (2ddd70b, 2c50299, with fixes 78fca33, d6e3e39, d01eb3a). On 2026-10-17 staging answered "Who wants a notification for every item someone adds?" with a search that found Maya, Sofia, Daan, Henk and Ravi by meaning, and an answer quoting Maya and Henk word for word. Vercel logged "Chat answer: 1381 tokens (1168 input, 213 output) in 2 model calls to @cf/openai/gpt-oss-20b". The loader re-embedded all 42 passages. Cloudflare quirks found on staging (gpt-oss tool calls only in whole replies, no `content: null`, no token count for embeddings) are in `src/server/AGENTS.md`.
 - **Unverified:**
-  - The chat on staging. First it gave an empty answer: streamed, Cloudflare sends gpt-oss's tool call as reasoning text, so the chat model now asks for whole replies (`simulateStreamingMiddleware`), and an answer with no text ends with the plain error. With that deployed (2026-10-17), the search ran and found Maya, Sofia, Daan, Henk and Ravi by meaning, but the follow-up got 400, code 5006: Cloudflare refuses `content: null` on the assistant's tool-call message. Fixed on `fix/cloudflare-tool-call-content` by sending `""` (`withTextContent`). Unseen: a written answer after a search, and the token line with 2 model calls.
+  - Neurons per answer, and so how many answers the daily 10,000 last; the quality check (slice 9) prints them.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
   - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
-- **Next:** the owner pushes `fix/cloudflare-tool-call-content`, merges it, and repeats the staging check: ask "Who wants a notification for every item someone adds?", open the search line, and find "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. After that, slice 4, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
-- **Waiting on the owner:** the push and merge of `fix/cloudflare-tool-call-content`, then the staging check.
+- **Next:** slice 4, *System prompt from the toolkit*, on a new branch from an up-to-date `main`. First get `1-user-research/research-to-prd.md` from the toolkit repository (*Deferred*, due now): ask the owner for it or its link. The legal basis is due by slice 8.
+- **Waiting on the owner:** `research-to-prd.md` from the toolkit repository, at the start of slice 4.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -28,15 +28,7 @@
 
 ### 3 · Chat that searches the interviews · risk: normal · status: done (1798fed)
 
-### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: merged (2c50299), staging chat check pending
-- **Goal:** the chat and the search run on Cloudflare Workers AI's free plan instead of Mistral, whose free plan refused API keys (`docs/records/ai-provider-research-2026-10-17.md`).
-- **Acceptance:**
-  - Approved by the owner on 2026-10-17 and recorded in `docs/decisions.md`.
-  - Chat runs on `@cf/openai/gpt-oss-20b` and embeddings on `@cf/baai/bge-large-en-v1.5` (1,024 numbers, so the vector column stays), through Cloudflare's OpenAI-compatible endpoint. The fakes stay for local runs and CI, and the guard refuses Cloudflare's settings on this machine as it refuses Mistral's.
-  - Every passage longer than the embedding model's 512-token input is found and handled, never silently cut.
-  - The loader re-embeds every passage on staging, since the model is part of each passage's hash.
-  - The README's setup steps, the secrets table and `.github/workflows/` name Cloudflare's account ID and token instead of the Mistral key; the owner approves the workflow change.
-  - On staging the chat answers with a search line, and Vercel's logs show the token line for `gpt-oss-20b`.
+### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: done (d01eb3a)
 
 ### 4 · System prompt from the toolkit · risk: normal · status: todo
 - **Goal:** the assistant works like the toolkit's PRD prompt, grounded in the interviews.
