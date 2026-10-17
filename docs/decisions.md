@@ -17,3 +17,4 @@ Decisions that shape the app, one line each: `YYYY-MM-DD · decision · conseque
 
 ## Deferred
 <!-- YYYY-MM-DD · what · decide by <when> · affects <what> -->
+- 2026-10-17 · Get `1-user-research/research-to-prd.md` from the toolkit repository (only `prd.md` was copied) for its traceability rules · decide by the system-prompt slice in stage 4 · affects the app's system prompt
