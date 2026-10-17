@@ -12,8 +12,10 @@ Every feature gets a test in each layer it touches. A bug fix starts with a test
 
 ## Fixtures and fakes
 - **Fixtures are deterministic.** Unit tests build their own small data inline. Integration and end-to-end tests use the sample notes in `notes/`, which `db:start`, `db:reset` and `notes:load` put in the database. Every test leaves the database holding exactly those notes.
-- **Fakes sit only at external boundaries.** That means the AI provider: the fake embedder (`src/server/ai/fake-embedder.ts`). The database is real in integration tests, never mocked.
+- **Fakes sit only at external boundaries.** That means the AI provider: the fake embedder (`src/server/ai/fake-embedder.ts`) and the fake chat model (`src/server/ai/fake-chat-model.ts`). The database is real in integration tests, never mocked.
 - **The fake embedder counts shared words,** without stemming or synonyms ("notification" and "notifications" are different words to it). A search test's question uses the words of the passages it expects; search by meaning can only be checked on staging.
+- **The fake chat model follows a script:** it searches with the visitor's whole message, then quotes the closest passage. A message containing `FAKE_FAILURES.beforeAnswering` or `FAKE_FAILURES.partway` makes it fail once, so a retry succeeds. Its memory of failed messages lasts as long as the server, so an end-to-end test adds `testInfo.testId` to its message. Unit tests pass their own `failedMessages` and `chunkDelayInMs: 0`.
+- **Next.js renders its own empty `role="alert"`** (the route announcer) on every page. Scope alert lookups to the part of the page under test.
 - **`server-only`:** Vitest maps it to an empty module (`vitest.config.ts`), so tests can import server code.
 
 ## Writing tests
