@@ -90,7 +90,18 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      search_passages: {
+        Args: { match_count: number; query_embedding: string };
+        Returns: {
+          answer: string;
+          distance: number;
+          id: number;
+          participant: string;
+          position: number;
+          question: string;
+          slug: string;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;
