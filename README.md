@@ -108,21 +108,21 @@ Do this twice: first for `prd-assistant-staging`, then for `prd-assistant-produc
 2. The project's Postgres version must be 17, matching `supabase/config.toml`.
 3. Click **Connect** at the top of the page and choose **Session pooler**. Copy the address and put your password where it says `[YOUR-PASSWORD]`. This is `SUPABASE_DB_URL`.
 4. From the same **Connect** dialog, copy the project URL (`SUPABASE_URL`) and the publishable key (`SUPABASE_PUBLISHABLE_KEY`).
-5. Under **Settings → API Keys**, create a secret key and copy it (`SUPABASE_SECRET_KEY`).
+5. Under **Settings → API Keys**, on the **Publishable and secret API keys** tab, copy the secret key named `default` (`SUPABASE_SECRET_KEY`). Every new project starts with one (https://supabase.com/docs/guides/getting-started/api-keys).
 
 ### 3. Vercel, two projects
 
-Do this before merging the first pull request. First for `prd-assistant-staging`, then for `prd-assistant`.
+First for `prd-assistant-staging`, then for `prd-assistant`.
 
 1. At https://vercel.com, select **Add New… → Project** and import `TechNomadCode/prd-assistant`. Name it `prd-assistant-staging` and deploy.
-   - The first build fails or shows nothing, because `main` has no app yet. That's expected.
+   - The first build may fail, because the variables aren't there yet. That's expected: from step 2 on, only GitHub Actions deploys.
 2. Open **Settings → Git** and select **Disconnect**. From now on, only GitHub Actions deploys.
 3. Under **Settings → Environment Variables**, add these to the **Production** environment only, leaving Preview and Development empty:
    - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `AI_PROVIDER` = `mistral`, as **Config**.
    - `MISTRAL_API_KEY`, as **Secret**. The production project gets this one at launch.
-4. For staging only, under **Settings → Deployment Protection**, turn on **Vercel Authentication** for all deployments. Then only you can open staging, and strangers can't use up the free AI quota.
+4. For staging only, under **Settings → Deployment Protection**, turn on **Vercel Authentication** and choose **All Deployments**, not Standard Protection, which leaves the main address public. All Deployments is available on every plan (https://vercel.com/docs/security/deployment-protection). Then only you can open staging, and strangers can't use up the free AI quota.
 5. Note the **Project ID** from **Settings → General**, and the **Team ID** from your team's **Settings → General**.
-6. On https://vercel.com/account/tokens, create a token:
+6. Switch the scope selector at the top left to your personal account, then on https://vercel.com/account/tokens create a token (https://vercel.com/docs/accounts/access-tokens):
    - Under **Scope**, choose your team and then this one project.
    - Set an expiry date.
    - Copy the token. This is that environment's `VERCEL_TOKEN`.
