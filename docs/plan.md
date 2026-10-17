@@ -3,16 +3,19 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 4, *System prompt from the toolkit*, is merged (197c29d), but its staging check on 2026-10-17 failed. Asked for the first section, gpt-oss either searched five times and had no model calls left for the reply ("finish reason tool-calls", 11,970 tokens in 5 calls), or stopped at Cloudflare's default of 256 output tokens before writing anything ("finish reason length"). The fix is on branch `fix/finish-section-drafts` (419bfea), not pushed yet. After three searches the chat offers no tools, every call allows 4,096 output tokens, an answer cut off at that limit ends with an error, and the prompt is version 2. Local checks on 2026-10-17: `verify` and `test:integration` pass.
+- **Doing:** slice 4, *System prompt from the toolkit*, and its fix are merged (197c29d, a6e2e37). The staging check on 2026-10-17 shows the fix works, but the drafts skip several instructions (KI-2).
+  - "Draft the first section." finished in 2 model calls: 4,048 tokens, 3,401 input and 647 output.
+  - "Users asked for grocery delivery, add it." finished in 3 model calls: 8,424 tokens, 7,739 input and 685 output.
+  - Cloudflare's rates for gpt-oss-20b are 18,182 neurons per M input tokens and 27,273 per M output tokens (https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15). At those rates the two answers used about 80 and 160 of the daily 10,000 neurons, or 62 to 125 such answers a day.
+  - On gpt-oss-120b (31,818 and 68,182 neurons per M), the same tokens would cost about 150 and 290 neurons, or 34 to 65 answers a day.
 - **Unverified:**
-  - The fix hasn't met the real model. After the merge, rerun the staging check. "Draft the first section" should draft Introduction / Overview without asking anything first, each statement with quotes that appear in the transcripts, and end by asking to confirm before Goals / Objectives; Vercel should log at most four model calls for it. "Users asked for grocery delivery, add it" should get a plain answer that none of the six interviews says so, with no interview cited.
-  - Cloudflare's schema allows the last call without tools after tool calls in the conversation, but only staging shows how gpt-oss handles it.
-  - Tokens: a section draft with three searches makes four model calls. By the staging numbers that's about 8,500 input tokens, some 10,000 with the reply, above the 6,000 input and 1,000 output a turn behind the estimate of about 70 answers a day. The quality check (slice 9) prints the real neurons per answer; KI-1 is the main lever.
+  - Whether gpt-oss-20b follows its instructions once sections come through a tool that requires quotes (slice 5), or the stronger gpt-oss-120b is needed. The quality check (slice 9) decides.
+  - The last call without tools after three searches hasn't happened on staging yet: both answers searched fewer than three times. Cloudflare's schema allows it.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
   - KI-1: every model call sends earlier passages again. Slice 5 decides how older passages reach the model.
-- **Next:** the owner pushes `fix/finish-section-drafts`, merges its pull request (rebase merge) and reruns the staging check above. Then slice 5, *Save sections with the citation check*, on a new branch from an up-to-date `main`; it changes the prompt again, so the prompt gets version 3. The legal basis is due by slice 8.
-- **Waiting on the owner:** pushing and merging `fix/finish-section-drafts`, then the staging check.
+- **Next:** the owner chooses between building slice 5 on gpt-oss-20b, with the quality check deciding the model later (recommended), and first trying gpt-oss-120b on staging with the same two messages. Then slice 5, *Save sections with the citation check*, on a new branch from an up-to-date `main`; the prompt gets version 3. The legal basis is due by slice 8.
+- **Waiting on the owner:** that choice.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -32,7 +35,7 @@
 
 ### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: done (d01eb3a)
 
-### 4 · System prompt from the toolkit · risk: normal · status: done (197c29d, with fix 419bfea)
+### 4 · System prompt from the toolkit · risk: normal · status: done (197c29d, with fix a6e2e37)
 
 ### 5 · Save sections with the citation check · risk: normal · status: todo
 - **Goal:** the model saves each drafted section, and the app's code checks every quote before the visitor sees it.
