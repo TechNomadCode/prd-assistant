@@ -3,7 +3,7 @@
 Decisions that shape the app, one line each: `YYYY-MM-DD · decision · consequence`. When a decision changes, replace its line; Git keeps the old one. Agents read the section their task touches.
 
 ## Design
-- 2026-10-17 · White and black colour scheme. Not allowed: cream or off-white backgrounds, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons · Feeds the PRD's Design Considerations and every UI piece
+- 2026-10-17 · Black and white colour scheme: black dominant (main backgrounds and large surfaces), white in support (text, lines, accents). Not allowed: cream or off-white backgrounds, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons · Feeds the PRD's Design Considerations and every UI piece
 
 ## Environments and accounts
 - <date> · Development uses a local database and fake providers; staging and production are separate Supabase projects; hosted credentials never sit on a development machine · Agents can't reach hosted systems, and production changes run only from the production workflow
