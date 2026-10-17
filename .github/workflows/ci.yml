@@ -63,9 +63,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # Starts the local stack and loads the sample notes into it.
       - run: npm run db:start
       - run: npm run env:local
-      - run: npm run notes:load
       # Playwright builds the app, starts it, and stops it when the tests end.
       - run: npm run test:e2e
       - name: Keep the test report

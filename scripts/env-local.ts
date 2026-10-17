@@ -2,9 +2,8 @@
 // local keys and the fake adapter, nothing else. It refuses to overwrite an
 // .env.local it didn't write, so hand-made settings are never lost.
 
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { checkEnvironment } from "../src/lib/env-guard.ts";
+import { readLocalStack } from "./local-stack.ts";
 
 const FILE = ".env.local";
 const MARKER = "# Written by `npm run env:local`";
@@ -17,44 +16,19 @@ if (existsSync(FILE) && !readFileSync(FILE, "utf8").startsWith(MARKER)) {
   process.exit(1);
 }
 
-let status: Record<string, string>;
+let stack;
 try {
-  status = JSON.parse(
-    execSync("npx supabase status -o json", {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }),
-  );
-} catch {
-  console.error(
-    "The local database isn't running. Start it with `npm run db:start`, then try again.",
-  );
+  stack = readLocalStack();
+} catch (error) {
+  console.error((error as Error).message);
   process.exit(1);
 }
 
 const values = {
-  SUPABASE_URL: status.API_URL,
-  SUPABASE_PUBLISHABLE_KEY: status.PUBLISHABLE_KEY,
-  SUPABASE_SECRET_KEY: status.SECRET_KEY,
+  ...stack,
   AI_PROVIDER: "fake",
   SITE_URL: "http://localhost:3000",
 };
-
-const missing = Object.entries(values).filter(([, value]) => !value);
-if (missing.length > 0) {
-  console.error(
-    `\`supabase status\` didn't report: ${missing.map(([key]) => key).join(", ")}.`,
-  );
-  process.exit(1);
-}
-
-const problems = checkEnvironment([{ name: "supabase status", values }]);
-if (problems.length > 0) {
-  console.error(
-    "`supabase status` reported non-local values; nothing was written.",
-  );
-  process.exit(1);
-}
 
 writeFileSync(
   FILE,
