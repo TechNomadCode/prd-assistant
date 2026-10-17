@@ -27,9 +27,11 @@ export default function HomePage() {
           actually said, and the app&apos;s own code checks each quote.
         </p>
         <p className="leading-relaxed text-muted-foreground">
-          For now, ask the assistant about the interviews. It searches them
-          before it answers, and each search shows as a line that opens to the
-          passages it found. Drafting the document comes next.
+          Ask the assistant to draft the first section, or ask about the
+          interviews. It searches them before it writes, and each search shows
+          as a line that opens to the passages it found. Every quote in a saved
+          section is checked by the app&apos;s own code, and the result shows
+          next to it.
         </p>
         <Link
           href="/transcripts"

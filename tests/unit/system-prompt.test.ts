@@ -2,6 +2,7 @@ import { hash } from "node:crypto";
 import type { UIMessageChunk } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat";
+import { PRD_SECTIONS } from "@/lib/prd";
 import type { PassageMatch } from "@/lib/transcripts";
 import type { ChatModel, ChatModelCall } from "@/server/ai/chat-model";
 import { createFakeChatModel } from "@/server/ai/fake-chat-model";
@@ -17,6 +18,7 @@ import { SYSTEM_PROMPT } from "@/server/prompts/system-prompt";
 const FINGERPRINTS: Record<number, string> = {
   1: "a5d28c00292aef393496cc673ae2af2d5737b691f71450c8b205c2e7d9c6154b",
   2: "3bf468b79076e61f45234366ca73c0ecde2a5e6bdd9e95f28485bb66d0f89ddc",
+  3: "1e63f29249cc4026273f1e385b150d1aea8e660476a3a2efe96357ceeb725804",
 };
 
 /** The toolkit template's nine sections, in its order. */
@@ -88,13 +90,24 @@ describe("the system prompt", () => {
 
     const chunks = await chunksOf(
       streamAnswer(messages, {
-        dependencies: { model, search: async () => [HENK] },
+        dependencies: {
+          model,
+          search: async () => [HENK],
+          findPassages: async () => [
+            {
+              passage: "henk-4",
+              participant: HENK.participant,
+              question: HENK.question,
+              answer: HENK.answer,
+            },
+          ],
+        },
       }),
     );
 
     expect(chunks.some((chunk) => chunk.type === "error")).toBe(false);
-    // The search, then the reply.
-    expect(calls).toHaveLength(2);
+    // The search, the save, then the reply.
+    expect(calls).toHaveLength(3);
     for (const call of calls) {
       expect(call.prompt[0]).toEqual({
         role: "system",
@@ -180,7 +193,23 @@ describe("the system prompt", () => {
       'When interviewees disagree, state each view as its own statement with its own citations, then add a statement that starts with "Open question:"',
     ],
     ["never invent", "Never invent interviewees, quotes, numbers or findings."],
+    [
+      "save every section with saveSection",
+      "Save every section you draft with saveSection, never as text in your reply",
+    ],
+    [
+      "say what the check found, then check in",
+      "your reply says in a sentence or two what the check found, then checks in (rule 8)",
+    ],
+    [
+      "earlier searches show only ids, so search again to quote",
+      "Searches from your earlier replies show only each passage's id and interviewee. To quote one of those passages again, search for it again.",
+    ],
   ])("has the rule: %s", (_, rule) => {
     expect(SYSTEM_PROMPT.text).toContain(rule);
+  });
+
+  it("names the same nine sections that saveSection takes", () => {
+    expect(PRD_SECTIONS).toEqual(SECTIONS);
   });
 });

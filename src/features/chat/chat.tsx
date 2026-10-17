@@ -81,7 +81,7 @@ export function Chat() {
             rows={3}
             maxLength={MAX_MESSAGE_LENGTH}
             aria-describedby="chat-notice"
-            placeholder="Ask about the interviews, for example: who wants a notification for every new item?"
+            placeholder="For example: draft the first section, or ask who wants a notification for every new item."
             className="min-h-24 w-full resize-y rounded-(--radius-control) border border-border-strong bg-background px-3 py-2 leading-relaxed text-foreground placeholder:text-muted-foreground"
           />
           <Button type="submit" disabled={!canSend}>
