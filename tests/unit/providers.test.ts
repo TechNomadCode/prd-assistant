@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { EMBEDDING_MODEL } from "@/server/ai/models";
-import { createEmbedder } from "@/server/ai/providers";
-import { readLoaderEnv } from "@/server/env";
+import { FAKE_CHAT_MODEL } from "@/server/ai/fake-chat-model";
+import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
+import { createChatModel, createEmbedder } from "@/server/ai/providers";
+import { readChatEnv, readLoaderEnv } from "@/server/env";
 
 describe("choosing the AI adapter", () => {
   it("uses the fake embedder for AI_PROVIDER=fake", () => {
@@ -40,5 +41,39 @@ describe("choosing the AI adapter", () => {
         AI_PROVIDER: "openai",
       }),
     ).toThrow(/AI_PROVIDER/);
+  });
+});
+
+describe("choosing the chat model", () => {
+  it("uses the scripted fake for AI_PROVIDER=fake", () => {
+    expect(createChatModel({ provider: "fake" }).modelId).toBe(FAKE_CHAT_MODEL);
+  });
+
+  it("uses the pinned Mistral model for AI_PROVIDER=mistral, without calling it", () => {
+    const model = createChatModel({
+      provider: "mistral",
+      mistralApiKey: "test",
+    });
+    expect(model.provider).toMatch(/^mistral/);
+    expect(model.modelId).toBe(CHAT_MODEL);
+  });
+
+  it("needs a key for Mistral", () => {
+    expect(() => createChatModel({ provider: "mistral" })).toThrow(
+      /MISTRAL_API_KEY/,
+    );
+  });
+
+  it.each([["openai"], ["Fake"], [undefined]])(
+    "rejects an unknown adapter name: %s",
+    (provider) => {
+      expect(() => createChatModel({ provider })).toThrow(
+        /Unknown AI_PROVIDER/,
+      );
+    },
+  );
+
+  it("rejects an unknown adapter name in the chat's settings", () => {
+    expect(() => readChatEnv({ AI_PROVIDER: "openai" })).toThrow(/AI_PROVIDER/);
   });
 });

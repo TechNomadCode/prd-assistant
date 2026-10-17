@@ -31,22 +31,29 @@ export function readAppEnv(env: Settings = process.env) {
   return read(appSchema, env, "the app");
 }
 
-const searchSchema = appSchema.extend({
+const aiSchema = z.object({
   AI_PROVIDER: z.enum(AI_PROVIDERS),
   MISTRAL_API_KEY: z.string().optional(),
 });
+
+/** What the chat needs: a chat model. Its search reads its own settings. */
+export function readChatEnv(env: Settings = process.env) {
+  return read(aiSchema, env, "the chat");
+}
+
+const searchSchema = appSchema.extend(aiSchema.shape);
 
 /** What the interview search needs: the read key and an embedder. */
 export function readSearchEnv(env: Settings = process.env) {
   return read(searchSchema, env, "the interview search");
 }
 
-const loaderSchema = z.object({
-  SUPABASE_URL: z.url(),
-  SUPABASE_SECRET_KEY: z.string().min(1),
-  AI_PROVIDER: z.enum(AI_PROVIDERS),
-  MISTRAL_API_KEY: z.string().optional(),
-});
+const loaderSchema = z
+  .object({
+    SUPABASE_URL: z.url(),
+    SUPABASE_SECRET_KEY: z.string().min(1),
+  })
+  .extend(aiSchema.shape);
 
 /** What the notes loader needs: the write key and an embedder. */
 export function readLoaderEnv(env: Settings = process.env) {
