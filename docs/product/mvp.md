@@ -1,6 +1,6 @@
 # MVP concept: PRD Assistant
 
-**Status:** draft for owner review, not approved · 2026-10-17
+**Status:** approved by the owner · 2026-10-17
 **Sources:** `docs/product/prd.md` (approved) and the owner's answers in `docs/decisions.md`. No UX specification; the PRD's Design Considerations section is the design brief.
 
 ---
@@ -15,7 +15,7 @@
 **Second hypothesis:** a reviewer gets a cited section, with its citations checked, within 2 minutes of opening the demo.
 - Ref: PRD Goals (first product goal) and Success Metrics (time to first cited section).
 
-**Main learning objective:** whether checking AI output in code, rather than trusting it, holds up with a free-tier model on real requests. This is what reviewers judge an AI engineering candidate on.
+**Main learning objective:** whether checking AI output in code, rather than trusting it, holds up with a free-tier model on real requests.
 
 ---
 
@@ -30,7 +30,7 @@
 
 ## Problem solved (MVP focus)
 
-An engineer looking at an AI project can't tell whether its output is grounded or invented. This MVP lets them see, within minutes, that every statement in a generated PRD section traces to a quoted passage. They can also see that the app's own code, not the model, decides which citations pass, which are unverified, and which statements cite nothing.
+An engineer looking at an AI project can't tell whether its output is grounded or invented. This MVP lets them check, within minutes, whether each statement in a generated PRD section traces to a quoted passage. They can also see that the app's own code, not the model, decides which citations pass, which are unverified, and which statements cite nothing.
 
 ---
 

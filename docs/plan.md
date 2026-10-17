@@ -2,11 +2,11 @@
 
 ## Now
 <!-- Overwritten at the end of every session. -->
-- **Stage:** 1 of 5 · Plan
-- **Doing:** PRD approved; MVP scope drafted (`docs/product/mvp.md`, status draft) from round 1 answers and three owner changes ("the chosen free model", two passing runs in a row, phone layout never cut); PRD quality check updated with the two-run rule
+- **Stage:** 2 of 5 · Decide
+- **Doing:** stage 1 done: `docs/product/prd.md` and `docs/product/mvp.md` approved; no UX spec (owner's choice)
 - **Unverified:** provider research: Gemini free tier ruled out for EEA users (confirmed in its terms); Mistral leading; 402-on-exhausted and the account-wide shared allowance are confirmed; its free limits, public-demo terms and training default are unconfirmed (see Deferred)
-- **Next:** continue the MVP scope interview from the owner's answers, draft `docs/product/mvp.md`, get approval; then set the stage to 2 of 5 · Decide
-- **Waiting on the owner:** approval of the MVP scope draft
+- **Next:** run `.kit/stages/2-decide.md`: confirm in one summary what `docs/product/` and `docs/decisions.md` already answer (anonymous visitors only, English, NL/EU, no payments/email/background jobs); settle the AI provider (owner checks Mistral's logged-in Limits page, data-sharing toggle and terms; separate Organizations for staging and production?); record the stage's Deferred items
+- **Waiting on the owner:** nothing yet
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
