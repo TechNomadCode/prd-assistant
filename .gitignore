@@ -1,0 +1,2 @@
+# Local records (evidence, reports, private logs) are never committed.
+docs/records/
