@@ -128,6 +128,53 @@ function modelReplying(...replies: Array<ChatModelStreamPart[] | Error>) {
   return { model, calls };
 }
 
+/**
+ * A model that searches whenever it's offered the search, and replies only
+ * when it isn't: gpt-oss on staging searched five times for one section.
+ */
+function modelSearchingWhileItCan() {
+  const calls: ChatModelCall[] = [];
+  const model: ChatModel = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test-model",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error("Not used: the chat streams.");
+    },
+    doStream: async (call) => {
+      calls.push(call);
+      const canSearch = (call.tools ?? []).some(
+        (tool) => tool.name === "searchNotes",
+      );
+      const parts: ChatModelStreamPart[] = canSearch
+        ? [
+            {
+              type: "tool-call",
+              toolCallId: `call-${calls.length}`,
+              toolName: "searchNotes",
+              input: JSON.stringify({ query: `topic ${calls.length}` }),
+            },
+            {
+              type: "finish",
+              finishReason: { unified: "tool-calls", raw: "tool_calls" },
+              usage: usage(100, 10),
+            },
+          ]
+        : reply("Introduction / Overview");
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            for (const part of parts) controller.enqueue(part);
+            controller.close();
+          },
+        }),
+      };
+    },
+  };
+  return { model, calls };
+}
+
 function answer(
   messages: ChatMessage[],
   model: ChatModel,
@@ -291,6 +338,24 @@ describe("answering in the chat", () => {
     );
   });
 
+  it("stops offering the search after three searches, so the model has to reply", async () => {
+    const { model, calls } = modelSearchingWhileItCan();
+    const search = vi.fn(async () => [HENK, DAAN]);
+
+    const chunks = await answer(
+      [visitor("Draft the first section.")],
+      model,
+      search,
+    );
+
+    expect(search).toHaveBeenCalledTimes(3);
+    expect(
+      calls.map((call) => (call.tools ?? []).map((tool) => tool.name)),
+    ).toEqual([["searchNotes"], ["searchNotes"], ["searchNotes"], []]);
+    expect(textIn(chunks)).toBe("Introduction / Overview");
+    expect(errorsIn(chunks)).toEqual([]);
+  });
+
   it("works end to end with the fake model, which quotes the closest passage", async () => {
     const model = createFakeChatModel({
       chunkDelayInMs: 0,
@@ -368,6 +433,29 @@ describe("when something fails", () => {
     ]);
     expect(error).toHaveBeenCalledWith("The chat model failed:", failure);
     expect(info).toHaveBeenCalledOnce();
+  });
+
+  it("ends with a plain error when the answer is cut off at the output limit, after the text that arrived", async () => {
+    const { model } = modelReplying([
+      { type: "text-start", id: "text-1" },
+      { type: "text-delta", id: "text-1", delta: "Introduction / Overview" },
+      { type: "text-end", id: "text-1" },
+      {
+        type: "finish",
+        finishReason: { unified: "length", raw: "length" },
+        usage: usage(1500, 4096),
+      },
+    ]);
+
+    const chunks = await answer([visitor("Draft the first section.")], model);
+
+    expect(textIn(chunks)).toBe("Introduction / Overview");
+    expect(errorsIn(chunks)).toEqual([
+      "The answer got too long and was cut off.",
+    ]);
+    expect(error).toHaveBeenCalledWith(
+      "The chat model's answer was cut off: finish reason length.",
+    );
   });
 
   it("ends with a plain error when the stream breaks partway, and still logs the tokens used so far", async () => {

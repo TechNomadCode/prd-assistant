@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createCloudflareChatModel } from "@/server/ai/cloudflare";
 import { createCloudflareEmbedder } from "@/server/ai/cloudflare-embedder";
 import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
+import { streamAnswer } from "@/server/chat";
 
 // The Cloudflare adapter against a recorded fetch: the requests it sends and
 // how it reads the replies. Cloudflare itself is checked on staging.
@@ -284,5 +285,72 @@ describe("the Cloudflare chat model", () => {
       content: "",
       tool_calls: [expect.objectContaining({ id: "call-1" })],
     });
+  });
+});
+
+// On staging (2026-10-17), drafting a section failed twice: gpt-oss searched
+// five times and ran out of model calls, or its reply hit Cloudflare's
+// default of 256 output tokens, which its reasoning counts against.
+describe("the chat's requests to Cloudflare", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("leave room for a whole section, and drop the search after three", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    let searches = 0;
+    // A model that searches whenever it's offered the search.
+    const { sent, model } = chatModel(() => {
+      const body = sent.at(-1)?.body ?? {};
+      if (!body.tools) {
+        return chatReply(
+          { role: "assistant", content: "Introduction / Overview" },
+          "stop",
+        )();
+      }
+      searches += 1;
+      return chatReply(
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: `call-${searches}`,
+              type: "function",
+              function: {
+                name: "searchNotes",
+                arguments: JSON.stringify({ query: `topic ${searches}` }),
+              },
+            },
+          ],
+        },
+        "tool_calls",
+      )();
+    });
+
+    let text = "";
+    for await (const chunk of streamAnswer(
+      [
+        {
+          id: "visitor-1",
+          role: "user",
+          parts: [{ type: "text", text: "Draft the first section." }],
+        },
+      ],
+      { dependencies: { model, search: async () => [] } },
+    )) {
+      if (chunk.type === "text-delta") text += chunk.delta;
+    }
+
+    expect(text).toBe("Introduction / Overview");
+    expect(sent.map((request) => request.body.max_tokens)).toEqual([
+      4096, 4096, 4096, 4096,
+    ]);
+    expect(sent.map((request) => "tools" in request.body)).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ]);
   });
 });
