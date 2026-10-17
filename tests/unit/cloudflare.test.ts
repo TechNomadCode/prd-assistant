@@ -1,5 +1,5 @@
 import { streamText } from "ai";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCloudflare } from "@/server/ai/cloudflare";
 import { createCloudflareEmbedder } from "@/server/ai/cloudflare-embedder";
 import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
@@ -106,6 +106,46 @@ describe("the Cloudflare embedder", () => {
 
     expect(await embedder.embed([])).toEqual([]);
     expect(sent).toHaveLength(0);
+  });
+
+  describe("logging the tokens", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function embedder({ reportsTokens }: { reportsTokens: boolean }) {
+      const { fetch } = recordingFetch((body) =>
+        reportsTokens
+          ? embeddingsReply(body)
+          : Response.json({ data: [{ embedding: [0, 1] }] }),
+      );
+      return createCloudflareEmbedder({
+        accountId: ACCOUNT,
+        apiToken: "test",
+        fetch,
+      });
+    }
+
+    it("logs the tokens Cloudflare reports, summed over the calls", async () => {
+      const info = vi.spyOn(console, "info").mockImplementation(() => {});
+      const texts = Array.from({ length: 101 }, (_, index) => `text ${index}`);
+
+      await embedder({ reportsTokens: true }).embed(texts);
+
+      expect(info).toHaveBeenCalledWith(
+        `Embedded 101 texts with ${EMBEDDING_MODEL}: 303 tokens.`,
+      );
+    });
+
+    it("says so when Cloudflare reports no token count, instead of NaN", async () => {
+      const info = vi.spyOn(console, "info").mockImplementation(() => {});
+
+      await embedder({ reportsTokens: false }).embed(["milk"]);
+
+      expect(info).toHaveBeenCalledWith(
+        `Embedded 1 texts with ${EMBEDDING_MODEL}: Cloudflare reported no token count.`,
+      );
+    });
   });
 });
 
