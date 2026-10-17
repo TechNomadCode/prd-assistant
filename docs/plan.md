@@ -3,10 +3,10 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 1 of 5 · Plan
-- **Doing:** PRD interview, using `docs/product/brief.md` as the braindump; round 1 answered (answers in `docs/decisions.md`). Success measures agreed: a reviewer gets a cited section within 2 minutes of opening the demo; the quality check passes every citation and lists the deliberate gap under open questions. Round 2 asked: pick a sample-notes product, drop the in-app daily cap, owner's region. Free-tier provider research running
-- **Unverified:** nothing
-- **Next:** continue the PRD interview from the round 2 answers and the provider research, then draft the PRD section by section; then ask whether a UX spec is needed (likely not: two or three screens); then the MVP scope interview
-- **Waiting on the owner:** round 2 answers
+- **Doing:** PRD drafted in one go at the owner's request (`docs/product/prd.md`, status draft); waiting for the owner's review
+- **Unverified:** provider research: Gemini free tier ruled out for EEA users (confirmed in its terms); Mistral leading but its terms, free limits and training default are unconfirmed (pages are JS-rendered)
+- **Next:** revise the PRD from the owner's review and its open questions, then mark it approved; ask whether a UX spec is needed (likely not); then the MVP scope interview (`.kit/planning/mvp-scope.md`)
+- **Waiting on the owner:** review of the PRD draft
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
