@@ -1,0 +1,143 @@
+# Production changes only when the owner starts this workflow (Actions →
+# Deploy production → Run workflow, on main). It deploys only a commit that
+# already passed CI and reached staging: migrations first, then the notes,
+# then the code, each step waiting for the one before. See
+# .github/workflows/AGENTS.md.
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit to deploy (full SHA). Empty means the latest commit on main.
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Check the commit reached staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Run this workflow on main."
+            exit 1
+          fi
+          sha="${INPUT_SHA:-$GITHUB_SHA}"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Give the full 40-character commit SHA."
+            exit 1
+          fi
+          # A successful staging run includes CI, the migrations and the deploy.
+          runs=$(gh run list -R "$GITHUB_REPOSITORY" -w deploy-staging.yml \
+            -c "$sha" -e push -b main -s success -L 1 --json databaseId --jq length)
+          if [ "$runs" != 1 ]; then
+            echo "::error::Commit $sha has no successful staging deploy. Merge it to main and wait for staging first."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    name: Migrate the production database
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      # Until launch, production has no provider key. Stop here, before the
+      # database changes, so the notes can always be loaded after a migration.
+      - name: Check for the Mistral key
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        run: |
+          if [ -z "$MISTRAL_API_KEY" ]; then
+            echo "::error::The production environment has no MISTRAL_API_KEY yet. It gets one at launch."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Show the migrations to apply
+        run: npx supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Apply the migrations
+        run: npx supabase db push --db-url "$SUPABASE_DB_URL" --yes
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+  load-notes:
+    name: Load the notes into production
+    needs: [verify, migrate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: node scripts/load-notes.ts
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AI_PROVIDER: mistral
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+  deploy:
+    name: Deploy the code to production
+    needs: [verify, load-notes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          persist-credentials: false
+      - id: deploy
+        run: |
+          url=$(npx --yes vercel@64.5.0 deploy --prod --non-interactive)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
