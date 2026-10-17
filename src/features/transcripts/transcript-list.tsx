@@ -1,4 +1,5 @@
 import { passageAnchor, type Transcript } from "@/lib/transcripts";
+import { PassageQuote } from "./passage-quote";
 
 export function TranscriptList({ transcripts }: { transcripts: Transcript[] }) {
   if (transcripts.length === 0) {
@@ -65,20 +66,11 @@ export function TranscriptList({ transcripts }: { transcripts: Transcript[] }) {
                 id={passageAnchor(transcript.slug, passage.position)}
                 className="space-y-2"
               >
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    Researcher:{" "}
-                  </span>
-                  {passage.question}
-                </p>
-                <figure className="border-l-2 border-foreground pl-4">
-                  <blockquote className="leading-relaxed whitespace-pre-line">
-                    {passage.answer}
-                  </blockquote>
-                  <figcaption className="mt-1 text-sm text-muted-foreground">
-                    {transcript.participant}
-                  </figcaption>
-                </figure>
+                <PassageQuote
+                  question={passage.question}
+                  answer={passage.answer}
+                  participant={transcript.participant}
+                />
               </li>
             ))}
           </ol>
