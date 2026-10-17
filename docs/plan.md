@@ -3,12 +3,11 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** the account setup is done (Mistral staging key, both Supabase projects, both Vercel projects, both GitHub environments with the `main` rule). The re-run of **Deploy staging** (run 39027322673, attempt 2) migrated the staging database, loaded the notes and deployed the code to https://prd-assistant-staging.vercel.app, then failed on its last line: with `--non-interactive`, `vercel deploy` prints JSON, which the workflow tried to save as the address. Fixed on branch `fix/read-vercel-deploy-address` (both deploy workflows read the address with `jq`); checked locally with jq against sample replies, actionlint 1.7.12 and `format:check`. The branch also carries this session's setup-guide corrections.
+- **Doing:** staging runs. Account setup done (Mistral staging key, both Supabase projects, both Vercel projects, both GitHub environments limited to `main`). The fix for reading Vercel's JSON reply merged as #2 (5097069); its **Deploy staging** run went green in order: CI, migrate (12:45:31–12:45:55 UTC), notes (12:46:00–12:46:31), code (12:46:35–12:47:20). https://prd-assistant-staging.vercel.app redirects to Vercel's login (checked from here, so All Deployments protection is on), and the owner saw the six interviews on `/transcripts` (hosted, staging).
 - **Unverified:**
-  - The fixed address step hasn't run on GitHub yet.
-  - The staging app hasn't been opened behind Vercel Authentication yet.
-- **Next:** the owner pushes the branch, opens a pull request and merges it once CI is green; the merge runs **Deploy staging** again, which should end green with the staging address. Then the owner opens staging and confirms the six interviews show on `/transcripts`. After that comes slice 2, *Search the interviews*, on a new branch from an up-to-date `main` (check *Deferred* first)
-- **Waiting on the owner:** pushing `fix/read-vercel-deploy-address` and the pull request.
+  - Production hasn't run; it waits for launch and its Mistral key.
+- **Next:** slice 2, *Search the interviews*, on a new branch from an up-to-date `main` (*Deferred* has nothing due for it: the legal basis is due by slice 8, `research-to-prd.md` by slice 4)
+- **Waiting on the owner:** pushing `main`, which carries only plan notes, whenever convenient; it triggers a harmless staging redeploy.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
