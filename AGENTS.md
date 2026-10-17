@@ -56,7 +56,22 @@ You lead; the owner may not be technical. Use plain language, and explain any te
 
 ## Commands
 <!-- Stage 3 fills this table and keeps it identical to package.json. -->
-Use the npm scripts, not the tools underneath them. The table appears once stage 3 is done.
+Use the npm scripts, not the tools underneath them: they run the environment guard first.
+
+| Script | What it does |
+| --- | --- |
+| `dev`, `build`, `start` | Next.js, behind the environment guard |
+| `doctor` | Checks Node, Git, Docker, the pinned Supabase CLI, gitleaks and the GitHub CLI |
+| `env:local` | Writes `.env.local` from the running local stack |
+| `db:start`, `db:stop` | Starts the local stack and loads the notes; stops it |
+| `db:reset` | Rebuilds the local database from the migrations and reloads the notes (deletes local data) |
+| `db:migration -- <name>`, `db:types` | Generates a migration from `supabase/schemas/`; regenerates the types |
+| `notes:load` | Loads `notes/` into the local database with the fake embedder |
+| `lint`, `typecheck`, `format`, `format:check` | ESLint, TypeScript, Prettier |
+| `test:unit`, `test:integration`, `test:sql`, `test:e2e` | The four test layers (`tests/AGENTS.md`) |
+| `verify` | Format check, lint, typecheck, unit tests and a production build |
+| `verify:db` | Reset, schema lint, migration and type drift, SQL tests and integration tests |
+| `verify:secrets` | gitleaks over the full Git history |
 
 ## Where things live
 
