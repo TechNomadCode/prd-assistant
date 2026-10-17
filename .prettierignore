@@ -1,0 +1,10 @@
+# Prose and records keep their hand-made layout.
+*.md
+.kit/
+.claude/
+.codex/
+
+# Generated files.
+package-lock.json
+src/server/db/database.types.ts
+supabase/migrations/
