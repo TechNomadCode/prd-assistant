@@ -41,5 +41,9 @@
 - **Extra grants in migrations:** pg-delta adds `GRANT`/`REVOKE` lines that reflect default privileges. Keep them: they make hosted databases match local.
 - **`PUBLIC` execute:** a per-schema `alter default privileges … revoke execute on functions from public` does nothing, because Postgres grants `PUBLIC` execute globally. `privileges.sql` uses the global form for that one rule. Sources: https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html and https://supabase.com/docs/guides/api/securing-your-api
 - **Vectors:** they're `extensions.vector(1024)`. The generated types show them as `string`, so send `JSON.stringify(numbers)`. Changing the embedding model changes every vector: the loader re-embeds because the model is part of each passage's hash.
+- **Vector search** (`schemas/search.sql`, the pattern from https://supabase.com/docs/guides/ai/semantic-search):
+  - `search_passages` is `security definer`, because anon can't select `embedding`. The Security Advisor warns about a definer function anon can run (lint 0028, https://supabase.com/docs/guides/observability/advisors). Here that's intended: it returns text anon can read anyway, plus distances. Enough probe vectors could recover the stored vectors from those distances, which is acceptable only because they embed public text. Never search a table of private text this way.
+  - With `set search_path = ''` (https://supabase.com/docs/guides/database/functions), write pgvector's operator as `operator(extensions.<=>)`.
+  - No vector index: at tens of passages a full comparison is exact and faster (https://github.com/pgvector/pgvector#troubleshooting). Ties are broken by `id`, so the fake embedder's equal distances come back in a fixed order.
 - **Postgres version:** `config.toml` pins Postgres 17. The hosted projects must run the same major version.
 - **Hosted migrations:** they run only from `.github/workflows/` (`supabase db push --db-url`), never from this machine.
