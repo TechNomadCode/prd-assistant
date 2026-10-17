@@ -4,15 +4,15 @@
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
 - **Doing:** the owner merged the pull request (CI green on the branch) before the accounts existed. The first **Deploy staging** run (39027322673) started at 11:04 UTC; with no GitHub environments yet, GitHub creates `staging` empty and the migrate job stops on the missing database URL, so nothing goes online. Now guiding the owner through the README setup (*Setting up staging and production*), one service at a time, asking what they see at each step and correcting the README where a click path differs. Never ask for or handle key values: the owner pastes them straight into the dashboards and their password manager.
-  1. Mistral: the staging Workspace and key (the logged-in checks are done). **In progress.**
-  2. Supabase: two Free projects in Frankfurt. Collect the session pooler URI, the project URL, and the publishable and secret keys.
+  1. Mistral: the staging Workspace and key. Done, key in the owner's password manager.
+  2. Supabase: both projects created by the owner; now checking plan, region and Postgres 17, then collecting the session pooler URI, the project URL, and the publishable and secret keys. **In progress.**
   3. Vercel: import the repo as both projects (now builds the merged app, without variables at first). Disconnect Git, add the Production variables, protect staging and create the project-scoped tokens.
   4. GitHub: the `staging` environment already exists empty after the first run, so add the `main` branch rule to it; create `production`; add the secrets and variables.
 - **Unverified:**
   - Only CI has run on GitHub; the staging jobs haven't run with real accounts.
   - The dashboard click paths come from the providers' docs and haven't been clicked through.
 - **Next:** after step 4, re-run **Actions → Deploy staging** and confirm the migrations ran before the code and the staging address shows the six interviews. Then slice 2, *Search the interviews*, on a new branch from an up-to-date `main` (check *Deferred* first)
-- **Waiting on the owner:** the Mistral staging Workspace and key.
+- **Waiting on the owner:** the Supabase checks and values for both projects.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.

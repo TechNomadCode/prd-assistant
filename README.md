@@ -108,7 +108,7 @@ Do this twice: first for `prd-assistant-staging`, then for `prd-assistant-produc
 2. The project's Postgres version must be 17, matching `supabase/config.toml`.
 3. Click **Connect** at the top of the page and choose **Session pooler**. Copy the address and put your password where it says `[YOUR-PASSWORD]`. This is `SUPABASE_DB_URL`.
 4. From the same **Connect** dialog, copy the project URL (`SUPABASE_URL`) and the publishable key (`SUPABASE_PUBLISHABLE_KEY`).
-5. Under **Settings → API Keys**, create a secret key and copy it (`SUPABASE_SECRET_KEY`).
+5. Under **Settings → API Keys**, on the **Publishable and secret API keys** tab, copy the secret key named `default` (`SUPABASE_SECRET_KEY`). Every new project starts with one (https://supabase.com/docs/guides/getting-started/api-keys).
 
 ### 3. Vercel, two projects
 
