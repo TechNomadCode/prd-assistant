@@ -2,11 +2,11 @@
 
 ## Now
 <!-- Overwritten at the end of every session. -->
-- **Stage:** 2 of 5 · Decide
-- **Doing:** AI provider settled as Mistral in Free mode (owner's reading of the Commercial Terms recorded; no Labs models); stage 2 Deferred items recorded; asked the owner to confirm the summary (anonymous visitors only, no sign-in; stores note passages with embeddings and short-lived hashed-IP counts; agent drafts the fictional interviews for owner review; English, NL/EU, no currency; no payments/email/background jobs/file storage) and the models (chat `mistral-small-2603` pinned, fallback `mistral-medium-3-5`, embeddings `mistral-embed-2312`, 1024 dimensions)
+- **Stage:** 3 of 5 · Set up
+- **Doing:** stage 2 done: `docs/decisions.md` holds the provider (Mistral Free mode, pinned models `mistral-small-2603` / fallback `mistral-medium-3-5` / `mistral-embed-2312` at 1024 dimensions), anonymous visitors, what's stored, English and NL/EU, no modules, and the Deferred items; GitHub remote `origin` added, branch renamed to `main`
 - **Unverified:** Mistral's free limits, whether the chosen models are included in Free mode, and the training setting: the owner checks them when logged in (see Deferred)
-- **Next:** write the owner's model answer into `docs/decisions.md` (External services), then set this block to 3 of 5 · Set up and open `.kit/stages/3-set-up.md`
-- **Waiting on the owner:** a yes (or changes) on the summary and the models; the logged-in Mistral checks; the first push to GitHub (`git push -u origin main`, remote already added)
+- **Next:** run `.kit/stages/3-set-up.md`: open the stage for the owner; confirm the walking skeleton named in the brief (the sample notes loaded into the database and listed on a page, starting with the agent drafting the fictional interviews for owner review); then build it
+- **Waiting on the owner:** the logged-in Mistral checks (first push to GitHub done; the owner pushes new saves with `git push` when wanted)
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
