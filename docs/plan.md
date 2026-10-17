@@ -14,8 +14,15 @@
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
   - KI-1: every model call sends earlier passages again. Slice 5 decides how older passages reach the model.
-- **Next:** the owner chooses between building slice 5 on gpt-oss-20b, with the quality check deciding the model later (recommended), and first trying gpt-oss-120b on staging with the same two messages. Then slice 5, *Save sections with the citation check*, on a new branch from an up-to-date `main`; the prompt gets version 3. The legal basis is due by slice 8.
-- **Waiting on the owner:** that choice.
+- **Next:** slice 5, *Save sections with the citation check*, on gpt-oss-20b (decided 2026-10-18), on a new branch from `main`. Local `main` holds two unpushed records, which go along with that branch. Points found while planning it:
+  - The search budget in `src/server/chat.ts` returns `activeTools: []` after three searches. `saveSection` must stay in that list, and `MAX_STEPS` needs a step for the save.
+  - The PRD panel comes in slice 6, so until then the visitor needs to see each checked section in the chat, for example as a step line that opens to its statements, like the search line.
+  - Tests that list the chat's tools, or send "Draft the first section." to the fake model, change with the new tool.
+  - Uncited statements are allowed only in Open Questions (`docs/decisions.md`, Data).
+  - The prompt gets version 3, and this slice decides KI-1.
+
+  The legal basis is due by slice 8.
+- **Waiting on the owner:** nothing.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
