@@ -2,18 +2,25 @@
 
 Decisions that shape the app, one line each: `YYYY-MM-DD · decision · consequence`. When a decision changes, replace its line; Git keeps the old one. Agents read the section their task touches.
 
+## Design
+- 2026-10-17 · White and black colour scheme. Not allowed: cream or off-white backgrounds, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons · Feeds the PRD's Design Considerations and every UI piece
+
 ## Environments and accounts
 - <date> · Development uses a local database and fake providers; staging and production are separate Supabase projects; hosted credentials never sit on a development machine · Agents can't reach hosted systems, and production changes run only from the production workflow
 
 ## Data
+- 2026-10-17 · The PRD lives in the visitor's browser and survives a reload; a "Start over" button clears it; sections change only through the chat · Every change to the PRD goes through the citation check
 
 ## Access
 
 ## External services
+- 2026-10-17 · AI provider: one free tier that covers both the chat model and embeddings and allows a public demo; choice pending a check of current docs and terms · Replaces the paid-key-with-spending-limit plan in the brief
 
 ## Money and legal
+- 2026-10-17 · No cost display and no prices file; token usage is logged per answer, and the README states how many tokens a full PRD uses · Replaces brief feature 5 (cost per answer and per PRD in the app)
 
 ## Launch
+- 2026-10-17 · The per-visitor rate limit stays; the app shows a friendly message when the provider's free quota runs out · Visitors see a clear message instead of an error
 
 ## Deferred
 <!-- YYYY-MM-DD · what · decide by <when> · affects <what> -->

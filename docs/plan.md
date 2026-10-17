@@ -3,10 +3,10 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 1 of 5 · Plan
-- **Doing:** PRD interview, using `docs/product/brief.md` as the braindump; first questions asked (success metrics, sample-notes product, PRD persistence/editing)
+- **Doing:** PRD interview, using `docs/product/brief.md` as the braindump; round 1 answered (answers in `docs/decisions.md`). Success measures agreed: a reviewer gets a cited section within 2 minutes of opening the demo; the quality check passes every citation and lists the deliberate gap under open questions. Round 2 asked: pick a sample-notes product, drop the in-app daily cap, owner's region. Free-tier provider research running
 - **Unverified:** nothing
-- **Next:** continue the PRD interview from the owner's answers; then ask whether a UX spec is needed (likely not: two or three screens); then the MVP scope interview
-- **Waiting on the owner:** answers to the first PRD questions
+- **Next:** continue the PRD interview from the round 2 answers and the provider research, then draft the PRD section by section; then ask whether a UX spec is needed (likely not: two or three screens); then the MVP scope interview
+- **Waiting on the owner:** round 2 answers
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
