@@ -1,7 +1,12 @@
 import { APICallError, type UIMessageChunk } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
-import type { PassageMatch } from "@/lib/transcripts";
+import type { CheckedSection, SectionDraft } from "@/lib/prd";
+import {
+  passageAnchor,
+  type PassageMatch,
+  type SourcePassage,
+} from "@/lib/transcripts";
 import type {
   ChatModel,
   ChatModelCall,
@@ -84,6 +89,41 @@ function searchFor(query: string): ChatModelStreamPart[] {
       usage: usage(100, 10),
     },
   ];
+}
+
+function saveDraft(
+  draft: unknown,
+  toolCallId = "save-1",
+): ChatModelStreamPart[] {
+  return [
+    {
+      type: "tool-call",
+      toolCallId,
+      toolName: "saveSection",
+      input: JSON.stringify(draft),
+    },
+    {
+      type: "finish",
+      finishReason: { unified: "tool-calls", raw: "tool_calls" },
+      usage: usage(300, 200),
+    },
+  ];
+}
+
+/** The section the answer saved, as the browser got it. */
+function savedIn(chunks: UIMessageChunk[]): CheckedSection | undefined {
+  const call = chunks.find(
+    (chunk) =>
+      chunk.type === "tool-input-available" && chunk.toolName === "saveSection",
+  );
+  const id = call?.type === "tool-input-available" ? call.toolCallId : "";
+  const saved = chunks.find(
+    (chunk) =>
+      chunk.type === "tool-output-available" && chunk.toolCallId === id,
+  );
+  return saved?.type === "tool-output-available"
+    ? (saved.output as CheckedSection)
+    : undefined;
 }
 
 function reply(text: string): ChatModelStreamPart[] {
@@ -175,12 +215,66 @@ function modelSearchingWhileItCan() {
   return { model, calls };
 }
 
+/** The passages the database holds, as the check reads them. */
+const STORED: SourcePassage[] = [HENK, DAAN].map((passage) => ({
+  passage: passageAnchor(passage.slug, passage.position),
+  participant: passage.participant,
+  question: passage.question,
+  answer: passage.answer,
+}));
+
+/**
+ * A model that takes `step` whenever it's offered the tool `whileOffered`,
+ * and writes `lastWords` once it isn't.
+ */
+function modelCallingWhileItCan(
+  whileOffered: string,
+  step: (call: number) => ChatModelStreamPart[],
+  lastWords: string,
+) {
+  const calls: ChatModelCall[] = [];
+  const model: ChatModel = {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test-model",
+    supportedUrls: {},
+    doGenerate: async () => {
+      throw new Error("Not used: the chat streams.");
+    },
+    doStream: async (call) => {
+      calls.push(call);
+      const offered = (call.tools ?? []).some(
+        (tool) => tool.name === whileOffered,
+      );
+      const parts = offered ? step(calls.length) : reply(lastWords);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            for (const part of parts) controller.enqueue(part);
+            controller.close();
+          },
+        }),
+      };
+    },
+  };
+  return { model, calls };
+}
+
 function answer(
   messages: ChatMessage[],
   model: ChatModel,
   search: ChatDependencies["search"] = async () => [HENK, DAAN],
+  findPassages: ChatDependencies["findPassages"] = async (ids) =>
+    STORED.filter((passage) => ids.includes(passage.passage)),
 ) {
-  return chunksOf(streamAnswer(messages, { dependencies: { model, search } }));
+  return chunksOf(
+    streamAnswer(messages, { dependencies: { model, search, findPassages } }),
+  );
+}
+
+/** The names of the tools each model call was offered. */
+function toolsOffered(calls: ChatModelCall[]) {
+  return calls.map((call) => (call.tools ?? []).map((tool) => tool.name));
 }
 
 let info: ReturnType<typeof vi.spyOn>;
@@ -324,7 +418,7 @@ describe("answering in the chat", () => {
     expect(conversation).toEqual([
       { role: "user", content: [{ type: "text", text: "Hi" }] },
     ]);
-    expect(calls[0]?.tools?.map((tool) => tool.name)).toEqual(["searchNotes"]);
+    expect(toolsOffered(calls)).toEqual([["searchNotes", "saveSection"]]);
   });
 
   it("logs the tokens of every model call in the answer, once", async () => {
@@ -338,7 +432,7 @@ describe("answering in the chat", () => {
     );
   });
 
-  it("stops offering the search after three searches, so the model has to reply", async () => {
+  it("stops offering the search after three searches, so the model has to save or reply", async () => {
     const { model, calls } = modelSearchingWhileItCan();
     const search = vi.fn(async () => [HENK, DAAN]);
 
@@ -349,9 +443,12 @@ describe("answering in the chat", () => {
     );
 
     expect(search).toHaveBeenCalledTimes(3);
-    expect(
-      calls.map((call) => (call.tools ?? []).map((tool) => tool.name)),
-    ).toEqual([["searchNotes"], ["searchNotes"], ["searchNotes"], []]);
+    expect(toolsOffered(calls)).toEqual([
+      ["searchNotes", "saveSection"],
+      ["searchNotes", "saveSection"],
+      ["searchNotes", "saveSection"],
+      ["saveSection"],
+    ]);
     expect(textIn(chunks)).toBe("Introduction / Overview");
     expect(errorsIn(chunks)).toEqual([]);
   });
@@ -381,6 +478,403 @@ describe("answering in the chat", () => {
         /^Chat answer: \d+ tokens \(\d+ input, \d+ output\) in 2 model calls to fake-scripted-chat\.$/,
       ),
     );
+  });
+});
+
+describe("saving a section", () => {
+  const DRAFT: SectionDraft = {
+    section: "Introduction / Overview",
+    statements: [
+      {
+        text: "Henk wants a ping for every item.",
+        citations: [{ source: "henk-4", quote: "Every single item, yes" }],
+      },
+      {
+        text: "Daan wants no ping as items come in.",
+        // Daan's words, cited as Henk's.
+        citations: [{ source: "henk-4", quote: "Not as they come in" }],
+      },
+      { text: "The app is a shared household list.", citations: [] },
+    ],
+  };
+
+  it("checks every quote in code, shows the result, and tells the model what the check found", async () => {
+    const { model, calls } = modelReplying(
+      searchFor("notifications"),
+      saveDraft(DRAFT),
+      reply("Saved. One quote didn't pass the check."),
+    );
+
+    const chunks = await answer([visitor("Draft the first section.")], model);
+
+    expect(savedIn(chunks)).toEqual({
+      section: "Introduction / Overview",
+      statements: [
+        {
+          text: "Henk wants a ping for every item.",
+          citations: [
+            {
+              source: "interview",
+              passage: "henk-4",
+              interviewee: "Henk",
+              quote: "Every single item, yes",
+              confirmed: true,
+            },
+          ],
+        },
+        {
+          text: "Daan wants no ping as items come in.",
+          citations: [
+            {
+              source: "interview",
+              passage: "henk-4",
+              interviewee: "Henk",
+              quote: "Not as they come in",
+              confirmed: false,
+            },
+          ],
+        },
+        { text: "The app is a shared household list.", citations: [] },
+      ],
+    });
+    expect(calls[2]?.prompt.at(-1)).toEqual({
+      role: "tool",
+      content: [
+        expect.objectContaining({
+          type: "tool-result",
+          toolName: "saveSection",
+          output: {
+            type: "json",
+            value: {
+              saved: "Introduction / Overview",
+              quotes: 2,
+              confirmed: 1,
+              unverified: [
+                {
+                  statement: 2,
+                  source: "henk-4",
+                  quote: "Not as they come in",
+                  problem: "These words aren't in the answer of henk-4.",
+                },
+              ],
+              citesNothing: [3],
+            },
+          },
+        }),
+      ],
+    });
+    expect(textIn(chunks)).toBe("Saved. One quote didn't pass the check.");
+    expect(errorsIn(chunks)).toEqual([]);
+  });
+
+  it("looks up only the passages the section cites", async () => {
+    const findPassages = vi.fn(async () => STORED);
+    const { model } = modelReplying(saveDraft(DRAFT), reply("Saved."));
+
+    await answer([visitor("Draft it.")], model, undefined, findPassages);
+
+    expect(findPassages).toHaveBeenCalledExactlyOnceWith(["henk-4"]);
+  });
+
+  it("checks the visitor's quotes against their own messages, never the assistant's", async () => {
+    const conversation: ChatMessage[] = [
+      visitor("Our target is 500 households in the first year.", "visitor-1"),
+      {
+        id: "assistant-1",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "Shall I set a goal of 1,000 households?" },
+        ],
+      },
+      visitor("Draft the goals.", "visitor-2"),
+    ];
+    const { model } = modelReplying(
+      saveDraft({
+        section: "Goals / Objectives",
+        statements: [
+          {
+            text: "Reach 500 households in the first year.",
+            citations: [
+              { source: "chat", quote: "500 households in the first year" },
+            ],
+          },
+          {
+            text: "Reach 1,000 households.",
+            citations: [
+              { source: "chat", quote: "a goal of 1,000 households" },
+            ],
+          },
+        ],
+      }),
+      reply("Saved."),
+    );
+
+    const chunks = await answer(conversation, model);
+
+    expect(
+      savedIn(chunks)?.statements.map((statement) => statement.citations),
+    ).toEqual([
+      [
+        {
+          source: "chat",
+          quote: "500 households in the first year",
+          confirmed: true,
+          messageId: "visitor-1",
+        },
+      ],
+      [
+        {
+          source: "chat",
+          quote: "a goal of 1,000 households",
+          confirmed: false,
+        },
+      ],
+    ]);
+  });
+
+  it("offers no tools once the section is saved, so the model replies", async () => {
+    const { model, calls } = modelReplying(
+      searchFor("the paper list"),
+      saveDraft(DRAFT),
+      reply("Does this capture it?"),
+    );
+
+    await answer([visitor("Draft the first section.")], model);
+
+    expect(toolsOffered(calls)).toEqual([
+      ["searchNotes", "saveSection"],
+      ["searchNotes", "saveSection"],
+      [],
+    ]);
+  });
+
+  it("counts a saved section as an answer, even with no words after it", async () => {
+    const { model } = modelReplying(saveDraft(DRAFT), [
+      { type: "reasoning-start", id: "thinking-1" },
+      { type: "reasoning-delta", id: "thinking-1", delta: "Done." },
+      { type: "reasoning-end", id: "thinking-1" },
+      {
+        type: "finish",
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: usage(400, 20),
+      },
+    ]);
+
+    const chunks = await answer([visitor("Draft the first section.")], model);
+
+    expect(savedIn(chunks)?.section).toBe("Introduction / Overview");
+    expect(errorsIn(chunks)).toEqual([]);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("refuses a section in the wrong form in plain words, and lets the model try once more", async () => {
+    const { model, calls } = modelCallingWhileItCan(
+      "saveSection",
+      (call) =>
+        saveDraft(
+          { section: "Executive Summary", statements: [] },
+          `save-${call}`,
+        ),
+      "I couldn't save the section.",
+    );
+
+    const chunks = await answer([visitor("Draft the first section.")], model);
+
+    const refusals = chunks.filter(
+      (chunk) => chunk.type === "tool-input-error",
+    );
+    expect(refusals).toHaveLength(2);
+    expect(refusals[0]).toMatchObject({
+      toolName: "saveSection",
+      errorText:
+        "The drafted section wasn't in the form the check reads, so it wasn't saved.",
+    });
+    // The model gets the SDK's own message, which says what to fix.
+    expect(JSON.stringify(calls[1]?.prompt.at(-1))).toContain(
+      "Invalid input for tool saveSection",
+    );
+    expect(toolsOffered(calls)).toEqual([
+      ["searchNotes", "saveSection"],
+      ["searchNotes", "saveSection"],
+      ["searchNotes"],
+    ]);
+    expect(textIn(chunks)).toBe("I couldn't save the section.");
+  });
+
+  it("offers no tools on the last call, so the answer ends in words even when the model calls a tool the chat doesn't have", async () => {
+    const { model, calls } = modelCallingWhileItCan(
+      "searchNotes",
+      (call) => [
+        {
+          type: "tool-call",
+          toolCallId: `web-${call}`,
+          toolName: "searchTheWeb",
+          input: JSON.stringify({ query: "grocery delivery" }),
+        },
+        {
+          type: "finish",
+          finishReason: { unified: "tool-calls", raw: "tool_calls" },
+          usage: usage(100, 10),
+        },
+      ],
+      "I can only search the interviews.",
+    );
+
+    const chunks = await answer([visitor("Search the web.")], model);
+
+    expect(calls).toHaveLength(6);
+    expect(toolsOffered(calls).at(-1)).toEqual([]);
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: "tool-input-error",
+        toolName: "searchTheWeb",
+        errorText: "The assistant tried a step it can't take at this point.",
+      }),
+    );
+    expect(textIn(chunks)).toBe("I can only search the interviews.");
+  });
+
+  it("shows a plain message when the cited passages can't be read, and logs the cause", async () => {
+    const cause = new Error("connect ECONNREFUSED 127.0.0.1:57321");
+    const { model, calls } = modelReplying(
+      saveDraft(DRAFT),
+      reply("The section wasn't saved."),
+    );
+
+    const chunks = await answer(
+      [visitor("Draft the first section.")],
+      model,
+      undefined,
+      () => Promise.reject(cause),
+    );
+
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: "tool-output-error",
+        errorText:
+          "The section couldn't be checked this time, so it wasn't saved.",
+      }),
+    );
+    expect(JSON.stringify(calls[1]?.prompt)).not.toContain("ECONNREFUSED");
+    expect(error).toHaveBeenCalledWith(
+      "Reading the cited passages failed:",
+      cause,
+    );
+  });
+});
+
+describe("earlier answers, as they reach the model again", () => {
+  const checked: CheckedSection = {
+    section: "Introduction / Overview",
+    statements: [
+      {
+        text: "Henk wants a ping for every item.",
+        citations: [
+          {
+            source: "interview",
+            passage: "henk-4",
+            interviewee: "Henk",
+            quote: "Every single item, yes",
+            confirmed: true,
+          },
+        ],
+      },
+    ],
+  };
+  const earlier: ChatMessage = {
+    id: "assistant-1",
+    role: "assistant",
+    parts: [
+      {
+        type: "tool-searchNotes",
+        toolCallId: "call-0",
+        state: "output-available",
+        input: { query: "pings" },
+        output: { passages: [HENK, DAAN] },
+      },
+      {
+        type: "tool-saveSection",
+        toolCallId: "save-0",
+        state: "output-available",
+        input: {
+          section: "Introduction / Overview",
+          statements: [
+            {
+              text: "Henk wants a ping for every item.",
+              citations: [
+                { source: "henk-4", quote: "Every single item, yes" },
+              ],
+            },
+          ],
+        },
+        output: checked,
+      },
+      { type: "text", text: "Does this capture it?" },
+    ],
+  };
+
+  it("show a search as passage ids and interviewees only, while this answer's own searches stay whole", async () => {
+    const { model, calls } = modelReplying(
+      searchFor("pings again"),
+      reply("Done."),
+    );
+
+    await answer(
+      [
+        visitor("Draft the first section."),
+        earlier,
+        visitor("Change it.", "visitor-2"),
+      ],
+      model,
+    );
+
+    expect(calls[0]?.prompt).toContainEqual({
+      role: "tool",
+      content: [
+        expect.objectContaining({
+          toolName: "searchNotes",
+          output: {
+            type: "json",
+            value: {
+              passages: [
+                { passage: "henk-4", interviewee: "Henk" },
+                { passage: "daan-5", interviewee: "Daan" },
+              ],
+            },
+          },
+        }),
+        expect.objectContaining({ toolName: "saveSection" }),
+      ],
+    });
+    expect(JSON.stringify(calls[0]?.prompt)).not.toContain(DAAN.answer);
+    expect(JSON.stringify(calls[1]?.prompt.at(-1))).toContain(DAAN.answer);
+  });
+
+  it("keep a saved section's statements and quotes, so the model can revise it", async () => {
+    const { model, calls } = modelReplying(reply("Here's the change."));
+
+    await answer(
+      [
+        visitor("Draft the first section."),
+        earlier,
+        visitor("Change it.", "visitor-2"),
+      ],
+      model,
+    );
+
+    expect(calls[0]?.prompt).toContainEqual({
+      role: "assistant",
+      content: expect.arrayContaining([
+        expect.objectContaining({
+          type: "tool-call",
+          toolName: "saveSection",
+          input:
+            earlier.parts[1]?.type === "tool-saveSection"
+              ? earlier.parts[1].input
+              : undefined,
+        }),
+      ]),
+    });
   });
 });
 
@@ -556,6 +1050,53 @@ describe("reading a chat request", () => {
     await expect(readChatRequest({ messages })).resolves.toEqual(messages);
   });
 
+  it("accepts a conversation with a saved section", async () => {
+    const saved: ChatMessage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-saveSection",
+          toolCallId: "save-1",
+          state: "output-available",
+          input: {
+            section: "Introduction / Overview",
+            statements: [
+              {
+                text: "Henk wants pings.",
+                citations: [{ source: "henk-4", quote: "Every single item" }],
+              },
+            ],
+          },
+          output: {
+            section: "Introduction / Overview",
+            statements: [
+              {
+                text: "Henk wants pings.",
+                citations: [
+                  {
+                    source: "interview",
+                    passage: "henk-4",
+                    interviewee: "Henk",
+                    quote: "Every single item",
+                    confirmed: true,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const messages = [
+      visitor("Draft it."),
+      saved,
+      visitor("Yes.", "visitor-2"),
+    ];
+
+    await expect(readChatRequest({ messages })).resolves.toEqual(messages);
+  });
+
   it("accepts a visitor message at the length limit", async () => {
     const messages = [visitor("a".repeat(MAX_MESSAGE_LENGTH))];
 
@@ -637,6 +1178,67 @@ describe("reading a chat request", () => {
                 state: "output-available",
                 input: { query: "pings" },
                 output: { passages: [{ answer: "Made up." }] },
+              },
+            ],
+          },
+          visitor("Really?", "visitor-2"),
+        ],
+      },
+      /format the chat expects/,
+    ],
+    [
+      "a saved section whose quotes aren't checked ones",
+      {
+        messages: [
+          {
+            id: "assistant-1",
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-saveSection",
+                toolCallId: "save-1",
+                state: "output-available",
+                input: {
+                  section: "Introduction / Overview",
+                  statements: [{ text: "Made up.", citations: [] }],
+                },
+                output: {
+                  section: "Introduction / Overview",
+                  statements: [
+                    {
+                      text: "Made up.",
+                      citations: [{ quote: "trust me", confirmed: true }],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          visitor("Really?", "visitor-2"),
+        ],
+      },
+      /format the chat expects/,
+    ],
+    [
+      "a saved section that isn't one of the nine",
+      {
+        messages: [
+          {
+            id: "assistant-1",
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-saveSection",
+                toolCallId: "save-1",
+                state: "output-available",
+                input: {
+                  section: "Executive Summary",
+                  statements: [{ text: "Made up.", citations: [] }],
+                },
+                output: {
+                  section: "Executive Summary",
+                  statements: [{ text: "Made up.", citations: [] }],
+                },
               },
             ],
           },

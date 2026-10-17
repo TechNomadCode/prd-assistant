@@ -3,19 +3,31 @@ import {
   textOf,
   type ChatMessage,
   type ChatMessagePart,
+  type FailedToolPart,
+  type SaveSectionPart,
   type SearchNotesPart,
 } from "@/lib/chat";
 import { cn } from "@/lib/utils";
 import { SearchStep } from "./search-step";
+import { SectionStep } from "./section-step";
 
-type ShownPart = Extract<ChatMessagePart, { type: "text" }> | SearchNotesPart;
+type ShownPart =
+  | Extract<ChatMessagePart, { type: "text" }>
+  | SearchNotesPart
+  | SaveSectionPart
+  | FailedToolPart;
 
-/** The parts a visitor sees: the text and the searches. */
+/**
+ * The parts a visitor sees: the text, the searches, the saved sections, and
+ * any tool call the app couldn't read.
+ */
 function shownParts(message: ChatMessage): ShownPart[] {
   return message.parts.filter(
     (part): part is ShownPart =>
       (part.type === "text" && part.text !== "") ||
-      part.type === "tool-searchNotes",
+      part.type === "tool-searchNotes" ||
+      part.type === "tool-saveSection" ||
+      (part.type === "dynamic-tool" && part.state === "output-error"),
   );
 }
 
@@ -69,6 +81,18 @@ export function Conversation({
   );
 }
 
+/** The step a tool call the app couldn't read was meant to be. */
+function failedStep(toolName: string): string {
+  switch (toolName) {
+    case "saveSection":
+      return "Saving the section";
+    case "searchNotes":
+      return "Searching the interviews";
+    default:
+      return "A step";
+  }
+}
+
 function AssistantMessage({
   parts,
   unfinished,
@@ -80,21 +104,35 @@ function AssistantMessage({
   return (
     <li className="space-y-3">
       <p className="text-sm font-medium text-muted-foreground">Assistant</p>
-      {parts.map((part, index) =>
-        part.type === "text" ? (
-          <p
-            key={index}
-            className={cn(
-              "leading-relaxed whitespace-pre-wrap",
-              unfinished && "text-muted-foreground",
-            )}
-          >
-            {part.text}
-          </p>
-        ) : (
-          <SearchStep key={part.toolCallId} part={part} />
-        ),
-      )}
+      {parts.map((part, index) => {
+        switch (part.type) {
+          case "text":
+            return (
+              <p
+                key={index}
+                className={cn(
+                  "leading-relaxed whitespace-pre-wrap",
+                  unfinished && "text-muted-foreground",
+                )}
+              >
+                {part.text}
+              </p>
+            );
+          case "tool-searchNotes":
+            return <SearchStep key={part.toolCallId} part={part} />;
+          case "tool-saveSection":
+            return <SectionStep key={part.toolCallId} part={part} />;
+          case "dynamic-tool":
+            return (
+              <p
+                key={part.toolCallId}
+                className="text-sm text-muted-foreground"
+              >
+                {failedStep(part.toolName)} didn&apos;t work. {part.errorText}
+              </p>
+            );
+        }
+      })}
       {unfinished && (
         <p className="text-sm font-medium">
           This answer stopped before it finished.

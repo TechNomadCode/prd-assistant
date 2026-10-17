@@ -2,7 +2,9 @@ import "server-only";
 import {
   convertToModelMessages,
   createUIMessageStream,
+  InvalidToolInputError,
   isStepCount,
+  NoSuchToolError,
   safeValidateUIMessages,
   streamText,
   tool,
@@ -16,9 +18,30 @@ import {
   type ChatMessage,
   type SearchNotesOutput,
 } from "@/lib/chat";
-import { passageAnchor, type PassageMatch } from "@/lib/transcripts";
+import {
+  CHAT_SOURCE,
+  isFlagged,
+  OPEN_QUESTIONS,
+  PRD_SECTIONS,
+  tally,
+  type CheckedCitation,
+  type CheckedSection,
+  type CitationDraft,
+  type SectionDraft,
+} from "@/lib/prd";
+import {
+  passageAnchor,
+  type PassageMatch,
+  type SourcePassage,
+} from "@/lib/transcripts";
 import type { ChatModel } from "./ai/chat-model.ts";
 import { createChatModel } from "./ai/providers.ts";
+import {
+  checkSection,
+  citedPassages,
+  findPassages,
+  type VisitorMessage,
+} from "./citations.ts";
 import { providerSettings, readChatEnv } from "./env.ts";
 import { SYSTEM_PROMPT } from "./prompts/system-prompt.ts";
 import {
@@ -28,22 +51,31 @@ import {
 } from "./search.ts";
 
 // The chat: the visitor's conversation in, the assistant's answer streamed
-// out. The model follows the versioned system prompt and decides when to
-// search the interviews; the app's code runs each search and logs the tokens
-// every answer used.
+// out. The model follows the versioned system prompt, decides when to search
+// the interviews and saves each drafted section; the app's code runs each
+// search, checks every quote of a saved section, and logs the tokens every
+// answer used.
 
 /**
  * At most this many searches for one answer. After them the model is offered
- * no search, so it has to write: on staging, gpt-oss searched five times for
- * one section and never replied.
+ * no search, so it has to save or write: on staging, gpt-oss searched five
+ * times for one section and never replied.
  */
 const MAX_SEARCHES = 3;
 
 /**
- * At most this many model calls for one answer: its searches, its reply, and
- * one more for a reply that tries to search anyway.
+ * At most this many tries to save the section in one answer: one more when
+ * the first wasn't in a form the check reads, or its passages couldn't be
+ * read. Once a save works, no tool is offered again.
  */
-const MAX_STEPS = MAX_SEARCHES + 2;
+const MAX_SAVE_TRIES = 2;
+
+/**
+ * At most this many model calls for one answer: its searches, its tries to
+ * save, and the reply. The last call carries no tools, so the answer ends in
+ * words even when the model calls a tool the chat doesn't have.
+ */
+const MAX_STEPS = MAX_SEARCHES + MAX_SAVE_TRIES + 1;
 
 /**
  * Room for each model call's output, its reasoning included. Cloudflare's
@@ -53,6 +85,13 @@ const MAX_OUTPUT_TOKENS = 4096;
 
 /** At most this many messages in one conversation. */
 export const MAX_MESSAGES = 200;
+
+// A drafted section's limits: roomy for a model, tight for a forged request.
+const MAX_STATEMENTS = 40;
+const MAX_STATEMENT_LENGTH = 1000;
+const MAX_CITATIONS = 8;
+const MAX_SOURCE_LENGTH = 100;
+const MAX_QUOTE_LENGTH = 500;
 
 const searchNotesInput = z.object({
   query: z
@@ -76,6 +115,77 @@ const searchNotesOutput = z.object({
   passages: z.array(passageMatchSchema),
 }) satisfies z.ZodType<SearchNotesOutput>;
 
+const citationDraftSchema = z.object({
+  source: z
+    .string()
+    .min(1)
+    .max(MAX_SOURCE_LENGTH)
+    .describe(
+      `A passage id, such as henk-4, for an interviewee's words, or "${CHAT_SOURCE}" for the product manager's own words in this chat.`,
+    ),
+  quote: z
+    .string()
+    .min(1)
+    .max(MAX_QUOTE_LENGTH)
+    .describe("Their exact words, from a few words up to one sentence."),
+}) satisfies z.ZodType<CitationDraft>;
+
+const saveSectionInput = z.object({
+  section: z.enum(PRD_SECTIONS),
+  statements: z
+    .array(
+      z.object({
+        text: z
+          .string()
+          .min(1)
+          .max(MAX_STATEMENT_LENGTH)
+          .describe(
+            "One finding, requirement or open question, in plain text.",
+          ),
+        citations: z
+          .array(citationDraftSchema)
+          .max(MAX_CITATIONS)
+          .describe(
+            `The sources it rests on. Empty only in ${OPEN_QUESTIONS}.`,
+          ),
+      }),
+    )
+    .min(1)
+    .max(MAX_STATEMENTS),
+}) satisfies z.ZodType<SectionDraft>;
+
+const checkedCitationSchema = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("interview"),
+    passage: z.string(),
+    interviewee: z.string(),
+    quote: z.string(),
+    confirmed: z.boolean(),
+  }),
+  z.object({
+    source: z.literal("chat"),
+    quote: z.string(),
+    confirmed: z.boolean(),
+    messageId: z.string().optional(),
+  }),
+  z.object({
+    source: z.literal("unknown"),
+    passage: z.string(),
+    quote: z.string(),
+    confirmed: z.literal(false),
+  }),
+]) satisfies z.ZodType<CheckedCitation>;
+
+const saveSectionOutput = z.object({
+  section: z.enum(PRD_SECTIONS),
+  statements: z.array(
+    z.object({
+      text: z.string(),
+      citations: z.array(checkedCitationSchema),
+    }),
+  ),
+}) satisfies z.ZodType<CheckedSection>;
+
 /** The search broke for a reason the visitor can't fix. The cause is logged. */
 class SearchFailedError extends Error {
   constructor() {
@@ -84,12 +194,25 @@ class SearchFailedError extends Error {
   }
 }
 
+/** The cited passages couldn't be read, so nothing was checked or saved. */
+class SaveFailedError extends Error {
+  constructor() {
+    super("The section couldn't be checked this time, so it wasn't saved.");
+    this.name = "SaveFailedError";
+  }
+}
+
 export type ChatDependencies = {
   model: ChatModel;
   search(query: string): Promise<PassageMatch[]>;
+  /** The passages with these ids that exist, to check quotes against. */
+  findPassages(ids: string[]): Promise<SourcePassage[]>;
 };
 
-function createTools(search: ChatDependencies["search"]) {
+function createTools(
+  { search, findPassages }: Omit<ChatDependencies, "model">,
+  visitorMessages: VisitorMessage[],
+) {
   return {
     searchNotes: tool({
       description:
@@ -119,7 +242,89 @@ function createTools(search: ChatDependencies["search"]) {
         },
       }),
     }),
+    saveSection: tool({
+      description:
+        "Saves one drafted section of the PRD as statements with their citations. The app checks every quote: an interview quote against the cited passage's answer, never the researcher's question; a chat quote against the product manager's own messages, never yours. Returns what the check found; the product manager sees the section with the results.",
+      inputSchema: saveSectionInput,
+      outputSchema: saveSectionOutput,
+      async execute(draft) {
+        let passages: SourcePassage[];
+        try {
+          passages = await findPassages(citedPassages(draft));
+        } catch (error) {
+          console.error("Reading the cited passages failed:", error);
+          throw new SaveFailedError();
+        }
+        return checkSection(draft, { passages, visitorMessages });
+      },
+      toModelOutput: ({ output }) => ({
+        type: "json",
+        value: checkReport(output),
+      }),
+    }),
   };
+}
+
+type ChatTools = ReturnType<typeof createTools>;
+
+/**
+ * The tools as they hand earlier answers back to the model: a search there
+ * shows only each passage's id and interviewee, so a long conversation doesn't
+ * send every passage it ever found with each new message. To quote one of
+ * them again, the model searches again; a saved section keeps its quotes in
+ * the call itself.
+ */
+function forEarlierAnswers(tools: ChatTools): ChatTools {
+  const searchNotes: ChatTools["searchNotes"] = {
+    ...tools.searchNotes,
+    toModelOutput: ({ output }) => ({
+      type: "json",
+      value: {
+        passages: output.passages.map((passage) => ({
+          passage: passageAnchor(passage.slug, passage.position),
+          interviewee: passage.participant,
+        })),
+      },
+    }),
+  };
+  return { ...tools, searchNotes };
+}
+
+/**
+ * What the model learns from a save: the counts, every quote the check
+ * couldn't confirm, and the statements that cite nothing, numbered from 1.
+ */
+function checkReport(section: CheckedSection) {
+  const { quotes, confirmed } = tally(section);
+  return {
+    saved: section.section,
+    quotes,
+    confirmed,
+    unverified: section.statements.flatMap((statement, index) =>
+      statement.citations
+        .filter((citation) => !citation.confirmed)
+        .map((citation) => ({
+          statement: index + 1,
+          source: citation.source === "chat" ? CHAT_SOURCE : citation.passage,
+          quote: citation.quote,
+          problem: problemWith(citation),
+        })),
+    ),
+    citesNothing: section.statements.flatMap((statement, index) =>
+      isFlagged(section.section, statement) ? [index + 1] : [],
+    ),
+  };
+}
+
+function problemWith(citation: CheckedCitation): string {
+  switch (citation.source) {
+    case "interview":
+      return `These words aren't in the answer of ${citation.passage}.`;
+    case "chat":
+      return "These words aren't in the product manager's messages.";
+    case "unknown":
+      return `There is no passage ${citation.passage} in the interviews.`;
+  }
 }
 
 /** A request the chat refuses. Its message says why, in plain words. */
@@ -165,6 +370,10 @@ export async function readChatRequest(body: unknown): Promise<ChatMessage[]> {
         inputSchema: searchNotesInput,
         outputSchema: searchNotesOutput,
       },
+      saveSection: {
+        inputSchema: saveSectionInput,
+        outputSchema: saveSectionOutput,
+      },
     },
   });
   if (!validated.success) {
@@ -200,6 +409,13 @@ export async function readChatRequest(body: unknown): Promise<ChatMessage[]> {
   return messages;
 }
 
+/** The visitor's own messages, which their quotes are checked against. */
+function visitorMessagesIn(messages: ChatMessage[]): VisitorMessage[] {
+  return messages
+    .filter((message) => message.role === "user")
+    .map((message) => ({ id: message.id, text: textOf(message) }));
+}
+
 /**
  * The assistant's answer to the conversation, as a stream of UI message
  * chunks. Whatever fails, the stream ends with an `error` chunk in plain
@@ -212,8 +428,8 @@ export function streamAnswer(
     dependencies,
   }: { abortSignal?: AbortSignal; dependencies?: ChatDependencies } = {},
 ) {
-  const { model, search } = dependencies ?? connect();
-  const tools = createTools(search);
+  const { model, ...sources } = dependencies ?? connect();
+  const tools = createTools(sources, visitorMessagesIn(messages));
   const steps: LanguageModelUsage[] = [];
   let lastFinishReason: string | undefined;
 
@@ -221,24 +437,41 @@ export function streamAnswer(
     async execute({ writer }) {
       let answered = false;
       let failed = false;
+      const saves = new Set<string>();
       try {
         const result = streamText({
           model,
           instructions: SYSTEM_PROMPT.text,
           messages: await convertToModelMessages(messages, {
-            tools,
+            tools: forEarlierAnswers(tools),
             ignoreIncompleteToolCalls: true,
           }),
           tools,
           stopWhen: isStepCount(MAX_STEPS),
           maxOutputTokens: MAX_OUTPUT_TOKENS,
-          // Once its searches are used, the model gets no tools at all:
-          // Cloudflare's gpt-oss takes no tool choice, only a list of tools.
-          prepareStep: ({ steps }) => {
-            const searches = steps
-              .flatMap((step) => step.toolCalls)
-              .filter((call) => call.toolName === "searchNotes").length;
-            return searches < MAX_SEARCHES ? undefined : { activeTools: [] };
+          // Cloudflare's gpt-oss takes no tool choice, only a list of tools,
+          // so the budget works by leaving tools out of the list.
+          prepareStep: ({ steps, stepNumber }) => {
+            const saved = steps.some((step) =>
+              step.toolResults.some(
+                (result) => result.toolName === "saveSection",
+              ),
+            );
+            // After the save, and on the last call, the model only writes.
+            if (saved || stepNumber === MAX_STEPS - 1) {
+              return { activeTools: [] };
+            }
+            const calls = steps.flatMap((step) => step.toolCalls);
+            const tries = (name: keyof typeof tools) =>
+              calls.filter((call) => call.toolName === name).length;
+            const activeTools: Array<keyof typeof tools> = [];
+            if (tries("searchNotes") < MAX_SEARCHES) {
+              activeTools.push("searchNotes");
+            }
+            if (tries("saveSection") < MAX_SAVE_TRIES) {
+              activeTools.push("saveSection");
+            }
+            return { activeTools };
           },
           abortSignal,
           onStepEnd: ({ usage, finishReason }) => {
@@ -259,6 +492,17 @@ export function streamAnswer(
           onError: describeError,
         })) {
           if (chunk.type === "text-delta" && chunk.delta !== "")
+            answered = true;
+          // A saved section is an answer too, even without words after it.
+          if (
+            chunk.type === "tool-input-available" &&
+            chunk.toolName === "saveSection"
+          )
+            saves.add(chunk.toolCallId);
+          if (
+            chunk.type === "tool-output-available" &&
+            saves.has(chunk.toolCallId)
+          )
             answered = true;
           if (chunk.type === "error") failed = true;
           writer.write(chunk);
@@ -297,8 +541,21 @@ const CUT_OFF = "The answer got too long and was cut off.";
 
 /** What the visitor sees when something fails: plain words, no internals. */
 function describeError(error: unknown): string {
-  if (error instanceof SearchQueryError || error instanceof SearchFailedError) {
+  if (
+    error instanceof SearchQueryError ||
+    error instanceof SearchFailedError ||
+    error instanceof SaveFailedError
+  ) {
     return error.message;
+  }
+  // The model sees the SDK's own message, which says what to fix.
+  if (InvalidToolInputError.isInstance(error)) {
+    return error.toolName === "saveSection"
+      ? "The drafted section wasn't in the form the check reads, so it wasn't saved."
+      : "The assistant's search wasn't in the form the search reads.";
+  }
+  if (NoSuchToolError.isInstance(error)) {
+    return "The assistant tried a step it can't take at this point.";
   }
   return "The assistant couldn't finish its answer.";
 }
@@ -312,10 +569,14 @@ function logUsage(model: ChatModel, steps: LanguageModelUsage[]) {
   );
 }
 
-/** The real dependencies, from the settings: the chat model and the search. */
+/**
+ * The real dependencies, from the settings: the chat model, the search and
+ * the cited passages.
+ */
 function connect(): ChatDependencies {
   return {
     model: createChatModel(providerSettings(readChatEnv())),
     search: (query) => searchInterviews(query),
+    findPassages: (ids) => findPassages(ids),
   };
 }

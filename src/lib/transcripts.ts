@@ -21,6 +21,15 @@ export type PassageMatch = Passage & {
   distance: number;
 };
 
+/** A passage as a citation names it, with whose answer it is. */
+export type SourcePassage = {
+  /** The passage id, such as henk-4 (`passageAnchor`). */
+  passage: string;
+  participant: string;
+  question: string;
+  answer: string;
+};
+
 export type Transcript = {
   id: number;
   slug: string;

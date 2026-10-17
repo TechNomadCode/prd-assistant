@@ -8,6 +8,7 @@ import {
   createFakeChatModel,
   FAKE_CHAT_MODEL,
   FAKE_FAILURES,
+  FAKE_FLAWED_SECTION,
 } from "@/server/ai/fake-chat-model";
 
 type Prompt = ChatModelCall["prompt"];
@@ -167,6 +168,186 @@ describe("the fake chat model", () => {
     if (finish?.type !== "finish") throw new Error("No finish part.");
     expect(finish.usage.inputTokens.total).toBeGreaterThan(0);
     expect(finish.usage.outputTokens.total).toBeGreaterThan(0);
+  });
+
+  describe("drafting a section", () => {
+    const SAVE_TOOL = {
+      type: "function",
+      name: "saveSection",
+      inputSchema: { type: "object" },
+    } as const;
+
+    async function savedDraft(message: string) {
+      const parts = await partsOf(afterSearch(message, FOUND), fake(), [
+        SEARCH_TOOL,
+        SAVE_TOOL,
+      ]);
+      const call = parts.find((part) => part.type === "tool-call");
+      if (call?.type !== "tool-call") throw new Error("No tool call.");
+      expect(call).toMatchObject({
+        toolName: "saveSection",
+        toolCallId: expect.stringMatching(/^fake-save-/),
+      });
+      return JSON.parse(call.input) as {
+        section: string;
+        statements: Array<{ text: string; citations: unknown[] }>;
+      };
+    }
+
+    /** The prompt after the fake saved and the save tool answered. */
+    function afterSave(output: ToolResult["output"]): Prompt {
+      return [
+        ...afterSearch("Draft the first section.", FOUND),
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "fake-save-3",
+              toolName: "saveSection",
+              input: {},
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "fake-save-3",
+              toolName: "saveSection",
+              output,
+            },
+          ],
+        },
+      ];
+    }
+
+    it("saves a section built from the passages it found, quoting each answer and the visitor's request", async () => {
+      expect(await savedDraft("Draft the first section.")).toEqual({
+        section: "Introduction / Overview",
+        statements: [
+          {
+            text: "Henk answered the researcher's question “How would you want to know when Ineke adds something?”",
+            citations: [
+              {
+                source: "henk-4",
+                quote:
+                  "I'd like my phone to ping me every time she puts something on the list.",
+              },
+            ],
+          },
+          {
+            text: "Maya answered the researcher's question “If you had a shared list, how would you want it to work?”",
+            citations: [
+              {
+                source: "maya-3",
+                quote:
+                  "The moment one of us puts something on it, the other should know.",
+              },
+            ],
+          },
+          {
+            text: "Henk answered the researcher's question “Have you used a list app before?”",
+            citations: [
+              {
+                source: "henk-2",
+                quote: "Ineke put one on my phone last year.",
+              },
+            ],
+          },
+          {
+            text: "You asked for this section.",
+            citations: [{ source: "chat", quote: "Draft the first section." }],
+          },
+        ],
+      });
+    });
+
+    it("drafts the section the visitor names", async () => {
+      const draft = await savedDraft(
+        "Draft the Non-Functional Requirements, please.",
+      );
+
+      expect(draft.section).toBe("Non-Functional Requirements");
+    });
+
+    it("adds flaws for the check to catch when the message asks for them", async () => {
+      const draft = await savedDraft(
+        `Draft the first section. ${FAKE_FLAWED_SECTION}`,
+      );
+
+      expect(draft.statements.slice(-3)).toEqual([
+        {
+          text: "Quotes the researcher's question as if Henk said it.",
+          citations: [
+            {
+              source: "henk-4",
+              quote: "How would you want to know when Ineke adds something?",
+            },
+          ],
+        },
+        {
+          text: "Quotes another passage's answer, but cites henk-4.",
+          citations: [
+            {
+              source: "henk-4",
+              quote:
+                "The moment one of us puts something on it, the other should know.",
+            },
+          ],
+        },
+        { text: "Cites nothing at all.", citations: [] },
+      ]);
+    });
+
+    it("answers instead of saving when it has no save tool", async () => {
+      const parts = await partsOf(
+        afterSearch("Draft the first section.", FOUND),
+      );
+
+      expect(parts.some((part) => part.type === "tool-call")).toBe(false);
+      expect(textOf(parts)).toMatch(/^I searched the interviews for/);
+    });
+
+    it("says what the check found after the save, and names the next section", async () => {
+      const parts = await partsOf(
+        afterSave({
+          type: "json",
+          value: {
+            saved: "Introduction / Overview",
+            quotes: 6,
+            confirmed: 4,
+            unverified: [],
+            citesNothing: [7],
+          },
+        }),
+        fake(),
+        [],
+      );
+
+      expect(textOf(parts)).toBe(
+        "I saved Introduction / Overview. The check confirmed 4 of 6 quotes, and 1 statement cites nothing. " +
+          "Does this capture it? If so, shall we move on to Goals / Objectives? " +
+          "(This is the local fake model: it searches the interviews like the real one, then answers from a script.)",
+      );
+    });
+
+    it("says so when the save didn't work", async () => {
+      const parts = await partsOf(
+        afterSave({
+          type: "error-text",
+          value:
+            "The section couldn't be checked this time, so it wasn't saved.",
+        }),
+        fake(),
+        [],
+      );
+
+      expect(textOf(parts)).toMatch(
+        /^The section wasn't saved, so there's nothing to check yet\./,
+      );
+    });
   });
 
   describe("failing on purpose", () => {

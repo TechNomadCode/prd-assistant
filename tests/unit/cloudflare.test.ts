@@ -288,6 +288,53 @@ describe("the Cloudflare chat model", () => {
   });
 });
 
+/** A whole reply that only calls one tool. */
+function toolCallMessage(id: string, name: string, input: object) {
+  return {
+    role: "assistant",
+    content: null,
+    tool_calls: [
+      {
+        id,
+        type: "function",
+        function: { name, arguments: JSON.stringify(input) },
+      },
+    ],
+  };
+}
+
+/** The names of the tools a request offers the model. */
+function toolNames(body: Record<string, unknown>): string[] {
+  const tools = (body.tools ?? []) as Array<{ function: { name: string } }>;
+  return tools.map((tool) => tool.function.name);
+}
+
+async function textOfAnswer(
+  model: ReturnType<typeof chatModel>["model"],
+  message: string,
+) {
+  let text = "";
+  for await (const chunk of streamAnswer(
+    [
+      {
+        id: "visitor-1",
+        role: "user",
+        parts: [{ type: "text", text: message }],
+      },
+    ],
+    {
+      dependencies: {
+        model,
+        search: async () => [],
+        findPassages: async () => [],
+      },
+    },
+  )) {
+    if (chunk.type === "text-delta") text += chunk.delta;
+  }
+  return text;
+}
+
 // On staging (2026-10-17), drafting a section failed twice: gpt-oss searched
 // five times and ran out of model calls, or its reply hit Cloudflare's
 // default of 256 output tokens, which its reasoning counts against.
@@ -301,8 +348,7 @@ describe("the chat's requests to Cloudflare", () => {
     let searches = 0;
     // A model that searches whenever it's offered the search.
     const { sent, model } = chatModel(() => {
-      const body = sent.at(-1)?.body ?? {};
-      if (!body.tools) {
+      if (!toolNames(sent.at(-1)?.body ?? {}).includes("searchNotes")) {
         return chatReply(
           { role: "assistant", content: "Introduction / Overview" },
           "stop",
@@ -310,44 +356,60 @@ describe("the chat's requests to Cloudflare", () => {
       }
       searches += 1;
       return chatReply(
-        {
-          role: "assistant",
-          content: null,
-          tool_calls: [
-            {
-              id: `call-${searches}`,
-              type: "function",
-              function: {
-                name: "searchNotes",
-                arguments: JSON.stringify({ query: `topic ${searches}` }),
-              },
-            },
-          ],
-        },
+        toolCallMessage(`call-${searches}`, "searchNotes", {
+          query: `topic ${searches}`,
+        }),
         "tool_calls",
       )();
     });
 
-    let text = "";
-    for await (const chunk of streamAnswer(
-      [
-        {
-          id: "visitor-1",
-          role: "user",
-          parts: [{ type: "text", text: "Draft the first section." }],
-        },
-      ],
-      { dependencies: { model, search: async () => [] } },
-    )) {
-      if (chunk.type === "text-delta") text += chunk.delta;
-    }
+    const text = await textOfAnswer(model, "Draft the first section.");
 
     expect(text).toBe("Introduction / Overview");
     expect(sent.map((request) => request.body.max_tokens)).toEqual([
       4096, 4096, 4096, 4096,
     ]);
+    expect(sent.map((request) => toolNames(request.body))).toEqual([
+      ["searchNotes", "saveSection"],
+      ["searchNotes", "saveSection"],
+      ["searchNotes", "saveSection"],
+      ["saveSection"],
+    ]);
+  });
+
+  it("offer no tools at all once the section is saved, so the model writes", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const replies = [
+      chatReply(
+        toolCallMessage("call-1", "searchNotes", { query: "the paper list" }),
+        "tool_calls",
+      ),
+      chatReply(
+        toolCallMessage("call-2", "saveSection", {
+          section: "Introduction / Overview",
+          statements: [
+            {
+              text: "Daan's household keeps a paper list on the fridge.",
+              citations: [
+                { source: "daan-1", quote: "It's a notepad with a magnet." },
+              ],
+            },
+          ],
+        }),
+        "tool_calls",
+      ),
+      chatReply(
+        { role: "assistant", content: "Does this capture it?" },
+        "stop",
+      ),
+    ];
+    let call = 0;
+    const { sent, model } = chatModel(() => replies[call++]!());
+
+    const text = await textOfAnswer(model, "Draft the first section.");
+
+    expect(text).toBe("Does this capture it?");
     expect(sent.map((request) => "tools" in request.body)).toEqual([
-      true,
       true,
       true,
       false,
