@@ -6,13 +6,12 @@
 - **Doing:** stage 3 done on branch `feat/walking-skeleton` (not pushed). The six interviews are loaded into Postgres with the fake embedder and listed on `/transcripts`, with tests in all four layers. Also in place: the environment guard, `env:local`, `doctor`, CI, and the staging and production workflows. The README has the owner's setup steps. Decisions this session: Node 24 (Vercel runs 24 at most); staging is a second Vercel project; Vercel builds the code itself; local Supabase ports 57320–57383 so it runs next to the owner's other projects
 - **Unverified:**
   - The workflows haven't run on GitHub yet. They pass actionlint, and every command in them ran locally.
-  - `npm run doctor` fails on this machine only because Node 26 is installed instead of 24.
+  - Node 24 runs here through fnm: `doctor` and `verify` pass on it (local).
   - The dashboard click paths come from the providers' docs and haven't been clicked through.
   - Mistral's free limits, its models and the training setting: the owner checks these while logged in.
 - **Next:** slice 2, *Search the interviews*, on a new branch from an up-to-date `main` once the set-up is merged. First check *Deferred* for items due
 - **Waiting on the owner:**
-  0. Install Node 24 and switch to it (see `.nvmrc`), then run `npm run doctor`.
-  1. Create the accounts if they don't exist yet: Mistral (with the logged-in checks), Supabase (two Free projects in Frankfurt) and Vercel (Hobby).
+  1. Push `main` (`git push origin main`), then create the accounts chosen in `docs/decisions.md`: Mistral (with the logged-in checks first), Supabase and Vercel.
   2. Follow the setup steps in `README.md`: connections, settings and secrets.
   3. Push `feat/walking-skeleton`, open a pull request into `main` and wait for CI.
   4. Merge, then confirm that staging got the migrations and then the code.
