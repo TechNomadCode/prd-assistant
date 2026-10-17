@@ -163,7 +163,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Cost and abuse**
 - Every AI key comes from an account or project with no billing attached, so running out of quota fails instead of charging.
 - Staging and production each have their own key, added by the owner.
-- Each visitor can send 30 messages per day, enough for one full PRD. This gets adjusted once the provider's free limits are known.
+- Each visitor can send 30 messages per day, enough for one full PRD. The per-minute limit and the monthly budget at the provider are the tighter caps.
 - There's no in-app daily cap, because the provider's free quota is the cap.
 
 **Security**
@@ -238,7 +238,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - **AI provider:** Mistral in Free mode, decided in stage 2 (see `docs/decisions.md`).
   - Google Gemini's free tier is ruled out. Its terms allow only paid use for apps available to users in the EEA, Switzerland or the UK (https://ai.google.dev/gemini-api/terms).
   - Confirmed for Mistral: Free mode needs no card. Once the included monthly usage runs out and pay-as-you-go is off, requests fail with error 402. That allowance is shared across Studio (including its playground), the API and Vibe Code (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/resources/error-glossary.md). In the owner's reading of the Commercial Terms, a public demo on Free mode is allowed. No Labs models are used, so API data stays out of training.
-  - Still unconfirmed: the actual free limits and whether the chosen models are included (visible only when logged in), and that the training setting is off.
+  - Checked by the owner while logged in: a US$10 monthly budget, per-minute token limits per model, both chosen models available, training off (see `docs/decisions.md`).
 - **Legal basis for the IP-based rate limit:** the owner decides, with the official sources listed in `docs/decisions.md`. This isn't legal advice.
 
 **Later, not in the first version**

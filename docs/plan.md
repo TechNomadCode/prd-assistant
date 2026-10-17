@@ -3,15 +3,14 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** stage 3 done on branch `feat/walking-skeleton` (not pushed). The six interviews are loaded into Postgres with the fake embedder and listed on `/transcripts`, with tests in all four layers. Also in place: the environment guard, `env:local`, `doctor`, CI, and the staging and production workflows. The README has the owner's setup steps. Decisions this session: Node 24 (Vercel runs 24 at most); staging is a second Vercel project; Vercel builds the code itself; local Supabase ports 57320–57383 so it runs next to the owner's other projects
+- **Doing:** stage 3 done on branch `feat/walking-skeleton` (not pushed). The six interviews are loaded into Postgres with the fake embedder and listed on `/transcripts`, with tests in all four layers. Also in place: the environment guard, `env:local`, `doctor`, CI, and the staging and production workflows. The README has the owner's setup steps. Decisions this session: Node 24 (Vercel runs 24 at most); staging is a second Vercel project; Vercel builds the code itself; local Supabase ports 57320–57383 so it runs next to the owner's other projects. An independent review found no blockers; its two low findings are fixed (the production key check now runs before any migration; SQL tests now write as the loader's role)
 - **Unverified:**
   - The workflows haven't run on GitHub yet. They pass actionlint, and every command in them ran locally.
   - Node 24 runs here through fnm: `doctor` and `verify` pass on it (local).
   - The dashboard click paths come from the providers' docs and haven't been clicked through.
-  - Mistral's free limits, its models and the training setting: the owner checks these while logged in.
 - **Next:** slice 2, *Search the interviews*, on a new branch from an up-to-date `main` once the set-up is merged. First check *Deferred* for items due
 - **Waiting on the owner:**
-  1. Push `main` (`git push origin main`), then create the accounts chosen in `docs/decisions.md`: Mistral (with the logged-in checks first), Supabase and Vercel.
+  1. Push `main` (`git push origin main`), then create the accounts chosen in `docs/decisions.md`: Mistral (the staging key: the logged-in checks are done), Supabase and Vercel.
   2. Follow the setup steps in `README.md`: connections, settings and secrets.
   3. Push `feat/walking-skeleton`, open a pull request into `main` and wait for CI.
   4. Merge, then confirm that staging got the migrations and then the code.
@@ -26,7 +25,7 @@
 ## Slices
 <!-- Stage 3 writes these, in build order. Each fits in one session. Risky slices (sign-in and permissions, payments, data migrations, live data) get an independent review before they're pushed. When a slice is done, shorten it to its title line with "done" and the commit; a risky one only once its review is settled. -->
 
-### 1 · Set-up: the transcripts stored and listed, end to end · risk: normal · status: done (f8ed0a1)
+### 1 · Set-up: the transcripts stored and listed, end to end · risk: normal · status: done (d2e56ad)
 
 ### 2 · Search the interviews · risk: risky (permissions) · status: todo
 - **Goal:** the app finds the passages closest to a question with a plain SQL similarity search. Each comes with the interviewee's name and the researcher's question.
@@ -91,6 +90,7 @@
 - **Acceptance:**
   - Each visitor gets 30 messages a day, recognised by a hashed IP address that's kept only for the limit window. The counts live in a table only the server's secret key reaches, with tests for each role.
   - When Mistral answers 402 (the free quota is used up), the chat input and the intro button are hidden. A message links to the README's recording and the repository.
+  - When Mistral answers 429 (the shared per-minute limit, about 20,000 tokens for chat), the app retries briefly, then tells the visitor the demo is busy and to try again in a minute. This is never shown as the quota being used up.
   - The 31st message in a day is refused with a friendly message, and no raw IP address is ever stored.
   - Before starting, the owner decides the legal basis (see *Deferred*).
 
@@ -104,6 +104,7 @@
     - the grocery delivery suggestion
     - the dark mode trap
   - It prints pass or fail per rule and the total tokens used. The check counts as passed only after two passing runs in a row.
+  - It spaces its requests to stay under the per-minute limit, so a limit error never counts as a failed request.
   - The run fails, printing the statement at fault, on any of these:
     - an unverified quote
     - an uncited statement outside Open Questions
