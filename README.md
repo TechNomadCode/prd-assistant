@@ -5,7 +5,7 @@ PRD Assistant is a web app being built to turn research notes into a product req
 ## Status
 
 - **Planning:** done. The [product description](docs/product/prd.md) and the [scope](docs/product/mvp.md) are approved.
-- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. A search finds the passages closest to a question; the drafting assistant that will use it isn't built yet.
+- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. On the home page, a streaming chat answers questions about them: the model decides when to search the interviews, and each search shows as a line that opens to its passages. Drafting the PRD itself comes next.
 - **Demo:** none yet.
 
 ## How it works
@@ -21,6 +21,16 @@ Before the assistant writes anything, it searches the interviews and works from 
 The search refuses an empty question or one over 500 characters. Before anything reaches the database, it checks that the vector has exactly 1,024 numbers and isn't all zeros. The app's read key may read the passages but not the vectors, so `search_passages` runs with its owner's rights, and only the read key may call it. It returns the passage text that key can read anyway, plus each distance. Because the distances come from the vectors, a caller who sent enough probe vectors could work the vectors out. That's harmless here: they embed public text, which anyone can embed again with the same model.
 
 Locally and in CI, a fake embedder stands in for Mistral. It counts shared words, so the tests are free and always give the same result, but it knows no synonyms: to it, "ping" and "notification" are unrelated. Search by meaning runs only on staging and production.
+
+### The chat
+
+The chat runs on the [Vercel AI SDK](https://ai-sdk.dev). The browser's `useChat` posts the conversation to [`/api/chat`](src/app/api/chat/route.ts), and the server streams the answer back as it's written ([`chat.ts`](src/server/chat.ts)).
+
+1. **Tool calling.** `streamText` runs Mistral's `mistral-small-2603` with one tool, `searchNotes`. The model decides when to search and what for; the app's code runs the search above and hands back the five closest passages. The model sees each passage's interviewee, question and answer. The browser gets the same passages to show, and each search appears as one line, such as "closest passages from Maya, Henk and Daan", that opens to them.
+2. **Failures stay visible.** Whatever breaks, the provider before its first word, the provider partway through, or the connection, the stream ends with a plain error, and the cause is logged on the server. An answer that broke off stays on screen marked as unfinished. "Try again" asks again, and the unfinished answer never goes back to the model as if it were whole.
+3. **Token awareness.** The server logs the tokens every answer used, summed over its model calls, including answers that broke off.
+
+Locally and in CI, a scripted fake model stands in for Mistral ([`fake-chat-model.ts`](src/server/ai/fake-chat-model.ts)). It searches with the visitor's own words, then quotes the closest passage. Two phrases make it fail on purpose, once each, so the tests can show the error and the retry.
 
 ## Quick start
 
@@ -74,7 +84,7 @@ Every table and function starts closed to the public API and opens only through 
 | | Local | Staging | Production |
 | --- | --- | --- | --- |
 | Database | Supabase in Docker on your machine | Supabase project `prd-assistant-staging`, Frankfurt | Supabase project `prd-assistant-production`, Frankfurt |
-| AI provider | Fake (a word-overlap embedder) | Mistral, staging key, no billing attached | Mistral, production key from launch, no billing attached |
+| AI provider | Fakes (a word-overlap embedder and a scripted chat model) | Mistral, staging key, no billing attached | Mistral, production key from launch, no billing attached |
 | App | `npm run dev` | Vercel project `prd-assistant-staging`, private | Vercel project `prd-assistant`, public |
 | Who changes it | You, locally | GitHub Actions, after every merge to `main` | GitHub Actions, only when the owner starts it |
 
@@ -181,10 +191,10 @@ Open **Actions → Deploy production → Run workflow** on `main`. You can enter
 
 | Folder | What's there |
 | --- | --- |
-| `src/app/` | Pages and routes |
-| `src/features/` | Feature UI, such as the transcripts list |
+| `src/app/` | Pages and routes, such as the chat's endpoint |
+| `src/features/` | Feature UI, such as the chat and the transcripts list |
 | `src/components/ui/` | Shared UI components |
-| `src/server/` | Business operations: the notes loader, the interview search, the AI providers and the settings checks |
+| `src/server/` | Business operations: the chat, the notes loader, the interview search, the AI providers and the settings checks |
 | `src/server/db/` | The data layer: database clients, queries and generated types |
 | `src/lib/` | Shared helpers: site facts, the environment guard, shared types |
 | `scripts/` | The Node helper commands behind the npm scripts |
