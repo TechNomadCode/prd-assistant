@@ -1,0 +1,105 @@
+# Staging follows main by itself: after every push to main, CI runs, then the
+# staging database gets the new migrations, then the notes are loaded, and
+# only then does staging run the new code. Each job `needs` the one before, so
+# when a step fails, nothing after it runs: code never reaches staging before
+# its migrations. See .github/workflows/AGENTS.md.
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+# One staging deploy at a time, and never cancelled halfway, so a run can't
+# stop between the migrations and the code.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  migrate:
+    name: Migrate the staging database
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Show the migrations to apply
+        run: npx supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      - name: Apply the migrations
+        run: npx supabase db push --db-url "$SUPABASE_DB_URL" --yes
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+  load-notes:
+    name: Load the notes into staging
+    needs: migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Embeds only new or changed passages, so an unchanged run costs nothing.
+      - run: node scripts/load-notes.ts
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AI_PROVIDER: mistral
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+  deploy:
+    name: Deploy the code to staging
+    needs: load-notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Vercel builds the code itself with the staging project's settings, so
+      # those values never pass through this runner.
+      - id: deploy
+        run: |
+          url=$(npx --yes vercel@64.5.0 deploy --prod --non-interactive)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
