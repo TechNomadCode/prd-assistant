@@ -197,6 +197,34 @@ describe("answering in the chat", () => {
     expect(textIn(chunks)).toBe("Henk wants a ping for every item.");
   });
 
+  it("ends with a plain error when the model writes no answer, and logs it", async () => {
+    // As on staging: the model only reasons, then stops.
+    const { model } = modelReplying([
+      { type: "reasoning-start", id: "thinking-1" },
+      {
+        type: "reasoning-delta",
+        id: "thinking-1",
+        delta: "We need to search.",
+      },
+      { type: "reasoning-end", id: "thinking-1" },
+      {
+        type: "finish",
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: usage(344, 49),
+      },
+    ]);
+
+    const chunks = await answer([visitor("Who wants pings?")], model);
+
+    expect(textIn(chunks)).toBe("");
+    expect(errorsIn(chunks)).toEqual([
+      "The assistant ended without an answer.",
+    ]);
+    expect(error).toHaveBeenCalledWith(
+      "The chat model ended without an answer: finish reason stop.",
+    );
+  });
+
   it("gives the model each passage's interviewee, question and answer, without the browser's details", async () => {
     const { model, calls } = modelReplying(
       searchFor("notifications"),

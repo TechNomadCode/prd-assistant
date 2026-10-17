@@ -3,14 +3,14 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, is merged into `main` (2ddd70b, 2c50299). On staging the load-notes job re-embedded all 42 passages with `@cf/baai/bge-large-en-v1.5`, but logged "NaN tokens": Cloudflare's embeddings reply carries no token count. The fix is on branch `fix/embedding-token-log`: it logs "Cloudflare reported no token count" instead, with a test that failed before the fix.
+- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, is merged into `main` (2ddd70b, 2c50299). On staging the load-notes job re-embedded all 42 passages with `@cf/baai/bge-large-en-v1.5`, but logged "NaN tokens": Cloudflare's embeddings reply carries no token count. The fix is on branch `fix/cloudflare-chat-replies`: it logs "Cloudflare reported no token count" instead, with a test that failed before the fix.
 - **Unverified:**
-  - The chat on staging: streaming with tool calls, the search line, search by meaning, and the "Chat answer:" token line for `gpt-oss-20b` in Vercel's logs.
+  - The chat on staging gave an empty answer on 2026-10-17 (200, "393 tokens … in 1 model call", nothing on screen). The owner's raw stream showed why: streamed, Cloudflare sends gpt-oss's tool call as `reasoning_content` text without the tool's name and ends with "stop". Fixed on `fix/cloudflare-chat-replies`: the chat model asks for whole replies (`simulateStreamingMiddleware`), so each answer appears at once, and an answer with no text now ends with the plain error and "Try again". Unseen on staging: the search, search by meaning, and the token line with 2 model calls.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
   - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
-- **Next:** the owner pushes `fix/embedding-token-log`, merges it, and finishes the staging check: ask "Who wants a notification for every item someone adds?", open the search line, and find "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. After that, slice 4, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
-- **Waiting on the owner:** the chat check on staging, and the push of the fix.
+- **Next:** the owner pushes `fix/cloudflare-chat-replies`, merges it, and repeats the staging check: ask "Who wants a notification for every item someone adds?", open the search line, and find "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. After that, slice 4, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
+- **Waiting on the owner:** the push and merge of `fix/cloudflare-chat-replies`, then the staging check.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
