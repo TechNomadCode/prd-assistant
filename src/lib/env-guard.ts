@@ -25,8 +25,11 @@ const ADDRESS_VARIABLES = [
 /** Variables that choose an adapter, with the only value allowed here. */
 const ADAPTER_VARIABLES = { AI_PROVIDER: "fake" } as const;
 
-/** Real provider keys, which never belong on a development machine. */
-const PROVIDER_KEY_VARIABLES = ["MISTRAL_API_KEY"] as const;
+/** Real provider settings, which never belong on a development machine. */
+const PROVIDER_KEY_VARIABLES = [
+  "CLOUDFLARE_ACCOUNT_ID",
+  "CLOUDFLARE_API_TOKEN",
+] as const;
 
 const LOCAL_HOSTNAMES = new Set([
   "localhost",
@@ -77,7 +80,7 @@ export function checkEnvironment(sources: EnvSource[]): GuardProblem[] {
           source: name,
           variable,
           reason:
-            "is set. Real provider keys belong only in the hosted environments.",
+            "is set. Real provider settings belong only in the hosted environments.",
         });
       }
     }

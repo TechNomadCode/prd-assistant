@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AI_PROVIDERS } from "./ai/providers.ts";
+import { AI_PROVIDERS, type ProviderSettings } from "./ai/providers.ts";
 
 // Each part of the app reads only the settings it needs, checked here, so a
 // missing or mistyped value fails with a clear message instead of halfway
@@ -33,8 +33,24 @@ export function readAppEnv(env: Settings = process.env) {
 
 const aiSchema = z.object({
   AI_PROVIDER: z.enum(AI_PROVIDERS),
-  MISTRAL_API_KEY: z.string().optional(),
+  // 32 hexadecimal characters, so a token pasted here by mistake is refused.
+  CLOUDFLARE_ACCOUNT_ID: z
+    .string()
+    .regex(/^[0-9a-f]{32}$/, "Use the 32-character account ID.")
+    .optional(),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
 });
+
+/** The provider's part of the checked settings, as the providers take it. */
+export function providerSettings(
+  env: z.infer<typeof aiSchema>,
+): ProviderSettings {
+  return {
+    provider: env.AI_PROVIDER,
+    cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
+    cloudflareApiToken: env.CLOUDFLARE_API_TOKEN,
+  };
+}
 
 /** What the chat needs: a chat model. Its search reads its own settings. */
 export function readChatEnv(env: Settings = process.env) {

@@ -31,7 +31,7 @@
     "verify:secrets": "gitleaks git --redact --no-banner --verbose ."
   },
   "dependencies": {
-    "@ai-sdk/mistral": "4.0.66",
+    "@ai-sdk/openai-compatible": "3.0.71",
     "@ai-sdk/react": "4.0.147",
     "@supabase/supabase-js": "2.118.0",
     "ai": "7.0.143",

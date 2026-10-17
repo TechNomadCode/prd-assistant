@@ -6,12 +6,12 @@ import { EMBEDDING_DIMENSIONS } from "./ai/models.ts";
 import { createEmbedder } from "./ai/providers.ts";
 import { createReadClient } from "./db/clients.ts";
 import { findClosestPassages } from "./db/search.ts";
-import { readSearchEnv } from "./env.ts";
+import { providerSettings, readSearchEnv } from "./env.ts";
 
 // The interview search: a question in, the passages closest in meaning out,
 // each with the interviewee's name and the researcher's question. It embeds
-// the question with the passages' model (fake locally and in CI, Mistral on
-// staging and production), then the database ranks the passages.
+// the question with the passages' model (fake locally and in CI, Cloudflare
+// Workers AI on staging and production), then the database ranks the passages.
 
 /** Longer input is usually a whole message, which blurs what to look for. */
 export const MAX_QUERY_LENGTH = 500;
@@ -90,10 +90,7 @@ function connect(): SearchDependencies {
   const env = readSearchEnv();
   const client = createReadClient(env);
   return {
-    embedder: createEmbedder({
-      provider: env.AI_PROVIDER,
-      mistralApiKey: env.MISTRAL_API_KEY,
-    }),
+    embedder: createEmbedder(providerSettings(env)),
     findPassages: (embedding, count) =>
       findClosestPassages(client, embedding, count),
   };

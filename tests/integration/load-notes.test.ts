@@ -1,4 +1,10 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -113,6 +119,31 @@ describe("loading the notes", () => {
 
       await expect(load(dir)).rejects.toThrow(NotesFormatError);
       expect((await fetchTranscripts(readClient)).length).toBe(6);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("names every passage the embedding model might cut, and changes nothing", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "notes-"));
+    const opening = "It's a notepad with a magnet.";
+    try {
+      cpSync(NOTES, dir, { recursive: true });
+      const daan = path.join(dir, "daan.md");
+      const notes = readFileSync(daan, "utf8");
+      expect(notes).toContain(opening);
+      writeFileSync(
+        daan,
+        notes.replace(opening, `${opening} ${"Milk again. ".repeat(60)}`),
+      );
+
+      await expect(load(dir)).rejects.toThrow(
+        /longer than the embedding model's 512 tokens, so nothing was loaded[^]*daan\.md, passage 1: up to \d+ tokens/,
+      );
+      const stored = await fetchTranscripts(readClient);
+      const first = stored.find((transcript) => transcript.slug === "daan")
+        ?.passages[0];
+      expect(first?.answer).not.toContain("Milk again.");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

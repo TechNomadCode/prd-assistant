@@ -19,7 +19,7 @@ import {
 import { passageAnchor, type PassageMatch } from "@/lib/transcripts";
 import type { ChatModel } from "./ai/chat-model.ts";
 import { createChatModel } from "./ai/providers.ts";
-import { readChatEnv } from "./env.ts";
+import { providerSettings, readChatEnv } from "./env.ts";
 import {
   MAX_QUERY_LENGTH,
   SearchQueryError,
@@ -233,6 +233,9 @@ export function streamAnswer(
         for await (const chunk of toUIMessageStream<typeof tools, ChatMessage>({
           stream: result.stream,
           tools,
+          // The model's reasoning stays on the server: the visitor doesn't
+          // see it, and it isn't sent back with every later message.
+          sendReasoning: false,
           onError: describeError,
         })) {
           writer.write(chunk);
@@ -269,12 +272,8 @@ function logUsage(model: ChatModel, steps: LanguageModelUsage[]) {
 
 /** The real dependencies, from the settings: the chat model and the search. */
 function connect(): ChatDependencies {
-  const env = readChatEnv();
   return {
-    model: createChatModel({
-      provider: env.AI_PROVIDER,
-      mistralApiKey: env.MISTRAL_API_KEY,
-    }),
+    model: createChatModel(providerSettings(readChatEnv())),
     search: (query) => searchInterviews(query),
   };
 }

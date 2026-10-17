@@ -15,22 +15,22 @@ PRD Assistant is a web app being built to turn research notes into a product req
 Before the assistant writes anything, it searches the interviews and works from the passages it finds, not from what the model happens to know. This is retrieval-augmented generation (RAG). The search, built ahead of the assistant, has three parts.
 
 1. **Chunking by question and answer.** The notes loader cuts each interview into passages of one researcher question and the interviewee's whole answer ([`parse-interview.ts`](src/server/notes/parse-interview.ts)). A passage never mixes two people or two questions, so a citation points at one person's words, and a quote is checked against that answer alone. The question stays attached because answers lean on it: "Every single item, yes" means little without "How would you want to know when Ineke adds something?"
-2. **Embeddings.** Mistral's `mistral-embed-2312` turns each passage's question and answer into 1,024 numbers, stored beside the text in Postgres with pgvector ([`transcripts.sql`](supabase/schemas/transcripts.sql)). Texts with similar meanings get vectors that point in similar directions. The loader embeds only new or changed passages. The model's name is part of each passage's hash, so a new model re-embeds everything instead of mixing two models' vectors.
+2. **Embeddings.** `bge-large-en-v1.5`, run by Cloudflare Workers AI, turns each passage's question and answer into 1,024 numbers, stored beside the text in Postgres with pgvector ([`transcripts.sql`](supabase/schemas/transcripts.sql)). Texts with similar meanings get vectors that point in similar directions. The loader embeds only new or changed passages. The model's name is part of each passage's hash, so a new model re-embeds everything instead of mixing two models' vectors. The model reads at most 512 tokens of a text, and Cloudflare doesn't say what happens to the rest, so the loader refuses any passage that might be longer and names it, rather than let the model embed only its start ([`embedding-input.ts`](src/server/ai/embedding-input.ts)). It needs no tokenizer for that: the model's tokenizer never makes more tokens than a text has non-space characters, plus two, so 510 such characters always fit. The longest passage today has about 300.
 3. **The similarity search.** A question is embedded with the same model. Then one SQL function, [`search_passages`](supabase/schemas/search.sql), ranks every passage by cosine distance to it and returns the five closest, each with the interviewee's name and the researcher's question ([`search.ts`](src/server/search.ts)). With tens of passages, comparing them all is exact and faster than an index; an approximate index (HNSW) pays off at thousands.
 
 The search refuses an empty question or one over 500 characters. Before anything reaches the database, it checks that the vector has exactly 1,024 numbers and isn't all zeros. The app's read key may read the passages but not the vectors, so `search_passages` runs with its owner's rights, and only the read key may call it. It returns the passage text that key can read anyway, plus each distance. Because the distances come from the vectors, a caller who sent enough probe vectors could work the vectors out. That's harmless here: they embed public text, which anyone can embed again with the same model.
 
-Locally and in CI, a fake embedder stands in for Mistral. It counts shared words, so the tests are free and always give the same result, but it knows no synonyms: to it, "ping" and "notification" are unrelated. Search by meaning runs only on staging and production.
+Locally and in CI, a fake embedder stands in for Cloudflare. It counts shared words, so the tests are free and always give the same result, but it knows no synonyms: to it, "ping" and "notification" are unrelated. Search by meaning runs only on staging and production.
 
 ### The chat
 
 The chat runs on the [Vercel AI SDK](https://ai-sdk.dev). The browser's `useChat` posts the conversation to [`/api/chat`](src/app/api/chat/route.ts), and the server streams the answer back as it's written ([`chat.ts`](src/server/chat.ts)).
 
-1. **Tool calling.** `streamText` runs Mistral's `mistral-small-2603` with one tool, `searchNotes`. The model decides when to search and what for; the app's code runs the search above and hands back the five closest passages. The model sees each passage's interviewee, question and answer. The browser gets the same passages to show, and each search appears as one line, such as "closest passages from Maya, Henk and Daan", that opens to them.
+1. **Tool calling.** `streamText` runs OpenAI's open-weight `gpt-oss-20b` on Cloudflare Workers AI, through its OpenAI-compatible endpoint, with one tool, `searchNotes`. The model decides when to search and what for; the app's code runs the search above and hands back the five closest passages. The model sees each passage's interviewee, question and answer. The browser gets the same passages to show, and each search appears as one line, such as "closest passages from Maya, Henk and Daan", that opens to them.
 2. **Failures stay visible.** Whatever breaks, the provider before its first word, the provider partway through, or the connection, the stream ends with a plain error, and the cause is logged on the server. An answer that broke off stays on screen marked as unfinished. "Try again" asks again, and the unfinished answer never goes back to the model as if it were whole.
-3. **Token awareness.** The server logs the tokens every answer used, summed over its model calls, including answers that broke off.
+3. **Token awareness.** The server logs the tokens every answer used, summed over its model calls, including answers that broke off. The model reasons before it answers; that reasoning stays on the server and never goes back to the model with later messages.
 
-Locally and in CI, a scripted fake model stands in for Mistral ([`fake-chat-model.ts`](src/server/ai/fake-chat-model.ts)). It searches with the visitor's own words, then quotes the closest passage. Two phrases make it fail on purpose, once each, so the tests can show the error and the retry.
+Locally and in CI, a scripted fake model stands in for Cloudflare ([`fake-chat-model.ts`](src/server/ai/fake-chat-model.ts)). It searches with the visitor's own words, then quotes the closest passage. Two phrases make it fail on purpose, once each, so the tests can show the error and the retry.
 
 ## Quick start
 
@@ -84,7 +84,7 @@ Every table and function starts closed to the public API and opens only through 
 | | Local | Staging | Production |
 | --- | --- | --- | --- |
 | Database | Supabase in Docker on your machine | Supabase project `prd-assistant-staging`, Frankfurt | Supabase project `prd-assistant-production`, Frankfurt |
-| AI provider | Fakes (a word-overlap embedder and a scripted chat model) | Mistral, staging key, no billing attached | Mistral, production key from launch, no billing attached |
+| AI provider | Fakes (a word-overlap embedder and a scripted chat model) | Cloudflare Workers AI, free plan, staging token | Cloudflare Workers AI, free plan, production token from launch |
 | App | `npm run dev` | Vercel project `prd-assistant-staging`, private | Vercel project `prd-assistant`, public |
 | Who changes it | You, locally | GitHub Actions, after every merge to `main` | GitHub Actions, only when the owner starts it |
 
@@ -96,12 +96,13 @@ Hosted keys never sit on a development machine. Search engines index nothing: ev
 | --- | --- | --- |
 | `SUPABASE_DB_URL` | GitHub environment secret | The database's session pooler address, with its password |
 | `SUPABASE_SECRET_KEY` | GitHub environment secret | `sb_secret_…`, for loading the notes |
-| `MISTRAL_API_KEY` | GitHub environment secret, and Vercel (Secret) | The Mistral key for that environment |
+| `CLOUDFLARE_API_TOKEN` | GitHub environment secret, and Vercel (Secret) | The Workers AI token for that environment |
 | `VERCEL_TOKEN` | GitHub environment secret | A Vercel token for that environment's project only |
 | `SUPABASE_URL` | GitHub environment variable, and Vercel (Config) | `https://<ref>.supabase.co` |
+| `CLOUDFLARE_ACCOUNT_ID` | GitHub environment variable, and Vercel (Config) | The Cloudflare account ID, 32 characters |
 | `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | GitHub environment variables | The Vercel Team ID and Project ID |
 | `SUPABASE_PUBLISHABLE_KEY` | Vercel (Config) | `sb_publishable_…`, the app's read key |
-| `AI_PROVIDER` | Vercel (Config) | `mistral` |
+| `AI_PROVIDER` | Vercel (Config) | `cloudflare` |
 
 GitHub environments are named `staging` and `production`. Vercel values go in each project's **Production** environment only.
 
@@ -109,17 +110,15 @@ GitHub environments are named `staging` and `production`. Vercel values go in ea
 
 For the owner, or anyone deploying their own copy. Follow the steps in order. Nothing goes online before step 6.
 
-### 1. Mistral, for the AI
+### 1. Cloudflare, for the AI
 
-1. Sign in at https://admin.mistral.ai.
-2. Under **Admin Panel → API → Limits**, check the free limits, check that `mistral-small-2603` and `mistral-embed-2312` are listed, and check that the training setting is off.
-3. Create a Workspace for staging.
-4. In **Admin Panel → API → API Keys**, select **Create new key**:
-   - Pick the staging Workspace.
-   - Set an expiry date.
-   - Select **Create new key**.
-   - Copy the key right away, because it's shown only once. This is the staging `MISTRAL_API_KEY`.
-5. The production Workspace and key come at launch.
+The app runs on the Workers Free plan: 10,000 neurons a day at no charge, reset at 00:00 UTC. At the limit, requests fail with error 429 and nothing is charged (https://developers.cloudflare.com/workers-ai/platform/pricing/). Staging and production share that daily allocation.
+
+1. Sign in at https://dash.cloudflare.com. New accounts are on the Workers Free plan by default; don't add a card or upgrade, so running out fails instead of charging.
+2. Go to **AI → Workers AI** and select **Use REST API** (https://developers.cloudflare.com/workers-ai/get-started/rest-api/).
+3. Select **Create a Workers AI API Token**, check that it grants Workers AI Read and Edit on this account only, then select **Create API Token** and copy it. This is the staging `CLOUDFLARE_API_TOKEN`.
+4. On the same page, copy the **Account ID**. This is `CLOUDFLARE_ACCOUNT_ID`, the same for both environments.
+5. The production token comes at launch.
 
 ### 2. Supabase, two projects
 
@@ -142,8 +141,8 @@ First for `prd-assistant-staging`, then for `prd-assistant`.
    - The first build may fail, because the variables aren't there yet. That's expected: from step 2 on, only GitHub Actions deploys.
 2. Open **Settings → Git** and select **Disconnect**. From now on, only GitHub Actions deploys.
 3. Under **Settings → Environment Variables**, add these to the **Production** environment only, leaving Preview and Development empty:
-   - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `AI_PROVIDER` = `mistral`, as **Config**.
-   - `MISTRAL_API_KEY`, as **Secret**. The production project gets this one at launch.
+   - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_ACCOUNT_ID` and `AI_PROVIDER` = `cloudflare`, as **Config**.
+   - `CLOUDFLARE_API_TOKEN`, as **Secret**. The production project gets this one at launch.
 4. For staging only, under **Settings → Deployment Protection**, turn on **Vercel Authentication** and choose **All Deployments**, not Standard Protection, which leaves the main address public. All Deployments is available on every plan (https://vercel.com/docs/security/deployment-protection). Then only you can open staging, and strangers can't use up the free AI quota.
 5. Note the **Project ID** from **Settings → General**, and the **Team ID** from your team's **Settings → General**.
 6. Switch the scope selector at the top left to your personal account, then on https://vercel.com/account/tokens create a token (https://vercel.com/docs/accounts/access-tokens):
@@ -158,8 +157,8 @@ A changed Vercel setting takes effect only at the next deploy. Re-run the latest
 In the repository, open **Settings → Environments → New environment**. Create `staging`, then `production`, and set each one up:
 
 1. Under **Deployment branches and tags**, choose **Selected branches and tags** and add `main`.
-2. Under **Environment secrets**, add `SUPABASE_DB_URL`, `SUPABASE_SECRET_KEY`, `MISTRAL_API_KEY` and `VERCEL_TOKEN`. Leave out the production `MISTRAL_API_KEY` until launch.
-3. Under **Environment variables**, add `SUPABASE_URL`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`.
+2. Under **Environment secrets**, add `SUPABASE_DB_URL`, `SUPABASE_SECRET_KEY`, `CLOUDFLARE_API_TOKEN` and `VERCEL_TOKEN`. Leave out the production `CLOUDFLARE_API_TOKEN` until launch.
+3. Under **Environment variables**, add `SUPABASE_URL`, `CLOUDFLARE_ACCOUNT_ID`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`.
 
 Create the environments before the workflows reach `main`. Otherwise GitHub creates them empty, without the branch rule.
 

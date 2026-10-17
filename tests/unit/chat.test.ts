@@ -176,6 +176,27 @@ describe("answering in the chat", () => {
     expect(errorsIn(chunks)).toEqual([]);
   });
 
+  it("keeps the model's reasoning on the server", async () => {
+    const { model } = modelReplying([
+      { type: "reasoning-start", id: "thinking-1" },
+      {
+        type: "reasoning-delta",
+        id: "thinking-1",
+        delta: "The visitor asks about pings.",
+      },
+      { type: "reasoning-end", id: "thinking-1" },
+      ...reply("Henk wants a ping for every item."),
+    ]);
+
+    const chunks = await answer([visitor("Who wants pings?")], model);
+
+    expect(chunks.map((chunk) => chunk.type)).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/^reasoning/)]),
+    );
+    expect(JSON.stringify(chunks)).not.toContain("The visitor asks");
+    expect(textIn(chunks)).toBe("Henk wants a ping for every item.");
+  });
+
   it("gives the model each passage's interviewee, question and answer, without the browser's details", async () => {
     const { model, calls } = modelReplying(
       searchFor("notifications"),

@@ -4,7 +4,7 @@
 `scripts/load-notes.ts` runs `ai/providers.ts`, `env.ts` and everything they import under plain Node, which strips the types and runs the rest. In those files and their imports: relative imports with the `.ts` extension, no `@/` alias outside `import type`, and only TypeScript that can be erased (no `enum`, no parameter properties).
 
 ## The AI SDK (version 7)
-Versions: `ai` 7.0.143, `@ai-sdk/mistral` 4.0.66, and `@ai-sdk/react` 4.0.147, the release that depends on exactly that `ai`. Upgrade them together; `npm view @ai-sdk/react@<version> dependencies` shows which `ai` a release needs.
+Versions: `ai` 7.0.143, `@ai-sdk/openai-compatible` 3.0.71 and `@ai-sdk/react` 4.0.147, the releases that depend on exactly that `ai`'s `@ai-sdk/provider` (4.0.29) and `@ai-sdk/provider-utils` (5.0.62). Upgrade them together; `npm view <package>@<version> dependencies` shows what a release needs.
 
 - **Version 7 names:** the system prompt goes in `instructions` (version 7 refuses system messages inside `messages`), `isStepCount` limits the model calls, `onEnd` replaces `onFinish`, and the standalone `toUIMessageStream({ stream: result.stream })` replaces `result.toUIMessageStreamResponse()`.
 - **The chat model's interface** is the SDK's `LanguageModel`, specification v4 (`ai/chat-model.ts`). The type comes from `ai` itself, so the fake needs no extra package.
@@ -15,6 +15,15 @@ Versions: `ai` 7.0.143, `@ai-sdk/mistral` 4.0.66, and `@ai-sdk/react` 4.0.147, t
 - **Tool errors:** the model gets the thrown error's message, so a refused query (`SearchQueryError`) lets it try again. Any other search failure is logged and replaced by `SearchFailedError`, so neither the model nor the browser sees internals.
 - **Token usage:** `onEnd` doesn't run when a stream breaks, and after a failed call it reports only that call. So `onStepEnd` collects each finished call's usage, and the `finally` in `execute` logs the sum once per answer.
 - **Retries:** the SDK retries a retryable provider error twice by default (`maxRetries`). The fake's failures are not retryable, or the retry would hide them.
+- **Reasoning:** `gpt-oss-20b` streams its reasoning, and `toUIMessageStream` sends reasoning to the browser by default. `sendReasoning: false` keeps it on the server, so it never comes back with later messages either.
+
+## Cloudflare Workers AI (`ai/cloudflare.ts`)
+- **Endpoint:** `createOpenAICompatible` with `baseURL` `https://api.cloudflare.com/client/v4/accounts/<account ID>/ai/v1` and the token as `apiKey` (sent as `Authorization: Bearer`). Chat goes to `/chat/completions` (`chatModel`), embeddings to `/embeddings` (`embeddingModel`). Settings: `CLOUDFLARE_ACCOUNT_ID` (32 hexadecimal characters, checked in `env.ts`) and `CLOUDFLARE_API_TOKEN`.
+- **`includeUsage: true`** is required: without it, a streamed answer reports no tokens.
+- **Embedding batches:** Cloudflare's bge models take at most 100 texts a call; the package would send 2,048, so `cloudflare-embedder.ts` splits them.
+- **512 input tokens:** the docs don't say whether a longer text is refused or cut. `ai/embedding-input.ts` bounds the tokens without a tokenizer (lowercase, remove accents, count non-space characters, add the two markers) and refuses any text over 512 before a call. The loader names every passage over the bound and loads nothing.
+- **Pooling:** the OpenAI-compatible endpoint uses the model's default, `mean`. Cloudflare suggests `cls` for long inputs, but the two can't be mixed: switching means re-embedding every passage and changing the query side too.
+- **Tests:** `CloudflareSettings.fetch` takes a recording fetch, so `tests/unit/cloudflare.test.ts` checks the requests with no network. Real calls happen only on staging.
 
 ## Sources (read 2026-10-17)
 - Migration guide, version 7: https://ai-sdk.dev/docs/migration-guides/migration-guide-7-0
@@ -22,3 +31,8 @@ Versions: `ai` 7.0.143, `@ai-sdk/mistral` 4.0.66, and `@ai-sdk/react` 4.0.147, t
 - Tools over several steps: https://ai-sdk.dev/cookbook/next/call-tools-multiple-steps
 - The installed types, which settle the details: `node_modules/ai/dist/index.d.ts`
 - Function duration (`maxDuration` on the chat route; Hobby allows 300 seconds): https://vercel.com/docs/functions/configuring-functions/duration
+- OpenAI-compatible providers: https://ai-sdk.dev/providers/openai-compatible-providers, and `node_modules/@ai-sdk/openai-compatible/dist/index.d.ts`
+- Cloudflare's OpenAI-compatible endpoints: https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/
+- Token and account ID: https://developers.cloudflare.com/workers-ai/get-started/rest-api/
+- bge-large-en-v1.5 (512 input tokens, 1,024 dimensions, batches of 100, pooling): https://developers.cloudflare.com/workers-ai/models/bge-large-en-v1.5/ and its `sync-input.json`
+- gpt-oss-20b (function calling, reasoning, 128,000-token context): https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b/

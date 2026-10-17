@@ -238,10 +238,10 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Open Questions / Future Considerations
 
 **Open questions**
-- **AI provider:** Mistral in Free mode, decided in stage 2 (see `docs/decisions.md`).
+- **AI provider:** Cloudflare Workers AI on the free plan, for chat and embeddings, after Mistral's free plan refused API keys (see `docs/decisions.md` and `docs/records/ai-provider-research-2026-10-17.md`).
   - Google Gemini's free tier is ruled out. Its terms allow only paid use for apps available to users in the EEA, Switzerland or the UK (https://ai.google.dev/gemini-api/terms).
-  - Confirmed for Mistral: Free mode needs no card. Once the included monthly usage runs out and pay-as-you-go is off, requests fail with error 402. That allowance is shared across Studio (including its playground), the API and Vibe Code (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/resources/error-glossary.md). In the owner's reading of the Commercial Terms, a public demo on Free mode is allowed. No Labs models are used, so API data stays out of training.
-  - Checked by the owner while logged in: a US$10 monthly budget, per-minute token limits per model, both chosen models available, training off (see `docs/decisions.md`).
+  - Cloudflare's free plan: 10,000 neurons a day, reset at 00:00 UTC; at the limit requests fail with 429 (code 3036) and nothing is charged (https://developers.cloudflare.com/workers-ai/platform/pricing/). Zero data retention for standard inference, and customer content isn't used for training. No EU-only processing is promised.
+  - Tested by the owner on the free plan: `gpt-oss-20b` called the search tool, and `bge-large-en-v1.5` returned 1,024 numbers.
 - **Legal basis for the IP-based rate limit:** the owner decides, with the official sources listed in `docs/decisions.md`. This isn't legal advice.
 
 **Later, not in the first version**

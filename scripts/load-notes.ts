@@ -9,7 +9,7 @@ import path from "node:path";
 import { createEmbedder } from "../src/server/ai/providers.ts";
 import { createWriteClient } from "../src/server/db/clients.ts";
 import { createNotesStore } from "../src/server/db/notes-store.ts";
-import { readLoaderEnv } from "../src/server/env.ts";
+import { providerSettings, readLoaderEnv } from "../src/server/env.ts";
 import { loadNotes } from "../src/server/notes/load-notes.ts";
 import { readLocalStack } from "./local-stack.ts";
 
@@ -19,10 +19,7 @@ try {
       ? { ...readLocalStack(), AI_PROVIDER: "fake" }
       : process.env,
   );
-  const embedder = createEmbedder({
-    provider: env.AI_PROVIDER,
-    mistralApiKey: env.MISTRAL_API_KEY,
-  });
+  const embedder = createEmbedder(providerSettings(env));
 
   const summary = await loadNotes({
     dir: path.resolve("notes"),
