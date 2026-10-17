@@ -28,6 +28,7 @@ Ask the owner before changing anything in this folder (root `AGENTS.md`, Boundar
    - Vercel: a token scoped to that environment's own Vercel project. Staging and production are two separate projects.
 6. **Nothing copies hosted credentials to a development machine:**
    - Vercel builds the code itself (`vercel deploy --prod`, without `--prebuilt` or `vercel pull`).
+   - With `--non-interactive`, `vercel deploy` prints JSON (`status`, `deployment.url`, `deployment.productionUrl`), not the bare address the deploy docs describe; the workflows read the address with `jq`. Checked in the `vercel@64.5.0` package source (`getDeploymentOutputJson`); see also https://vercel.com/docs/cli/global-options.
    - Never use `vercel login/link/pull/env pull/env run/dev`, `supabase login/link` or `supabase projects api-keys` here. `.claude/settings.json` and `.codex/rules/default.rules` block them.
 7. **Only the production domain can be indexed:**
    - Vercel sends `noindex` only on preview and outdated deployments, so the app sends `X-Robots-Tag: noindex` itself (`next.config.ts`).

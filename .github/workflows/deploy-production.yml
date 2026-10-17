@@ -135,7 +135,11 @@ jobs:
           persist-credentials: false
       - id: deploy
         run: |
-          url=$(npx --yes vercel@64.5.0 deploy --prod --non-interactive)
+          # With --non-interactive the CLI prints JSON, not a bare address.
+          # The file sits outside the checkout so it isn't uploaded.
+          out="$RUNNER_TEMP/vercel-deploy.json"
+          npx --yes vercel@64.5.0 deploy --prod --non-interactive > "$out" || { cat "$out"; exit 1; }
+          url=$(jq -er '.deployment.productionUrl // .deployment.url' "$out") || { cat "$out"; exit 1; }
           echo "url=$url" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
