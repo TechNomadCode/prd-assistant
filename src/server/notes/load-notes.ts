@@ -3,7 +3,12 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { ProfileItem } from "../../lib/transcripts.ts";
 import type { Embedder } from "../ai/embedder.ts";
-import { parseInterview } from "./parse-interview.ts";
+import {
+  embeddingTokenBound,
+  fitsEmbeddingModel,
+} from "../ai/embedding-input.ts";
+import { EMBEDDING_MAX_INPUT_TOKENS } from "../ai/models.ts";
+import { parseInterview, type ParsedInterview } from "./parse-interview.ts";
 
 // The notes loader, the only way notes get into the database. It reads every
 // .md file in the notes folder, splits each into passages, embeds the passages
@@ -71,6 +76,32 @@ export function contentHash(model: string, question: string, answer: string) {
     .digest("hex");
 }
 
+/**
+ * Stops the load when a passage may be longer than the embedding model reads,
+ * naming every one, because the model would embed only part of it. The fake
+ * embedder has no limit, so the check runs whichever embedder loads.
+ */
+function refuseTooLong(files: string[], interviews: ParsedInterview[]) {
+  const tooLong = interviews.flatMap((interview, index) =>
+    interview.passages.flatMap((passage) => {
+      const input = embeddingInput(passage.question, passage.answer);
+      return fitsEmbeddingModel(input)
+        ? []
+        : [
+            `${files[index]}, passage ${passage.position}: up to ${embeddingTokenBound(input)} tokens`,
+          ];
+    }),
+  );
+  if (tooLong.length > 0) {
+    throw new Error(
+      [
+        `Some passages may be longer than the embedding model's ${EMBEDDING_MAX_INPUT_TOKENS} tokens, so nothing was loaded. Split each answer into shorter ones:`,
+        ...tooLong.map((line) => `- ${line}`),
+      ].join("\n"),
+    );
+  }
+}
+
 export async function loadNotes({
   dir,
   embedder,
@@ -89,12 +120,14 @@ export async function loadNotes({
     );
   }
 
-  // Parse every file before writing anything, so one bad file changes nothing.
+  // Parse and check every file before writing anything, so one bad file
+  // changes nothing.
   const interviews = await Promise.all(
     files.map(async (file) =>
       parseInterview(file, await readFile(path.join(dir, file), "utf8")),
     ),
   );
+  refuseTooLong(files, interviews);
 
   const state = await store.fetchState();
   const storedHashes = new Map(

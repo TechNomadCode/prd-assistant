@@ -43,20 +43,25 @@ describe("the environment guard", () => {
   });
 
   it("refuses a real adapter", () => {
-    const problems = check({ ...local, AI_PROVIDER: "mistral" });
+    const problems = check({ ...local, AI_PROVIDER: "cloudflare" });
 
     expect(problems).toEqual([
       expect.objectContaining({
         variable: "AI_PROVIDER",
-        reason: expect.stringContaining("mistral"),
+        reason: expect.stringContaining("cloudflare"),
       }),
     ]);
   });
 
-  it("refuses a real provider key", () => {
-    const problems = check({ ...local, MISTRAL_API_KEY: "not-a-real-key" });
+  it("refuses the real provider's settings", () => {
+    const problems = check({
+      ...local,
+      CLOUDFLARE_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+      CLOUDFLARE_API_TOKEN: "not-a-real-token",
+    });
     expect(problems.map((problem) => problem.variable)).toEqual([
-      "MISTRAL_API_KEY",
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_TOKEN",
     ]);
   });
 
