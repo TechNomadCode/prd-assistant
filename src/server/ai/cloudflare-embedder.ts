@@ -21,7 +21,8 @@ export function createCloudflareEmbedder(
     async embed(texts) {
       assertEmbeddable(texts);
       const vectors: number[][] = [];
-      let tokens = 0;
+      // The AI SDK reports NaN when a reply has no token count.
+      let tokens: number | undefined = 0;
       // The package would send up to 2,048 texts in one call; Cloudflare
       // takes 100.
       for (let start = 0; start < texts.length; start += EMBEDDING_BATCH_SIZE) {
@@ -30,11 +31,14 @@ export function createCloudflareEmbedder(
           values: texts.slice(start, start + EMBEDDING_BATCH_SIZE),
         });
         vectors.push(...embeddings);
-        tokens += usage.tokens;
+        tokens =
+          tokens !== undefined && Number.isFinite(usage.tokens)
+            ? tokens + usage.tokens
+            : undefined;
       }
       if (texts.length > 0) {
         console.info(
-          `Embedded ${texts.length} texts with ${EMBEDDING_MODEL}: ${tokens} tokens.`,
+          `Embedded ${texts.length} texts with ${EMBEDDING_MODEL}: ${tokens === undefined ? "Cloudflare reported no token count" : `${tokens} tokens`}.`,
         );
       }
       return vectors;

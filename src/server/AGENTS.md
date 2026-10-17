@@ -20,6 +20,7 @@ Versions: `ai` 7.0.143, `@ai-sdk/openai-compatible` 3.0.71 and `@ai-sdk/react` 4
 ## Cloudflare Workers AI (`ai/cloudflare.ts`)
 - **Endpoint:** `createOpenAICompatible` with `baseURL` `https://api.cloudflare.com/client/v4/accounts/<account ID>/ai/v1` and the token as `apiKey` (sent as `Authorization: Bearer`). Chat goes to `/chat/completions` (`chatModel`), embeddings to `/embeddings` (`embeddingModel`). Settings: `CLOUDFLARE_ACCOUNT_ID` (32 hexadecimal characters, checked in `env.ts`) and `CLOUDFLARE_API_TOKEN`.
 - **`includeUsage: true`** is required: without it, a streamed answer reports no tokens.
+- **No token count for embeddings:** on staging (2026-10-17) Cloudflare's `/embeddings` reply had no `usage`, and the AI SDK then reports `NaN` tokens. `cloudflare-embedder.ts` logs "Cloudflare reported no token count" instead.
 - **Embedding batches:** Cloudflare's bge models take at most 100 texts a call; the package would send 2,048, so `cloudflare-embedder.ts` splits them.
 - **512 input tokens:** the docs don't say whether a longer text is refused or cut. `ai/embedding-input.ts` bounds the tokens without a tokenizer (lowercase, remove accents, count non-space characters, add the two markers) and refuses any text over 512 before a call. The loader names every passage over the bound and loads nothing.
 - **Pooling:** the OpenAI-compatible endpoint uses the model's default, `mean`. Cloudflare suggests `cls` for long inputs, but the two can't be mixed: switching means re-embedding every passage and changing the query side too.

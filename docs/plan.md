@@ -3,14 +3,14 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, committed on branch `feat/cloudflare-workers-ai`. Chat on `@cf/openai/gpt-oss-20b`, embeddings on `@cf/baai/bge-large-en-v1.5` through `@ai-sdk/openai-compatible` 3.0.71; `@ai-sdk/mistral` is removed. The guard refuses `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. The loader refuses any passage over a certain bound on the 512 input tokens (non-space characters after lowercasing and removing accents, plus two) and names each one; the longest today has about 300. Embeddings go in batches of 100, and the model's reasoning stays on the server (`sendReasoning: false`). README, `.env.example`, `src/server/AGENTS.md`, the PRD, the MVP, KI-1 and slice 8 name Cloudflare. Local checks: `verify` (109 unit tests, build), `test:integration` (12), `test:sql` (46), the type drift check, `test:e2e` (11), `npm audit --omit=dev` (0), `verify:secrets` (no leaks). `db:reset` wasn't run: no schema change.
+- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, is merged into `main` (2ddd70b, 2c50299). On staging the load-notes job re-embedded all 42 passages with `@cf/baai/bge-large-en-v1.5`, but logged "NaN tokens": Cloudflare's embeddings reply carries no token count. The fix is on branch `fix/embedding-token-log`: it logs "Cloudflare reported no token count" instead, with a test that failed before the fix.
 - **Unverified:**
-  - Everything against the real Cloudflare: streaming with tool calls through the AI SDK, the token line, search by meaning, re-embedding all 42 passages on staging, and what Cloudflare does with an over-long input. Local tests use the fakes and a recorded fetch.
+  - The chat on staging: streaming with tool calls, the search line, search by meaning, and the "Chat answer:" token line for `gpt-oss-20b` in Vercel's logs.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
   - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
-- **Next:** the owner approved the workflow change on 2026-10-17 (`deploy-staging.yml` and `deploy-production.yml` use `CLOUDFLARE_ACCOUNT_ID`, a variable, and `CLOUDFLARE_API_TOKEN`, a secret, instead of the Mistral key). Before pushing, the owner sets the values: the GitHub `staging` environment (the variable and the secret; delete `MISTRAL_API_KEY`), and the Vercel staging project (`AI_PROVIDER` = `cloudflare`, `CLOUDFLARE_ACCOUNT_ID` as Config, `CLOUDFLARE_API_TOKEN` as Secret; delete `MISTRAL_API_KEY`). Then push, pull request, merge, and the staging check: the load-notes job logs "Embedded 42"; ask "Who wants a notification for every item someone adds?", open the search line, and find "Chat answer:" with `gpt-oss-20b` under **Logs** in the `prd-assistant-staging` project on Vercel. After that, slice 4, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
-- **Waiting on the owner:** the settings above, then the push and the merge.
+- **Next:** the owner pushes `fix/embedding-token-log`, merges it, and finishes the staging check: ask "Who wants a notification for every item someone adds?", open the search line, and find "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. After that, slice 4, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
+- **Waiting on the owner:** the chat check on staging, and the push of the fix.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -28,7 +28,7 @@
 
 ### 3 · Chat that searches the interviews · risk: normal · status: done (1798fed)
 
-### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: todo
+### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: merged (2c50299), staging chat check pending
 - **Goal:** the chat and the search run on Cloudflare Workers AI's free plan instead of Mistral, whose free plan refused API keys (`docs/records/ai-provider-research-2026-10-17.md`).
 - **Acceptance:**
   - Approved by the owner on 2026-10-17 and recorded in `docs/decisions.md`.
