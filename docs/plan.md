@@ -3,13 +3,14 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 3, *Chat that searches the interviews*, is done on `feat/chat-searches-interviews` (5f8a29c, 0452736, 01a813c). No database change. Local checks: `verify` (93 unit tests, build), `test:integration` (11), `test:e2e` (11, including the axe check with a search's passages open). Checked in the browser pane at desktop and phone width.
+- **Doing:** slice 3, *Chat that searches the interviews*, is merged into `main` (91ff7df, fcf8cd9, 1798fed) and deployed to staging. Local checks before the merge: `verify` (93 unit tests, build), `test:integration` (11), `test:e2e` (11). The staging check found a blocker in the Mistral account, below.
 - **Unverified:**
-  - The chat with Mistral on staging: tool calling with `mistral-small-2603`, search by meaning, and the token line in Vercel's logs. Only the scripted fake has answered so far. Expect the Security Advisor's lint 0028 on `search_passages` there; it's intended (`supabase/AGENTS.md`).
+  - The chat with Mistral on staging is blocked. On 2026-10-17, Mistral refused every call to `mistral-small-2603` with 429 "Rate limit exceeded" and the header `x-ratelimit-limit-req-minute: 0`, three attempts each (the AI SDK's retries). The app worked as built: the plain message and "Try again", the cause logged, and "Chat answer: 0 tokens … in 0 model calls". Embeddings with the same staging Workspace worked when the notes loaded. Still unseen: tool calling, search by meaning, and the token line for a real answer.
+  - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Mistral key.
   - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
-- **Next:** once the pull request is merged, the owner tries the chat on staging: ask "Who wants a notification for every item someone adds?", open the search line, and find the line starting "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. Then slice 4, *System prompt from the toolkit*, on a new branch from an up-to-date `main`, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
-- **Waiting on the owner:** pushing `feat/chat-searches-interviews`, opening a pull request and merging it once its five checks pass; the merge runs the staging deploy. Then the staging check above.
+- **Next:** fix the cause the owner finds in Mistral's Admin Panel. An account setting needs no code change. If `mistral-small-2603` can't be used on the plan, the owner chooses another model, which is a code change and reruns the quality check later. Then repeat the staging check: ask "Who wants a notification for every item someone adds?", open the search line, and find "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. After that, slice 4, *System prompt from the toolkit*, on a new branch from an up-to-date `main`, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
+- **Waiting on the owner:** in Mistral's Admin Panel, what **API → Limits** shows for `mistral-small-2603` (listed or not, and its limits), and what the staging Workspace's **Monthly spending limit** says under **Administration → Workspaces → Settings**.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -25,7 +26,7 @@
 
 ### 2 · Search the interviews · risk: risky (permissions) · status: done (7006d9c)
 
-### 3 · Chat that searches the interviews · risk: normal · status: done (01a813c)
+### 3 · Chat that searches the interviews · risk: normal · status: done (1798fed)
 
 ### 4 · System prompt from the toolkit · risk: normal · status: todo
 - **Goal:** the assistant works like the toolkit's PRD prompt, grounded in the interviews.
