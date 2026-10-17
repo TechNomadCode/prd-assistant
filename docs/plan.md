@@ -3,17 +3,19 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** stage 3 done on branch `feat/walking-skeleton` (not pushed). The six interviews are loaded into Postgres with the fake embedder and listed on `/transcripts`, with tests in all four layers. Also in place: the environment guard, `env:local`, `doctor`, CI, and the staging and production workflows. The README has the owner's setup steps. Decisions this session: Node 24 (Vercel runs 24 at most); staging is a second Vercel project; Vercel builds the code itself; local Supabase ports 57320–57383 so it runs next to the owner's other projects. An independent review found no blockers; its two low findings are fixed (the production key check now runs before any migration; SQL tests now write as the loader's role)
+- **Doing:** stage 3 done on branch `feat/walking-skeleton` (pushed by the owner; reviewed and confirmed). The six interviews are loaded into Postgres with the fake embedder and listed on `/transcripts`, with tests in all four layers. Also in place: the environment guard, `env:local`, `doctor`, CI, and the staging and production workflows. The README has the owner's setup steps. Decisions this session: Node 24 (Vercel runs 24 at most); staging is a second Vercel project; Vercel builds the code itself; local Supabase ports 57320–57383 so it runs next to the owner's other projects. An independent review found no blockers; its two low findings are fixed (the production key check now runs before any migration; SQL tests now write as the loader's role)
 - **Unverified:**
   - The workflows haven't run on GitHub yet. They pass actionlint, and every command in them ran locally.
   - Node 24 runs here through fnm: `doctor` and `verify` pass on it (local).
   - The dashboard click paths come from the providers' docs and haven't been clicked through.
-- **Next:** slice 2, *Search the interviews*, on a new branch from an up-to-date `main` once the set-up is merged. First check *Deferred* for items due
-- **Waiting on the owner:**
-  1. Push `main` (`git push origin main`), then create the accounts chosen in `docs/decisions.md`: Mistral (the staging key: the logged-in checks are done), Supabase and Vercel.
-  2. Follow the setup steps in `README.md`: connections, settings and secrets.
-  3. Push `feat/walking-skeleton`, open a pull request into `main` and wait for CI.
-  4. Merge, then confirm that staging got the migrations and then the code.
+- **Next:** guide the owner step by step through the README setup (*Setting up staging and production*), one service at a time:
+  1. Mistral: the staging Workspace and key. The logged-in checks are done.
+  2. Supabase: two Free projects in Frankfurt. Collect the session pooler URI, the project URL, and the publishable and secret keys.
+  3. Vercel: create both projects by importing the repo **before merging**. Disconnect Git, add the Production variables, protect staging and create the project-scoped tokens.
+  4. GitHub: the `staging` and `production` environments, limited to `main`, with their secrets and variables.
+
+  Ask what they see at each step, and correct the README where a click path differs. Never ask for or handle key values: the owner pastes them straight into the dashboards. Meanwhile, check the pull request's CI and fix any failure with a new commit on the branch. It's pushed, so never rewrite it. Then the owner merges, and you confirm in **Actions → Deploy staging** that the migrations ran before the code. After that comes slice 2, *Search the interviews*, on a new branch from an up-to-date `main` (check *Deferred* first)
+- **Waiting on the owner:** the pull request from `feat/walking-skeleton` into `main`, with CI running. The account setup is done together in the next session.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
