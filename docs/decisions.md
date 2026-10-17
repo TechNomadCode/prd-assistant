@@ -9,6 +9,7 @@ Decisions that shape the app, one line each: `YYYY-MM-DD · decision · conseque
 ## Environments and accounts
 - 2026-10-17 · Self-hosters run on fakes locally (real providers are blocked on development machines); for real answers they deploy their own copy following the README · The README covers deploying your own copy
 - 2026-10-17 · Owner is in the Netherlands; most visitors are recruiters in the Netherlands and the rest of the EU · Provider eligibility and the Vercel function region must suit an NL account and EU visitors
+- 2026-10-17 · GitHub repository: https://github.com/TechNomadCode/prd-assistant, public, remote `origin`; the branch is `main` (renamed from `master` to match GitHub and CI); the owner pushes · CI and staging follow `main`; the README links here
 - 2026-10-17 · Development uses a local database and fake providers; staging and production are separate Supabase projects; hosted credentials never sit on a development machine · Agents can't reach hosted systems, and production changes run only from the production workflow
 
 ## Data
@@ -41,7 +42,7 @@ Decisions that shape the app, one line each: `YYYY-MM-DD · decision · conseque
 <!-- YYYY-MM-DD · what · decide by <when> · affects <what> -->
 - 2026-10-17 · Owner checks while logged in to Mistral: the free limits on Admin Panel → API → Limits (https://admin.mistral.ai/plateforme/limits), that the chosen chat and embedding models appear there, and that the training setting is off · decide before the staging key is created at the end of stage 3 · affects the model choice, the per-visitor rate limit (30 a day) and the quota message
 - 2026-10-17 · Mistral keys: one Organization used only for this app, with a Workspace and key each for staging and production (Mistral's recommended split), or separate Organizations; Studio's playground and Vibe Code draw on the same monthly allowance (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/admin/identity-access/api-keys.md) · decide by the end of stage 3, when the app goes online · affects the staging and production keys and how much of the allowance the quality check uses
-- 2026-10-17 · The GitHub repository name (public, as the brief says), the hosting and database accounts, their region and plan limits · decide by the end of stage 3, when the app goes online · affects CI, staging and the Vercel and Supabase regions
+- 2026-10-17 · The hosting and database accounts, their region and plan limits · decide by the end of stage 3, when the app goes online · affects staging and the Vercel and Supabase regions
 - 2026-10-17 · The legal basis for the hashed-IP rate limit, and handling requests to delete personal data (keeping it only for the limit window is decided) · decide before the rate-limit piece of work in stage 4, the first that stores personal data · affects the rate limit and a possible privacy notice
 - 2026-10-17 · Legal pages, including whether a short privacy notice is needed; the domain, search engines, alerts, cookies, tracking, tax and receipts are already settled as none · decide in stage 5 · affects the launch
 - 2026-10-17 · Get `1-user-research/research-to-prd.md` from the toolkit repository (only `prd.md` was copied) for its traceability rules · decide by the system-prompt slice in stage 4 · affects the app's system prompt

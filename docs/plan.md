@@ -6,7 +6,7 @@
 - **Doing:** AI provider settled as Mistral in Free mode (owner's reading of the Commercial Terms recorded; no Labs models); stage 2 Deferred items recorded; asked the owner to confirm the summary (anonymous visitors only, no sign-in; stores note passages with embeddings and short-lived hashed-IP counts; agent drafts the fictional interviews for owner review; English, NL/EU, no currency; no payments/email/background jobs/file storage) and the models (chat `mistral-small-2603` pinned, fallback `mistral-medium-3-5`, embeddings `mistral-embed-2312`, 1024 dimensions)
 - **Unverified:** Mistral's free limits, whether the chosen models are included in Free mode, and the training setting: the owner checks them when logged in (see Deferred)
 - **Next:** write the owner's model answer into `docs/decisions.md` (External services), then set this block to 3 of 5 · Set up and open `.kit/stages/3-set-up.md`
-- **Waiting on the owner:** a yes (or changes) on the summary and the models; the logged-in Mistral checks
+- **Waiting on the owner:** a yes (or changes) on the summary and the models; the logged-in Mistral checks; the first push to GitHub (`git push -u origin main`, remote already added)
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
