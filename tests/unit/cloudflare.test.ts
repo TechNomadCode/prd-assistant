@@ -1,4 +1,4 @@
-import { streamText, tool } from "ai";
+import { isStepCount, streamText, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createCloudflareChatModel } from "@/server/ai/cloudflare";
@@ -231,5 +231,58 @@ describe("the Cloudflare chat model", () => {
       }),
     ]);
     expect(await result.finishReason).toBe("tool-calls");
+  });
+
+  it("sends the search back with text in every message, which Cloudflare requires", async () => {
+    const replies = [
+      chatReply(
+        {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "call-1",
+              type: "function",
+              function: {
+                name: "searchNotes",
+                arguments: '{"query":"notifications"}',
+              },
+            },
+          ],
+        },
+        "tool_calls",
+      ),
+      chatReply({ role: "assistant", content: "Henk wants a ping." }, "stop"),
+    ];
+    let call = 0;
+    const { sent, model } = chatModel(() => replies[call++]!());
+
+    const result = streamText({
+      model,
+      prompt: "Who wants a notification for every item someone adds?",
+      tools: {
+        searchNotes: tool({
+          inputSchema: z.object({ query: z.string() }),
+          execute: async () => ({ passages: [] }),
+        }),
+      },
+      stopWhen: isStepCount(2),
+    });
+
+    expect(await result.text).toBe("Henk wants a ping.");
+    expect(sent).toHaveLength(2);
+    const messages = sent[1]?.body.messages as Array<Record<string, unknown>>;
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+    ]);
+    for (const message of messages) {
+      expect(typeof message.content).toBe("string");
+    }
+    expect(messages[1]).toMatchObject({
+      content: "",
+      tool_calls: [expect.objectContaining({ id: "call-1" })],
+    });
   });
 });
