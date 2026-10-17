@@ -183,7 +183,8 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Open questions**
 - **AI provider:** which one has a free tier that covers both chat and embeddings, allows a public demo, and works with a Dutch account, EU visitors and the server's region? Decided in the next stage. So far:
   - Google Gemini's free tier is ruled out. Its terms allow only paid use for apps available to users in the EEA, Switzerland or the UK (https://ai.google.dev/gemini-api/terms).
-  - Mistral is the leading candidate, but its terms and free limits aren't confirmed yet.
+  - Mistral is the leading candidate. Confirmed: its free mode needs no card. Once the included monthly usage runs out and pay-as-you-go is off, requests fail with error 402. That allowance is shared by the whole account across the API, the chat app and the coding tools (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/resources/error-glossary.md).
+  - Mistral, still unconfirmed: the actual free limits (visible only when logged in), whether its terms allow a public demo, and the default setting for training on API data.
 - **Free-tier data use:** free tiers may use prompts for training or human review. Should the app tell visitors not to type personal information?
 - **Phone layout:** must the app work well on a phone, or is it desktop first with a usable phone fallback?
 - **Rate limit:** how many requests per visitor, and over what time window?

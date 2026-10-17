@@ -29,4 +29,5 @@ Decisions that shape the app, one line each: `YYYY-MM-DD · decision · conseque
 
 ## Deferred
 <!-- YYYY-MM-DD · what · decide by <when> · affects <what> -->
+- 2026-10-17 · AI provider: Mistral free mode is the leading candidate (Gemini's free tier is ruled out for EEA users). Still to confirm: the owner reads the free limits on the logged-in Admin Panel Limits page, the data-sharing (training) toggle, and whether the terms allow a public demo. The free allowance is per Organization, so decide whether staging and production get separate Organizations · decide in stage 2 · affects the provider, the quota message, staging and production keys
 - 2026-10-17 · Get `1-user-research/research-to-prd.md` from the toolkit repository (only `prd.md` was copied) for its traceability rules · decide by the system-prompt slice in stage 4 · affects the app's system prompt
