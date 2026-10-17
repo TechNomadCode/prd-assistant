@@ -7,9 +7,9 @@
 
 ## Introduction / Overview
 
-PRD Assistant is a web app that turns research notes into a product requirements document (PRD) where every claim is cited. The assistant searches the notes and drafts the PRD section by section together with the user. Each section is a list of statements, and each statement cites the passages it comes from with short exact quotes. The app's own code checks every quote against its passage and flags statements that cite nothing. It doesn't trust the model.
+PRD Assistant is a web app that turns research notes into a product requirements document (PRD) where every claim is cited. The assistant searches the notes and drafts the PRD section by section together with the user. Each section is a list of statements, and each statement cites its sources with short exact quotes: the passages it comes from, or the user's own chat message when it records a decision the notes don't cover. The app's own code checks every quote against its source and flags statements that cite nothing. It doesn't trust the model.
 
-It's a public portfolio project for AI engineering jobs. The live demo runs on fictional sample notes (interviews about a shared household grocery list app), so a reviewer can see it working without signing up. Anyone can clone the repository: locally it runs on fakes, and for real answers they deploy their own copy.
+It's a public portfolio project for AI engineering jobs. The live demo runs on fictional sample notes (a researcher's interviews with six households about a shared grocery list app), so a reviewer can see it working without signing up. The demo explains itself as it goes: the visitor plays the product manager of that app, and each moment shows only what they need right then. Anyone can clone the repository: locally it runs on fakes, and for real answers they deploy their own copy.
 
 Product type: a web application built with Next.js, Supabase (Postgres with pgvector) and Vercel, using the Vercel AI SDK.
 
@@ -19,8 +19,9 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **Product goals**
 - A reviewer who opens the live demo sees a cited PRD section within 2 minutes, without signing up.
+- The demo explains itself through progressive disclosure: each moment shows only what the visitor needs right then, and details open when they ask for them.
 - Every statement in a saved section is checked in code. A citation whose quote fails is marked unverified, and a statement with no citation is flagged. Neither is hidden or silently dropped.
-- Anything the notes don't support goes under Open Questions instead of being invented.
+- Anything that neither the notes nor the visitor's own answers support goes under Open Questions instead of being invented.
 
 **Portfolio goals:** the code shows, in parts the owner can explain in a job interview:
 - calling an AI model from the app's own code with the Vercel AI SDK, with streaming chat
@@ -29,15 +30,15 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - checking AI output in code
 - token awareness: token usage is logged per answer, and the quality check prints the total tokens for a full PRD
 
-**Timebox:** the features fit in one to two days of building, plus set-up and launch. Anything new goes on the later list.
+**Timebox:** the features fit in two to three days of building, plus set-up and launch. Anything new goes on the later list.
 
 ---
 
 ## Target Audience / User Personas
 
-- **Reviewer:** a recruiter or engineer, mostly in the Netherlands and the rest of the EU. Opens the live demo with little time and no account, usually on a desktop.
-  - *Recruiter:* non-technical. Needs to see it working fast, through the suggested first messages or the README's screen recording.
-  - *Engineer:* clicks citations, reads the README's explanation of the RAG design and the citation check, then reads the code.
+- **Reviewer:** a recruiter or engineer, mostly in the Netherlands and the rest of the EU. Opens the live demo with little time and no account, usually on a desktop. In the demo, they play the product manager of the fictional grocery list app.
+  - *Recruiter:* non-technical. Needs to see it working fast, through the intro screen's one button or the README's screen recording.
+  - *Engineer:* clicks quotes, follows the link to the README's explanation of the search and the check, then reads the code.
 - **Self-hoster:** clones the repository. Locally the app runs on fakes only, because real providers are blocked on development machines. For real answers they deploy their own copy, following the README. To use their own notes, they replace the sample files and run the load script again.
 - **Owner:** runs the app. Adds the hosted keys, starts the quality check on staging, and must be able to explain every part.
 
@@ -45,19 +46,23 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 ## User Stories / Use Cases
 
-- As a reviewer, I click a suggested first message and get a streamed answer and a cited section within 2 minutes.
-- As a reviewer, I click a citation and the passage it quotes opens in a pop-over.
-- As a reviewer, I can tell which citations passed the check, which are unverified, and which statements cite nothing.
+- As a reviewer, I land on a short screen that tells me my role and my task, click its one button, and get a drafted section with checked quotes within 2 minutes.
+- As a reviewer, I can open the interview transcripts from a quieter link on that screen.
+- As a reviewer, while the AI works, I see each step as one line, such as the search it ran and whose passages came back, and clicking a line shows the passages.
+- As a reviewer, every quote shows its source by name, like "Daan, interview" or "You, in this chat", and whether the check confirmed it, and statements that cite nothing are flagged. What confirmed and unverified mean is explained once, next to the first section.
+- As a reviewer, I click a quote and its passage opens in a pop-over, with the researcher's question above the answer.
+- As a reviewer, after the first section, a suggested message invites me to try to break it, for example by claiming users asked for grocery delivery, and I see that the AI can't make the interviews say it.
 - As a reviewer, I see a line under the chat box saying this is a demo with fictional notes and that I shouldn't enter personal information.
-- As a user, the assistant first tells me what the notes cover and asks one to three questions about gaps, before drafting.
-- As a user, I confirm each section before it's saved, and I change a saved section by asking in the chat.
+- As a user, the assistant drafts before it asks me anything. It asks only when a section needs something the interviews don't say, and the first time it explains in one sentence that my answer will be recorded as my own decision.
+- As a user, a statement based on my answer cites my own chat message, with a short quote the code checks against what I wrote.
+- As a user, I confirm each section before the assistant moves on to the next, and I change a section by asking in the chat.
 - As a user, where the notes contradict each other, I see both views with their citations, and the choice between them is listed under Open Questions.
-- As a user, my PRD is still there after a reload, and "Start over" clears it.
+- As a user, my PRD is still there after a reload, and "Start over" clears it and takes me back to the first screen.
 - As a user, I download the PRD as a Markdown file.
 - As a reviewer on a phone, I see the chat and the PRD stacked on one page.
 - As a reviewer who arrives after the free quota is used up, the chat input is hidden, and a friendly message links to the README's screen recording and to the repository.
 - As a self-hoster, I run the whole app locally on fakes without any key or account, and I deploy my own copy for real answers.
-- As an engineer reviewer, I see the loaded sample notes on a page of their own.
+- As an engineer reviewer, I see the interview transcripts on a page of their own, and a link takes me to the README's explanation of the search and the check, and to the code.
 - As the owner, I start the quality check on staging and get a clear pass or fail plus the total tokens used.
 
 ---
@@ -65,34 +70,44 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Functional Requirements
 
 **Sample notes**
-- Five to eight short user interviews for a fictional shared household grocery list app, clearly marked as fictional.
+- Six short user interviews for a fictional shared household grocery list app, done by a fictional researcher and clearly marked as fictional. They're finished records: the AI reads and quotes them, and never asks their questions again.
 - One deliberate gap: nobody mentions using the app in a store with bad signal (offline use).
 - One deliberate contradiction: some interviewees want a notification for every added item, others name that as a reason to uninstall.
-- A load script splits the notes into chunks, embeds them and stores them. The same script runs locally (with the fake embedder) and on staging and production (with the real one). Self-hosters replace the sample files and run it again to use their own notes.
-- A page lists the loaded notes. This is also the first feature built end to end.
+- A load script splits the notes into passages, embeds them and stores them. Each passage keeps the interviewee's name and the researcher's question that its answer replies to. The same script runs locally (with the fake embedder) and on staging and production (with the real one). Self-hosters replace the sample files and run it again to use their own notes.
+- A page lists the transcripts. This is also the first feature built end to end.
+
+**Intro screen**
+- The home page opens on a short screen with a few sentences and one button.
+- The sentences say that the visitor is the product manager of a shared grocery list app; that a researcher already interviewed six households, and those transcripts are finished records; that the AI reads and quotes them and never asks their questions again; and that the visitor's job is to turn them into a PRD while the AI proves every line.
+- The button drafts the first section. A quieter link opens the transcripts.
+- When the visitor's browser already holds a PRD, the home page goes straight to the chat and the PRD.
 
 **Chat**
-- The chat with the PRD next to it is the home page.
+- After the intro screen, the home page shows the chat with the PRD next to it.
 - Answers stream in.
-- The assistant opens by saying what the notes cover and asking one to three questions about gaps.
-- It then drafts the nine sections one at a time and asks the user to confirm each: Introduction / Overview, Goals / Objectives, Target Audience / User Personas, User Stories / Use Cases, Functional Requirements, Non-Functional Requirements, Design Considerations / Mockups, Success Metrics, Open Questions / Future Considerations.
-- A few suggested first messages let a reviewer reach a cited section right away.
+- While the assistant works, each step shows as one line, such as the search it ran and which people the passages came from. Clicking a line shows the passages.
+- The assistant shows value first: it drafts before it asks anything. It asks the visitor a question only when a section needs something the transcripts don't say. The first time, it explains in one sentence that this isn't in the interviews, so the answer will be recorded as the visitor's own decision.
+- It drafts the nine sections one at a time, in this order, and asks the visitor to confirm each before moving on: Introduction / Overview, Goals / Objectives, Target Audience / User Personas, User Stories / Use Cases, Functional Requirements, Non-Functional Requirements, Design Considerations / Mockups, Success Metrics, Open Questions / Future Considerations.
+- After the first section, and not before, a suggested message invites the visitor to try to break it with a claim that nothing in the interviews comes close to, such as users asking for grocery delivery. That way they see the AI can't pretend users said something they didn't.
 - One line under the chat box says this is a demo with fictional notes and not to enter personal information.
+- For engineers who want more, a link leads to the README's explanation of the search and the check, and to the code.
 
 **Tools the model calls itself**
-- `searchNotes`: the app's code embeds the query and returns the closest passages, using a plain SQL similarity search.
-- `saveSection`: takes a confirmed section as a list of statements, each with its citations, and stores it in the PRD shown next to the chat.
+- `searchNotes`: the app's code embeds the query and returns the closest passages, using a plain SQL similarity search. Each passage comes with the interviewee's name and the researcher's question.
+- `saveSection`: takes a drafted section as a list of statements, each with its citations. The app's code checks it and stores it in the PRD shown next to the chat; the visitor then confirms it or asks for changes.
 
 **Citations**
-- Each statement cites one or more passages, each citation with a short quote from that passage.
-- The app's code checks each quote against its passage. A quote passes when it has the same words in the same order as the passage, ignoring letter case, spacing, quote style and punctuation at the ends of the quote. Citations that fail are shown as unverified.
-- Statements with no citation are flagged.
-- Clicking a citation shows the passage in a pop-over.
-- What the notes don't support goes under Open Questions.
+- Each statement cites one or more sources, each with a short quote: an interview passage, or the visitor's own message in this chat when the statement records their decision.
+- The app's code checks each quote against its source: an interview quote against the interviewee's answer, never the researcher's question; a visitor quote against what the visitor actually wrote in this chat, never the assistant's messages. A quote passes when it has the same words in the same order as its source, ignoring letter case, spacing, quote style and punctuation at the ends of the quote. Citations that fail are shown as unverified.
+- Statements that cite neither are flagged.
+- Every quote shows its source by name, like "Daan, interview" or "You, in this chat", and whether the check confirmed it. What confirmed and unverified mean is explained once, next to the first section.
+- Every quote sits next to its statement, so the reader can judge whether the statement reads it fairly. The check proves only that the quoted words exist and belong to that person.
+- Clicking a quote opens its source in a pop-over: the passage with the researcher's question above the answer, or the visitor's message.
+- What neither the notes nor the visitor's answers support goes under Open Questions.
 - Where the notes contradict each other, the section states both views with their citations, and the choice between them goes under Open Questions.
 
 **The PRD**
-- Lives in the visitor's browser and survives a reload. "Start over" clears it.
+- Lives in the visitor's browser and survives a reload, together with the visitor's messages that its quotes come from. "Start over" clears it and returns to the intro screen.
 - Sections change only through the chat, so every change goes through the citation check.
 - Downloads as Markdown.
 
@@ -105,15 +120,26 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **System prompts**
 - The base is `planning-prompts/2-prd/prd.md` from the AI Product Development Toolkit, copied into the app's own prompts folder with a link to the source.
-- It keeps the template's role, its rules (targeted questions, a check-in before each new section) and its nine sections. Its braindump slot becomes the instruction to use `searchNotes`.
-- From `1-user-research/research-to-prd.md`, only the traceability rules are borrowed: every claim traces to a passage, interpretations are marked as such, and unsupported assumptions become open questions.
-- Added on top: when to call each tool, the statement-and-citation format, how to handle contradictions, and a rule never to invent.
+- It keeps the template's role, its check-in before each new section and its nine sections. Its targeted questions stay, but come after drafting and only for what the transcripts don't say. Its braindump slot becomes the instruction to use `searchNotes`.
+- From `1-user-research/research-to-prd.md`, only the traceability rules are borrowed: every claim traces to its source, interpretations are marked as such, and unsupported assumptions become open questions.
+- Added on top: when to call each tool, the statement-and-citation format, citing the visitor's own message for their decisions, drafting before asking, never asking the interview questions again, how to handle contradictions, and a rule never to invent.
 - Prompts are versioned files, and the quality check runs again whenever one changes.
 
 **Quality check**
-- Five fixed requests against the sample notes, including one that depends on the deliberate gap and one that touches the contradiction.
+- Five fixed requests against the sample notes:
+  - the intro button's request for the first section
+  - one that touches the contradiction
+  - one that depends on the deliberate gap, followed by a fixed answer from the visitor
+  - the live suggestion to break it, word for word (users asking for grocery delivery)
+  - a harder attempt: claiming users asked for a dark mode, which Henk's "black on white or white on black" comes close to
 - Runs with the real model on staging and is started by the owner. It never runs on the development machine.
-- A run passes when every citation passes the quote check, every statement outside Open Questions has at least one citation, the gap is listed under Open Questions, and the contradiction shows both views with their citations plus an open question.
+- A run passes when:
+  - every citation passes the quote check, for interview quotes and visitor quotes alike
+  - every statement outside Open Questions cites at least one interview passage or visitor message
+  - the first request ends with a saved section, drafted without asking the visitor anything first
+  - for the gap, the assistant asks the visitor instead of inventing an answer, and the statement based on the fixed answer cites that answer
+  - the contradiction shows both views with their citations, plus an open question
+  - no statement that mentions grocery delivery or dark mode cites an interview
 - The check counts as passed only after two passing runs in a row, because the model can answer the same request differently each time.
 - If it fails, the prompt is fixed or a stronger model on the same free tier is tried. The check is never loosened.
 - It prints the total tokens used.
@@ -124,7 +150,8 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - On development machines only the fakes run.
 
 **README**
-- Explains the RAG design and how citations are checked.
+- Explains the RAG design and how citations are checked. The demo's link for engineers leads here.
+- Says plainly that the check proves the quoted words exist and belong to that person, not that the statement reads them fairly, which is why every quote sits next to its statement.
 - States how many tokens a full PRD uses, taken from the quality check.
 - Includes a short screen recording of the app working.
 - Explains how to deploy your own copy for real answers.
@@ -179,9 +206,16 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Design Considerations / Mockups
 
 **Screens**
-- Home: the chat with the PRD next to it. On a phone they stack.
-- A page listing the sample notes.
-- Cited passages open in a pop-over.
+- Home: first a short intro screen (a few sentences, one button, a quieter link to the transcripts), then the chat with the PRD next to it. On a phone they stack.
+- A page with the interview transcripts.
+- Quotes open their source in a pop-over, with the researcher's question above the answer.
+
+**Progressive disclosure**
+- Each moment shows only what the visitor needs right then. Details open when they ask for them.
+- Each step the AI takes is one line that opens to show its passages.
+- What confirmed and unverified mean is explained once, next to the first section.
+- The suggestion to try to break it appears only after the first section.
+- The link for engineers stays quiet and leads to the README's explanation and the code.
 
 **Look**
 - Black and white, with black dominant on backgrounds and large surfaces, and white in support for text, lines and accents.
@@ -194,7 +228,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Success Metrics
 
 - **Time to first cited section:** under 2 minutes from opening the demo to a saved section whose citations passed the check. With no tracking, the owner times this on staging and production *(assumption about how it's measured)*.
-- **Quality check:** all five requests pass in two runs in a row. Every citation passes the quote check, every statement outside Open Questions has a citation, the deliberate gap appears under Open Questions, and the contradiction shows both views plus an open question.
+- **Quality check:** all five requests pass in two runs in a row, by the pass rules under Functional Requirements, *Quality check*.
 
 ---
 

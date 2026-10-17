@@ -30,27 +30,29 @@
 
 ## Problem solved (MVP focus)
 
-An engineer looking at an AI project can't tell whether its output is grounded or invented. This MVP lets them check, within minutes, whether each statement in a generated PRD section traces to a quoted passage. They can also see that the app's own code, not the model, decides which citations pass, which are unverified, and which statements cite nothing.
+An engineer looking at an AI project can't tell whether its output is grounded or invented. This MVP lets them check, within minutes, whether each statement in a generated PRD section traces to a quoted passage, or to the visitor's own words when it records their decision. They can also see that the app's own code, not the model, decides which citations pass, which are unverified, and which statements cite nothing.
 
 ---
 
 ## Minimum feature set
 
 **In:** everything in the approved PRD. It's already cut to one to two days of building.
-- Sample notes: five to eight fictional grocery list interviews with the deliberate gap and contradiction. The load script chunks, embeds and stores them, and a page lists them (PRD Functional Requirements: Sample notes).
-- Streaming chat as the home page:
-  - an opening summary and gap questions
+- Sample notes: six fictional grocery list interviews with the deliberate gap and contradiction. The load script chunks, embeds and stores them, keeping each answer's interviewee and the researcher's question, and a page lists them (PRD Functional Requirements: Sample notes).
+- The intro screen: the visitor's role and task in a few sentences, one button that drafts the first section, and a quieter link to the transcripts (PRD: Intro screen).
+- Streaming chat after the intro screen:
+  - drafting before asking, with questions only where the transcripts are silent
   - nine sections drafted one at a time and confirmed by the user
-  - suggested first messages
-  - the demo notice under the chat box
+  - each step shown as one line that opens its passages
+  - the suggestion to try to break it, after the first section
+  - the demo notice under the chat box, and the link for engineers
 
   (PRD: Chat)
-- The two tools, with `saveSection` taking a list of statements with citations (PRD: Tools).
+- The two tools, with `saveSection` taking a list of statements with citations to interview passages or the visitor's own messages (PRD: Tools).
 - The citation check:
-  - normalised quote matching
-  - unverified citations shown
+  - normalised quote matching, for interview passages and the visitor's own messages
+  - each quote's source by name, confirmed or unverified, explained once next to the first section
   - uncited statements flagged
-  - pop-over passages
+  - pop-overs with the researcher's question above the answer
   - contradictions with both views
 
   (PRD: Citations)
@@ -59,7 +61,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 - Token usage logged per answer. The quality check prints the total (PRD: Token usage).
 - Quota used up: the input is hidden, and a message links to the recording and the repository (PRD: Free quota used up).
 - Versioned system prompts built from the toolkit's PRD prompt and traceability rules (PRD: System prompts).
-- The quality check: five fixed requests on staging, started by the owner. It passes only after two passing runs in a row (PRD: Quality check).
+- The quality check: five fixed requests on staging, started by the owner, including an answer from the visitor, the live suggestion to break it and a harder dark mode trap. It passes only after two passing runs in a row (PRD: Quality check).
 - Fake and real providers behind interfaces, with a word-overlap fake embedder (PRD: Providers).
 - Rate limit: 30 messages per visitor per day, with hashed IP addresses kept only for the limit window. Security headers and `noindex` (PRD: Non-Functional Requirements).
 - README: RAG design, citation check, tokens per PRD, screen recording, deploying your own copy (PRD: README).
@@ -81,7 +83,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 
 ## Key constraints (MVP specific)
 
-- **Timebox:** one to two days of building for the features, plus set-up and launch.
+- **Timebox:** two to three days of building for the features, plus set-up and launch.
 - **Stack:** Next.js, Supabase (Postgres with pgvector), Vercel, the Vercel AI SDK with one provider's package. No LangChain or other AI frameworks. The search is plain SQL.
 - **Provider:** a free tier with no billing attached that covers chat and embeddings, allows a public demo, and suits a Dutch account and EU visitors. Mistral in Free mode, decided in stage 2; its free limits are still to be checked.
 - **Local:** only fakes run. Real model calls happen on staging and production only, and prompt changes are tried first in the provider's playground.
