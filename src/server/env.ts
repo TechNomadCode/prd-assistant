@@ -31,6 +31,16 @@ export function readAppEnv(env: Settings = process.env) {
   return read(appSchema, env, "the app");
 }
 
+const searchSchema = appSchema.extend({
+  AI_PROVIDER: z.enum(AI_PROVIDERS),
+  MISTRAL_API_KEY: z.string().optional(),
+});
+
+/** What the interview search needs: the read key and an embedder. */
+export function readSearchEnv(env: Settings = process.env) {
+  return read(searchSchema, env, "the interview search");
+}
+
 const loaderSchema = z.object({
   SUPABASE_URL: z.url(),
   SUPABASE_SECRET_KEY: z.string().min(1),
