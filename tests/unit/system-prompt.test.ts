@@ -16,6 +16,7 @@ import { SYSTEM_PROMPT } from "@/server/prompts/system-prompt";
 // before it ships (src/server/AGENTS.md).
 const FINGERPRINTS: Record<number, string> = {
   1: "a5d28c00292aef393496cc673ae2af2d5737b691f71450c8b205c2e7d9c6154b",
+  2: "3bf468b79076e61f45234366ca73c0ecde2a5e6bdd9e95f28485bb66d0f89ddc",
 };
 
 /** The toolkit template's nine sections, in its order. */
@@ -148,6 +149,10 @@ describe("the system prompt", () => {
     [
       "never ask the interview questions again",
       "never ask the researcher's questions again",
+    ],
+    [
+      "three searches, then write",
+      "You have three searches for one reply; after them the search is switched off, so write your reply from the passages you have.",
     ],
     [
       "every statement traces to its source",

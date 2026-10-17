@@ -33,11 +33,23 @@ import {
 // every answer used.
 
 /**
- * At most this many model calls for one answer: its searches and its reply.
- * The prompt asks for at most three searches, so a model that searches once
- * more than asked still gets to reply.
+ * At most this many searches for one answer. After them the model is offered
+ * no search, so it has to write: on staging, gpt-oss searched five times for
+ * one section and never replied.
  */
-const MAX_STEPS = 5;
+const MAX_SEARCHES = 3;
+
+/**
+ * At most this many model calls for one answer: its searches, its reply, and
+ * one more for a reply that tries to search anyway.
+ */
+const MAX_STEPS = MAX_SEARCHES + 2;
+
+/**
+ * Room for each model call's output, its reasoning included. Cloudflare's
+ * default of 256 tokens cut section drafts off on staging.
+ */
+const MAX_OUTPUT_TOKENS = 4096;
 
 /** At most this many messages in one conversation. */
 export const MAX_MESSAGES = 200;
@@ -219,6 +231,15 @@ export function streamAnswer(
           }),
           tools,
           stopWhen: isStepCount(MAX_STEPS),
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+          // Once its searches are used, the model gets no tools at all:
+          // Cloudflare's gpt-oss takes no tool choice, only a list of tools.
+          prepareStep: ({ steps }) => {
+            const searches = steps
+              .flatMap((step) => step.toolCalls)
+              .filter((call) => call.toolName === "searchNotes").length;
+            return searches < MAX_SEARCHES ? undefined : { activeTools: [] };
+          },
           abortSignal,
           onStepEnd: ({ usage, finishReason }) => {
             steps.push(usage);
@@ -249,6 +270,13 @@ export function streamAnswer(
             `The chat model ended without an answer: finish reason ${lastFinishReason ?? "unknown"}.`,
           );
           writer.write({ type: "error", errorText: NO_ANSWER });
+        } else if (!failed && lastFinishReason === "length") {
+          // The reply hit the output limit partway. Without this, a draft
+          // that stops mid-sentence would look finished.
+          console.error(
+            "The chat model's answer was cut off: finish reason length.",
+          );
+          writer.write({ type: "error", errorText: CUT_OFF });
         }
       } finally {
         // Here rather than in `onEnd`, which doesn't run when a stream breaks.
@@ -264,6 +292,8 @@ export function streamAnswer(
 }
 
 const NO_ANSWER = "The assistant ended without an answer.";
+
+const CUT_OFF = "The answer got too long and was cut off.";
 
 /** What the visitor sees when something fails: plain words, no internals. */
 function describeError(error: unknown): string {
