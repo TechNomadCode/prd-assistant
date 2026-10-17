@@ -20,8 +20,8 @@ Ask the owner before changing anything in this folder (root `AGENTS.md`, Boundar
    - Vercel never deploys on its own: the repository stays unconnected, and `vercel.json` sets `git.deploymentEnabled: false` as a guard.
    - `cancel-in-progress: false`, so a run is never cut off between migrate and deploy.
 4. **Test keys on staging, no live keys in production before launch:**
-   - Mistral has no test mode, so staging uses its own key with no billing attached (`docs/decisions.md`).
-   - Production gets no `MISTRAL_API_KEY` until launch. Its migrate job checks for the key first and stops with a clear error before touching the database, so production can't be deployed before then.
+   - Cloudflare Workers AI has no test mode, so staging uses its own token on the free plan, with no billing attached (`docs/decisions.md`).
+   - Production gets no `CLOUDFLARE_API_TOKEN` until launch. Its migrate job checks for the token and the account ID first and stops with a clear error before touching the database, so production can't be deployed before then.
 5. **Each workflow gets only its own environment's credentials:**
    - Secrets live in the GitHub environments `staging` and `production`, never at repository level.
    - Supabase: a connection string for that one database (`--db-url`), so no account token is needed.
@@ -39,11 +39,11 @@ For each GitHub environment, `staging` and `production` (deployment branches: `m
 - **Secrets:**
   - `SUPABASE_DB_URL`: the session pooler URI, with a percent-encoded password.
   - `SUPABASE_SECRET_KEY`: `sb_secret_…`
-  - `MISTRAL_API_KEY`: the production one only at launch.
+  - `CLOUDFLARE_API_TOKEN`: a Workers AI token (Read and Edit, this account only); the production one only at launch.
   - `VERCEL_TOKEN`: scoped to that Vercel project.
-- **Variables:** `SUPABASE_URL`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+- **Variables:** `SUPABASE_URL`, `CLOUDFLARE_ACCOUNT_ID`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
 
-Vercel project settings (Production environment only, credentials as type Secret): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `AI_PROVIDER=mistral`, `MISTRAL_API_KEY`. `README.md` has the owner's steps, click by click.
+Vercel project settings (Production environment only, credentials as type Secret): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `AI_PROVIDER=cloudflare`, `CLOUDFLARE_API_TOKEN`. `README.md` has the owner's steps, click by click.
 
 ## Gotchas
 - **Migrations must not break the running code.** The old code keeps running between migrate and deploy, after a failed deploy, and after a rollback. Add before you remove: a new column first, dropping the old one in a later change.
