@@ -13,6 +13,7 @@ Every feature gets a test in each layer it touches. A bug fix starts with a test
 ## Fixtures and fakes
 - **Fixtures are deterministic.** Unit tests build their own small data inline. Integration and end-to-end tests use the sample notes in `notes/`, which `db:start`, `db:reset` and `notes:load` put in the database. Every test leaves the database holding exactly those notes.
 - **Fakes sit only at external boundaries.** That means the AI provider: the fake embedder (`src/server/ai/fake-embedder.ts`). The database is real in integration tests, never mocked.
+- **The fake embedder counts shared words,** without stemming or synonyms ("notification" and "notifications" are different words to it). A search test's question uses the words of the passages it expects; search by meaning can only be checked on staging.
 - **`server-only`:** Vitest maps it to an empty module (`vitest.config.ts`), so tests can import server code.
 
 ## Writing tests

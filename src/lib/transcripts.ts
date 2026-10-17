@@ -11,6 +11,16 @@ export type Passage = {
   answer: string;
 };
 
+/** A passage the search found: whose answer it is, and how close it came. */
+export type PassageMatch = Passage & {
+  /** The interview's slug, for `passageAnchor`. */
+  slug: string;
+  /** The interviewee's name. */
+  participant: string;
+  /** Cosine distance to the question: 0 is the same direction, 2 the opposite. */
+  distance: number;
+};
+
 export type Transcript = {
   id: number;
   slug: string;
