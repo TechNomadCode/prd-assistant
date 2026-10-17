@@ -3,26 +3,24 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 4, *System prompt from the toolkit*, and its fix are merged (197c29d, a6e2e37). The staging check on 2026-10-17 shows the fix works, but the drafts skip several instructions (KI-2).
-  - "Draft the first section." finished in 2 model calls: 4,048 tokens, 3,401 input and 647 output.
-  - "Users asked for grocery delivery, add it." finished in 3 model calls: 8,424 tokens, 7,739 input and 685 output.
-  - Cloudflare's rates for gpt-oss-20b are 18,182 neurons per M input tokens and 27,273 per M output tokens (https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15). At those rates the two answers used about 80 and 160 of the daily 10,000 neurons, or 62 to 125 such answers a day.
-  - On gpt-oss-120b (31,818 and 68,182 neurons per M), the same tokens would cost about 150 and 290 neurons, or 34 to 65 answers a day.
+- **Doing:** slice 5, *Save sections with the citation check*, is done on branch `feat/save-sections-with-citation-check` (ddd9e04), not pushed. The branch also carries the two records that were unpushed on local `main`.
+  - The model saves each drafted section with `saveSection`. The app's code checks every quote against the cited passage's answer in the database, or the visitor's own messages, and the chat shows each saved section as a line that opens to its statements, quotes, sources and results.
+  - Each answer gets three searches and one save, with one retry for a section the check can't read; no tools after the save or on the last call.
+  - Prompt version 3. Searches from earlier answers reach the model as passage ids and interviewees only, which closed KI-1.
+  - Locally, with the fake model: `verify`, `test:integration`, `test:sql` and `test:e2e` pass. No database change, so no reset.
 - **Unverified:**
-  - Whether gpt-oss-20b follows its instructions once sections come through a tool that requires quotes (slice 5), or the stronger gpt-oss-120b is needed. The quality check (slice 9) decides.
-  - The last call without tools after three searches hasn't happened on staging yet: both answers searched fewer than three times. Cloudflare's schema allows it.
+  - Whether gpt-oss-20b saves sections whose quotes pass with prompt version 3 (KI-2), and what a section costs now: a draft takes at least three model calls (a search, the save, the reply). The quality check (slice 9) decides between gpt-oss-20b and gpt-oss-120b.
+  - The last call without tools hasn't happened on staging yet. Cloudflare's schema allows it.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-  - KI-1: every model call sends earlier passages again. Slice 5 decides how older passages reach the model.
-- **Next:** slice 5, *Save sections with the citation check*, on gpt-oss-20b (decided 2026-10-18), on a new branch from `main`. Local `main` holds two unpushed records, which go along with that branch. Points found while planning it:
-  - The search budget in `src/server/chat.ts` returns `activeTools: []` after three searches. `saveSection` must stay in that list, and `MAX_STEPS` needs a step for the save.
-  - The PRD panel comes in slice 6, so until then the visitor needs to see each checked section in the chat, for example as a step line that opens to its statements, like the search line.
-  - Tests that list the chat's tools, or send "Draft the first section." to the fake model, change with the new tool.
-  - Uncited statements are allowed only in Open Questions (`docs/decisions.md`, Data).
-  - The prompt gets version 3, and this slice decides KI-1.
+- **Next:** after the merge, the owner's staging check: "Draft the first section.", then "Users asked for grocery delivery, add it.", noting what the saved sections show and each answer's token line in the staging logs. Then slice 6, *The PRD beside the chat*, on a new branch from `main`. Points found while building slice 5:
+  - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
+  - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
+  - What confirmed and unverified mean isn't explained yet; slice 6 explains it once, next to the first section.
+  - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
   The legal basis is due by slice 8.
-- **Waiting on the owner:** nothing.
+- **Waiting on the owner:** pushing the branch and opening the pull request, then the staging check above.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -44,15 +42,7 @@
 
 ### 4 · System prompt from the toolkit · risk: normal · status: done (197c29d, with fix a6e2e37)
 
-### 5 · Save sections with the citation check · risk: normal · status: todo
-- **Goal:** the model saves each drafted section, and the app's code checks every quote before the visitor sees it.
-- **Acceptance:**
-  - `saveSection` takes statements. Each one cites interview passages or the visitor's own messages, with short quotes.
-  - An interview quote is checked against that interviewee's answer and a visitor quote against the visitor's own words. Matching ignores case, spacing, quote style and punctuation at the ends.
-  - A failing quote is marked unverified, and a statement that cites nothing is flagged.
-  - Contradictions show both views with their citations, plus an open question.
-  - The README explains the check. It says plainly that the check proves the quoted words exist and belong to that person, not that the statement reads them fairly.
-  - A quote taken from the researcher's question, from another person's answer or from an assistant message is marked unverified, never confirmed.
+### 5 · Save sections with the citation check · risk: normal · status: done (ddd9e04)
 
 ### 6 · The PRD beside the chat · risk: normal · status: todo
 - **Goal:** the visitor watches the PRD grow next to the chat and can check every quote.
