@@ -113,7 +113,9 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Quality check**
 - Five fixed requests against the sample notes, including one that depends on the deliberate gap and one that touches the contradiction.
 - Runs with the real model on staging and is started by the owner. It never runs on the development machine.
-- It passes when every citation passes the quote check, every statement outside Open Questions has at least one citation, the gap is listed under Open Questions, and the contradiction shows both views with their citations plus an open question.
+- A run passes when every citation passes the quote check, every statement outside Open Questions has at least one citation, the gap is listed under Open Questions, and the contradiction shows both views with their citations plus an open question.
+- The check counts as passed only after two passing runs in a row, because the model can answer the same request differently each time.
+- If it fails, the prompt is fixed or a stronger model on the same free tier is tried. The check is never loosened.
 - It prints the total tokens used.
 
 **Providers**
@@ -192,7 +194,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Success Metrics
 
 - **Time to first cited section:** under 2 minutes from opening the demo to a saved section whose citations passed the check. With no tracking, the owner times this on staging and production *(assumption about how it's measured)*.
-- **Quality check:** all five requests pass. Every citation passes the quote check, every statement outside Open Questions has a citation, the deliberate gap appears under Open Questions, and the contradiction shows both views plus an open question.
+- **Quality check:** all five requests pass in two runs in a row. Every citation passes the quote check, every statement outside Open Questions has a citation, the deliberate gap appears under Open Questions, and the contradiction shows both views plus an open question.
 
 ---
 
