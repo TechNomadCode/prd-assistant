@@ -63,14 +63,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Until launch, production has no provider key. Stop here, before the
+      # Until launch, production has no provider token. Stop here, before the
       # database changes, so the notes can always be loaded after a migration.
-      - name: Check for the Mistral key
+      - name: Check for the Cloudflare settings
         env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -z "$MISTRAL_API_KEY" ]; then
-            echo "::error::The production environment has no MISTRAL_API_KEY yet. It gets one at launch."
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::The production environment has no CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID yet. It gets them at launch."
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -115,8 +116,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          AI_PROVIDER: mistral
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          AI_PROVIDER: cloudflare
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   deploy:
     name: Deploy the code to production
