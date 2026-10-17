@@ -5,7 +5,7 @@ PRD Assistant is a web app being built to turn research notes into a product req
 ## Status
 
 - **Planning:** done. The [product description](docs/product/prd.md) and the [scope](docs/product/mvp.md) are approved.
-- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. On the home page, a streaming chat answers questions about them: the model decides when to search the interviews, and each search shows as a line that opens to its passages. Drafting the PRD itself comes next.
+- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. On the home page, a streaming chat drafts the PRD with you, section by section, from the interviews: the model decides when to search them, and each search shows as a line that opens to its passages. For now each drafted section appears in the reply; saving sections and checking their quotes in code come next.
 - **Demo:** none yet.
 
 ## How it works
@@ -29,6 +29,7 @@ The chat runs on the [Vercel AI SDK](https://ai-sdk.dev). The browser's `useChat
 1. **Tool calling.** `streamText` runs OpenAI's open-weight `gpt-oss-20b` on Cloudflare Workers AI, through its OpenAI-compatible endpoint, with one tool, `searchNotes`. The model decides when to search and what for; the app's code runs the search above and hands back the five closest passages. The model sees each passage's interviewee, question and answer. The browser gets the same passages to show, and each search appears as one line, such as "closest passages from Maya, Henk and Daan", that opens to them.
 2. **Failures stay visible.** Whatever breaks, the provider before its first word, the provider partway through, or the connection, the stream ends with a plain error, and the cause is logged on the server. So does an answer the model ends without writing anything. An answer that broke off stays on screen marked as unfinished. "Try again" asks again, and the unfinished answer never goes back to the model as if it were whole.
 3. **Token awareness.** The server logs the tokens every answer used, summed over its model calls, including answers that broke off. The model reasons before it answers; that reasoning stays on the server and never goes back to the model with later messages.
+4. **The instructions.** The system prompt is the PRD prompt from my [AI Product Development Toolkit](https://github.com/TechNomadCode/AI-Product-Development-Toolkit), adapted and versioned in [`system-prompt.ts`](src/server/prompts/system-prompt.ts). It keeps the template's role, its check-in before each new section and its nine sections. Where the template asks questions before writing anything, the assistant drafts first from the interviews and asks only what they don't say. On top come the traceability rules of the toolkit's research prompt (every statement traces to a passage or to your own message, interpretations are marked as such, unsupported assumptions become open questions), the citation format, how to show a contradiction, and a rule never to invent. Every model call sends the whole prompt, about 1,550 tokens. Any change to the text needs a new version: a test compares the text's fingerprint with the one recorded for its version.
 
 Locally and in CI, a scripted fake model stands in for Cloudflare ([`fake-chat-model.ts`](src/server/ai/fake-chat-model.ts)). It searches with the visitor's own words, then quotes the closest passage. Two phrases make it fail on purpose, once each, so the tests can show the error and the retry.
 
@@ -193,7 +194,7 @@ Open **Actions → Deploy production → Run workflow** on `main`. You can enter
 | `src/app/` | Pages and routes, such as the chat's endpoint |
 | `src/features/` | Feature UI, such as the chat and the transcripts list |
 | `src/components/ui/` | Shared UI components |
-| `src/server/` | Business operations: the chat, the notes loader, the interview search, the AI providers and the settings checks |
+| `src/server/` | Business operations: the chat and its system prompt, the notes loader, the interview search, the AI providers and the settings checks |
 | `src/server/db/` | The data layer: database clients, queries and generated types |
 | `src/lib/` | Shared helpers: site facts, the environment guard, shared types |
 | `scripts/` | The Node helper commands behind the npm scripts |
