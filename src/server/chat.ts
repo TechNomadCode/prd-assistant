@@ -20,6 +20,7 @@ import { passageAnchor, type PassageMatch } from "@/lib/transcripts";
 import type { ChatModel } from "./ai/chat-model.ts";
 import { createChatModel } from "./ai/providers.ts";
 import { providerSettings, readChatEnv } from "./env.ts";
+import { SYSTEM_PROMPT } from "./prompts/system-prompt.ts";
 import {
   MAX_QUERY_LENGTH,
   SearchQueryError,
@@ -27,21 +28,15 @@ import {
 } from "./search.ts";
 
 // The chat: the visitor's conversation in, the assistant's answer streamed
-// out. The model decides when to search the interviews; the app's code runs
-// each search and logs the tokens every answer used.
+// out. The model follows the versioned system prompt and decides when to
+// search the interviews; the app's code runs each search and logs the tokens
+// every answer used.
 
-// A short prompt for now. The versioned prompt built from the AI Product
-// Development Toolkit replaces it (docs/plan.md, slice 4).
-const INSTRUCTIONS = [
-  "You help a product manager turn user research into a product requirements document (PRD).",
-  "A researcher interviewed six households about a shared household grocery list app. The interviews are finished records: search them, and never ask their questions again.",
-  "Before you say what the interviewees think, want or do, call searchNotes. Search with a short question in your own words, one topic at a time.",
-  "Each search returns the five closest passages, closest first. They are candidates, not answers: use a passage only if its answer says what you need, and say plainly when none does.",
-  "When you use a passage, name the interviewee and quote their words exactly. Never invent what anyone said.",
-  "Write a few short paragraphs of plain text, without Markdown.",
-].join("\n");
-
-/** At most this many model calls for one answer: its searches and its reply. */
+/**
+ * At most this many model calls for one answer: its searches and its reply.
+ * The prompt asks for at most three searches, so a model that searches once
+ * more than asked still gets to reply.
+ */
 const MAX_STEPS = 5;
 
 /** At most this many messages in one conversation. */
@@ -217,7 +212,7 @@ export function streamAnswer(
       try {
         const result = streamText({
           model,
-          instructions: INSTRUCTIONS,
+          instructions: SYSTEM_PROMPT.text,
           messages: await convertToModelMessages(messages, {
             tools,
             ignoreIncompleteToolCalls: true,
