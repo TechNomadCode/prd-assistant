@@ -47,7 +47,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## User Stories / Use Cases
 
 - As a reviewer, I land on a short screen that tells me my role and my task, click its one button, and get a drafted section with checked quotes within 2 minutes.
-- As a reviewer, I can open the interview transcripts from a quieter link on that screen.
+- As a reviewer, I can read the full interviews from a quieter link on that screen *(whether this is a page of its own is open; see Design Considerations)*.
 - As a reviewer, while the AI works, I see each step as one line, such as the search it ran and whose passages came back, and clicking a line shows the passages.
 - As a reviewer, every quote shows its source by name, like "Daan, interview" or "You, in this chat", and whether the check confirmed it, and statements that cite nothing are flagged. What confirmed and unverified mean is explained once, next to the first section.
 - As a reviewer, I click a quote and its passage opens in a pop-over, with the researcher's question above the answer.
@@ -62,7 +62,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - As a reviewer on a phone, I see the chat and the PRD stacked on one page.
 - As a reviewer who arrives after the free quota is used up, the chat input is hidden, and a friendly message links to the README's screen recording and to the repository.
 - As a self-hoster, I run the whole app locally on fakes without any key or account, and I deploy my own copy for real answers.
-- As an engineer reviewer, I see the interview transcripts on a page of their own, and a link takes me to the README's explanation of the search and the check, and to the code.
+- As an engineer reviewer, I can read the full interview transcripts, and a link takes me to the README's explanation of the search and the check, and to the code.
 - As the owner, I start the quality check on staging and get a clear pass or fail plus the total tokens used.
 
 ---
@@ -74,12 +74,12 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - One deliberate gap: nobody mentions using the app in a store with bad signal (offline use).
 - One deliberate contradiction: some interviewees want a notification for every added item, others name that as a reason to uninstall.
 - A load script splits the notes into passages, embeds them and stores them. Each passage keeps the interviewee's name and the researcher's question that its answer replies to. The same script runs locally (with the fake embedder) and on staging and production (with the real one). Self-hosters replace the sample files and run it again to use their own notes.
-- A page lists the transcripts. This is also the first feature built end to end.
+- A page lists the transcripts. This was the first feature built end to end. Whether it stays once quotes open their source is decided with the intro screen.
 
 **Intro screen**
 - The home page opens on a short screen with a few sentences and one button.
 - The sentences say that the visitor is the product manager of a shared grocery list app; that a researcher already interviewed six households, and those transcripts are finished records; that the AI reads and quotes them and never asks their questions again; and that the visitor's job is to turn them into a PRD while the AI proves every line.
-- The button drafts the first section. A quieter link opens the transcripts.
+- The button drafts the first section. A quieter link leads to the full interviews.
 - When the visitor's browser already holds a PRD, the home page goes straight to the chat and the PRD.
 
 **Chat**
@@ -207,7 +207,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **Screens**
 - Home: first a short intro screen (a few sentences, one button, a quieter link to the transcripts), then the chat with the PRD next to it. On a phone they stack.
-- A page with the interview transcripts.
+- A page with the interview transcripts, for now. Open: whether it stays once quotes open their source, and if so how it reads. Decided with the intro screen.
 - Quotes open their source in a pop-over, with the researcher's question above the answer.
 
 **Progressive disclosure**
@@ -216,6 +216,9 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - What confirmed and unverified mean is explained once, next to the first section.
 - The suggestion to try to break it appears only after the first section.
 - The link for engineers stays quiet and leads to the README's explanation and the code.
+
+**Purpose, not layout**
+- The placements and controls named in this document (the PRD beside the chat, the pop-over, one line per step, the line under the chat box, the explanation next to the first section) state what each part must do. The piece of work that builds one may propose another form that serves the same purpose, and the owner decides before it's built. Tests check the purpose, not the placement. The look below stays fixed.
 
 **Look**
 - Black and white, with black dominant on backgrounds and large surfaces, and white in support for text, lines and accents.

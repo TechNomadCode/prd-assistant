@@ -1,7 +1,7 @@
 # MVP concept: PRD Assistant
 
 **Status:** approved by the owner · 2026-10-17
-**Sources:** `docs/product/prd.md` (approved) and the owner's answers in `docs/decisions.md`. No UX specification; the PRD's Design Considerations section is the design brief.
+**Sources:** `docs/product/prd.md` (approved) and the owner's answers in `docs/decisions.md`. No UX specification; the PRD's Design Considerations section is the design brief, and the placements it names state purpose, not a fixed layout.
 
 ---
 
@@ -37,8 +37,8 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 ## Minimum feature set
 
 **In:** everything in the approved PRD. It's already cut to one to two days of building.
-- Sample notes: six fictional grocery list interviews with the deliberate gap and contradiction. The load script chunks, embeds and stores them, keeping each answer's interviewee and the researcher's question, and a page lists them (PRD Functional Requirements: Sample notes).
-- The intro screen: the visitor's role and task in a few sentences, one button that drafts the first section, and a quieter link to the transcripts (PRD: Intro screen).
+- Sample notes: six fictional grocery list interviews with the deliberate gap and contradiction. The load script chunks, embeds and stores them, keeping each answer's interviewee and the researcher's question, and a page lists them for now; whether it stays is decided with the intro screen (PRD Functional Requirements: Sample notes).
+- The intro screen: the visitor's role and task in a few sentences, one button that drafts the first section, and a quieter link to the full interviews (PRD: Intro screen).
 - Streaming chat after the intro screen:
   - drafting before asking, with questions only where the transcripts are silent
   - nine sections drafted one at a time and confirmed by the user

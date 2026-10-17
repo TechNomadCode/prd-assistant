@@ -17,7 +17,7 @@
 5. **Launch:** the launch parts, added below as slices.
 
 ## Slices
-<!-- Stage 3 writes these, in build order. Each fits in one session. Risky slices (sign-in and permissions, payments, data migrations, live data) get an independent review before they're pushed. When a slice is done, shorten it to its title line with "done" and the commit; a risky one only once its review is settled. -->
+<!-- Placements and controls named in the acceptance criteria (beside, pop-over, one line, under the chat box) state purpose, not layout: propose another form if it serves the purpose better, the owner decides, and tests check the purpose (docs/decisions.md, Design). Stage 3 writes these, in build order. Each fits in one session. Risky slices (sign-in and permissions, payments, data migrations, live data) get an independent review before they're pushed. When a slice is done, shorten it to its title line with "done" and the commit; a risky one only once its review is settled. -->
 
 ### 1 · Set-up: the transcripts stored and listed, end to end · risk: normal · status: done (d2e56ad)
 
@@ -74,10 +74,11 @@
 ### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: todo
 - **Goal:** a first-time visitor understands their role and gets a checked section with one click.
 - **Acceptance:**
-  - The home page opens on a short screen. It says the visitor is the product manager, the six interviews are finished records, and the AI proves every line. One button drafts the first section, and a quieter link opens the transcripts.
+  - The home page opens on a short screen. It says the visitor is the product manager, the six interviews are finished records, and the AI proves every line. One button drafts the first section, and a quieter link leads to the full interviews.
   - After the first section, and not before, a suggested message invites the visitor to claim users asked for grocery delivery.
   - A quiet link leads engineers to the README's explanation and the code. A visitor with a saved PRD goes straight to the chat.
   - When the first request fails, the visitor sees a clear message and the button again.
+  - Open question, decided in this slice: does the transcripts page stay now that quotes open in a pop-over? If it stays, decide then how it reads; until then it stays the plain list from slice 1.
 
 ### 8 · Rate limit and the quota message · risk: risky (personal data, permissions) · status: todo
 - **Goal:** one visitor can't use up the free quota, and everyone sees a clear message once it's gone.
