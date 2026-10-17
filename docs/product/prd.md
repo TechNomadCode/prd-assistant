@@ -201,10 +201,10 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Open Questions / Future Considerations
 
 **Open questions**
-- **AI provider:** decided in the next stage.
+- **AI provider:** Mistral in Free mode, decided in stage 2 (see `docs/decisions.md`).
   - Google Gemini's free tier is ruled out. Its terms allow only paid use for apps available to users in the EEA, Switzerland or the UK (https://ai.google.dev/gemini-api/terms).
-  - Mistral is the leading candidate. Confirmed: its free mode needs no card. Once the included monthly usage runs out and pay-as-you-go is off, requests fail with error 402. That allowance is shared by the whole account across the API, the chat app and the coding tools (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/resources/error-glossary.md).
-  - Mistral, still unconfirmed: the actual free limits (visible only when logged in), whether its terms allow a public demo, and the default setting for training on API data.
+  - Confirmed for Mistral: Free mode needs no card. Once the included monthly usage runs out and pay-as-you-go is off, requests fail with error 402. That allowance is shared across Studio (including its playground), the API and Vibe Code (https://docs.mistral.ai/admin/billing-usage/subscriptions.md, https://docs.mistral.ai/resources/error-glossary.md). In the owner's reading of the Commercial Terms, a public demo on Free mode is allowed. No Labs models are used, so API data stays out of training.
+  - Still unconfirmed: the actual free limits and whether the chosen models are included (visible only when logged in), and that the training setting is off.
 - **Legal basis for the IP-based rate limit:** the owner decides, with the official sources listed in `docs/decisions.md`. This isn't legal advice.
 
 **Later, not in the first version**

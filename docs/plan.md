@@ -3,10 +3,10 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 2 of 5 · Decide
-- **Doing:** stage 1 done: `docs/product/prd.md` and `docs/product/mvp.md` approved; no UX spec (owner's choice)
-- **Unverified:** provider research: Gemini free tier ruled out for EEA users (confirmed in its terms); Mistral leading; 402-on-exhausted and the account-wide shared allowance are confirmed; its free limits, public-demo terms and training default are unconfirmed (see Deferred)
-- **Next:** run `.kit/stages/2-decide.md`: confirm in one summary what `docs/product/` and `docs/decisions.md` already answer (anonymous visitors only, English, NL/EU, no payments/email/background jobs); settle the AI provider (owner checks Mistral's logged-in Limits page, data-sharing toggle and terms; separate Organizations for staging and production?); record the stage's Deferred items
-- **Waiting on the owner:** nothing yet
+- **Doing:** AI provider settled as Mistral in Free mode (owner's reading of the Commercial Terms recorded; no Labs models); stage 2 Deferred items recorded; asked the owner to confirm the summary (anonymous visitors only, no sign-in; stores note passages with embeddings and short-lived hashed-IP counts; agent drafts the fictional interviews for owner review; English, NL/EU, no currency; no payments/email/background jobs/file storage) and the models (chat `mistral-small-2603` pinned, fallback `mistral-medium-3-5`, embeddings `mistral-embed-2312`, 1024 dimensions)
+- **Unverified:** Mistral's free limits, whether the chosen models are included in Free mode, and the training setting: the owner checks them when logged in (see Deferred)
+- **Next:** write the owner's model answer into `docs/decisions.md` (External services), then set this block to 3 of 5 · Set up and open `.kit/stages/3-set-up.md`
+- **Waiting on the owner:** a yes (or changes) on the summary and the models; the logged-in Mistral checks
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.

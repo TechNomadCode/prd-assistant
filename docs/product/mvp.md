@@ -83,7 +83,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 
 - **Timebox:** one to two days of building for the features, plus set-up and launch.
 - **Stack:** Next.js, Supabase (Postgres with pgvector), Vercel, the Vercel AI SDK with one provider's package. No LangChain or other AI frameworks. The search is plain SQL.
-- **Provider:** a free tier with no billing attached that covers chat and embeddings, allows a public demo, and suits a Dutch account and EU visitors. Mistral is the leading candidate, still to confirm; the choice is made in the next stage.
+- **Provider:** a free tier with no billing attached that covers chat and embeddings, allows a public demo, and suits a Dutch account and EU visitors. Mistral in Free mode, decided in stage 2; its free limits are still to be checked.
 - **Local:** only fakes run. Real model calls happen on staging and production only, and prompt changes are tried first in the provider's playground.
 - **Owner:** must be able to explain every part. After each piece comes a plain explanation and an explain-back.
 
