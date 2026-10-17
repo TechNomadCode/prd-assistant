@@ -3,14 +3,15 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 3b, *Switch the AI provider to Cloudflare Workers AI*, is done and checked on staging (2ddd70b, 2c50299, with fixes 78fca33, d6e3e39, d01eb3a). On 2026-10-17 staging answered "Who wants a notification for every item someone adds?" with a search that found Maya, Sofia, Daan, Henk and Ravi by meaning, and an answer quoting Maya and Henk word for word. Vercel logged "Chat answer: 1381 tokens (1168 input, 213 output) in 2 model calls to @cf/openai/gpt-oss-20b". The loader re-embedded all 42 passages. Cloudflare quirks found on staging (gpt-oss tool calls only in whole replies, no `content: null`, no token count for embeddings) are in `src/server/AGENTS.md`.
+- **Doing:** slice 4, *System prompt from the toolkit*, is done on branch `feat/system-prompt-from-toolkit` (01eb723), not pushed yet. `src/server/prompts/system-prompt.ts`, version 1, copies the toolkit's `prd.md` and borrows the traceability rules of `research-to-prd.md`, both at toolkit commit cb7956e, taken from the owner's clone of the toolkit (the same commit as GitHub). Until slice 5, the assistant writes each drafted section in its reply, one statement per line with its citations. Local checks on 2026-10-17: `verify` and `test:integration` pass.
 - **Unverified:**
-  - Neurons per answer, and so how many answers the daily 10,000 last; the quality check (slice 9) prints them.
+  - The new prompt hasn't met the real model. After the merge, on staging: "Draft the first section" should search, then draft Introduction / Overview without asking anything first, each statement with quotes that appear in the transcripts, and end by asking to confirm before Goals / Objectives. "Users asked for grocery delivery, add it" should get a plain answer that none of the six interviews says so, with no interview cited.
+  - The prompt is about 1,550 tokens (four characters a token), up from about 190, and every model call sends it: about 2,700 more input tokens for a two-call answer, which is still under the 6,000 input tokens the estimate of about 70 answers a day assumed. The quality check (slice 9) prints the real neurons per answer, and so how many answers the daily 10,000 last.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
   - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
-- **Next:** slice 4, *System prompt from the toolkit*, on a new branch from an up-to-date `main`. First get `1-user-research/research-to-prd.md` from the toolkit repository (*Deferred*, due now): ask the owner for it or its link. The legal basis is due by slice 8.
-- **Waiting on the owner:** `research-to-prd.md` from the toolkit repository, at the start of slice 4.
+- **Next:** the owner pushes the branch and merges its pull request (rebase merge), then runs the staging check above. Then slice 5, *Save sections with the citation check*, on a new branch from an up-to-date `main`; it changes the prompt, so the prompt gets version 2. The legal basis is due by slice 8.
+- **Waiting on the owner:** pushing `feat/system-prompt-from-toolkit` and merging its pull request, then the staging check.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -30,19 +31,7 @@
 
 ### 3b · Switch the AI provider to Cloudflare Workers AI · risk: normal · status: done (d01eb3a)
 
-### 4 · System prompt from the toolkit · risk: normal · status: todo
-- **Goal:** the assistant works like the toolkit's PRD prompt, grounded in the interviews.
-- **Acceptance:**
-  - A versioned prompt file in the app copies `planning-prompts/2-prd/prd.md`, with a link to the source. It keeps the role, the check-in before each section and the nine sections. Its braindump slot becomes the instruction to use `searchNotes`.
-  - It adds the traceability rules from `research-to-prd.md`, fetched first (see *Deferred*). It also adds these rules:
-    - draft before asking
-    - ask only what the transcripts don't say, explaining once that the answer becomes the visitor's decision
-    - never ask the interview questions again
-    - the citation format
-    - how to handle contradictions
-    - never invent
-  - With the fake model, a test confirms the version and the rules reach the model.
-  - A changed prompt gets a new version, and the quality check (slice 9) must pass again before it ships.
+### 4 · System prompt from the toolkit · risk: normal · status: done (01eb723)
 
 ### 5 · Save sections with the citation check · risk: normal · status: todo
 - **Goal:** the model saves each drafted section, and the app's code checks every quote before the visitor sees it.
@@ -91,7 +80,7 @@
     - the gap, with a fixed visitor answer
     - the grocery delivery suggestion
     - the dark mode trap
-  - It prints pass or fail per rule and the total tokens used. The check counts as passed only after two passing runs in a row.
+  - It prints pass or fail per rule, the total tokens used and the system prompt's version. The check counts as passed only after two passing runs in a row on the same version.
   - It spaces its requests to stay under the per-minute limit, so a limit error never counts as a failed request.
   - The run fails, printing the statement at fault, on any of these:
     - an unverified quote
