@@ -3,11 +3,12 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** staging runs. Account setup done (Mistral staging key, both Supabase projects, both Vercel projects, both GitHub environments limited to `main`). The fix for reading Vercel's JSON reply merged as #2 (5097069); its **Deploy staging** run went green in order: CI, migrate (12:45:31–12:45:55 UTC), notes (12:46:00–12:46:31), code (12:46:35–12:47:20). https://prd-assistant-staging.vercel.app redirects to Vercel's login (checked from here, so All Deployments protection is on), and the owner saw the six interviews on `/transcripts` (hosted, staging).
+- **Doing:** slice 2, *Search the interviews*, is done on `feat/search-interviews` (100388b, 4a0a441, d96906f). Its independent review found four low findings and no blocker; all four were fixed and the confirmation review passed (NO BLOCKER). Local checks after the fixes: `verify` (44 unit tests, build), schema lint, migration and type drift, `test:sql` (46), `test:integration` (10).
 - **Unverified:**
+  - The search with Mistral on staging: nothing calls it until slice 3's chat, so its real check comes with that slice. Expect the Security Advisor's lint 0028 on `search_passages` there; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Mistral key.
-- **Next:** slice 2, *Search the interviews*, on a new branch from an up-to-date `main` (*Deferred* has nothing due for it: the legal basis is due by slice 8, `research-to-prd.md` by slice 4)
-- **Waiting on the owner:** pushing `main`, which carries only plan notes, whenever convenient; it triggers a harmless staging redeploy.
+- **Next:** once the pull request is merged, slice 3, *Chat that searches the interviews*, on a new branch from an up-to-date `main` (*Deferred*: the legal basis is due by slice 8, `research-to-prd.md` by slice 4). Slice 3 should treat search results as candidates: five always come back, even when none is close.
+- **Waiting on the owner:** pushing `main` (plan notes only) and then `feat/search-interviews`, opening a pull request, and merging it once its five checks pass; the merge runs the staging deploy.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -21,13 +22,7 @@
 
 ### 1 · Set-up: the transcripts stored and listed, end to end · risk: normal · status: done (d2e56ad)
 
-### 2 · Search the interviews · risk: risky (permissions) · status: todo
-- **Goal:** the app finds the passages closest to a question with a plain SQL similarity search. Each comes with the interviewee's name and the researcher's question.
-- **Acceptance:**
-  - A SQL function ranks passages by cosine distance to a query embedding. Only the app's read role can execute it, and pgTAP tests check that for each role.
-  - A server operation embeds the query (fake locally, Mistral on staging) and returns the passages. With the fake embedder, a question about notifications brings back the notification answers of Maya, Henk, Daan and Sofia first.
-  - The README explains the RAG design: chunking by question and answer, embeddings, the similarity search.
-  - An empty or overlong query is refused with a clear message, and a vector of the wrong size never reaches the database.
+### 2 · Search the interviews · risk: risky (permissions) · status: done (d96906f)
 
 ### 3 · Chat that searches the interviews · risk: normal · status: todo
 - **Goal:** a visitor chats with the assistant, answers stream in, and the model decides when to call `searchNotes`.
