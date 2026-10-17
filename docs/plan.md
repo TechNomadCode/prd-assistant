@@ -3,12 +3,13 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 2, *Search the interviews*, is done on `feat/search-interviews` (100388b, 4a0a441, d96906f). Its independent review found four low findings and no blocker; all four were fixed and the confirmation review passed (NO BLOCKER). Local checks after the fixes: `verify` (44 unit tests, build), schema lint, migration and type drift, `test:sql` (46), `test:integration` (10).
+- **Doing:** slice 3, *Chat that searches the interviews*, is done on `feat/chat-searches-interviews` (5f8a29c, 0452736, 01a813c). No database change. Local checks: `verify` (93 unit tests, build), `test:integration` (11), `test:e2e` (11, including the axe check with a search's passages open). Checked in the browser pane at desktop and phone width.
 - **Unverified:**
-  - The search with Mistral on staging: nothing calls it until slice 3's chat, so its real check comes with that slice. Expect the Security Advisor's lint 0028 on `search_passages` there; it's intended (`supabase/AGENTS.md`).
+  - The chat with Mistral on staging: tool calling with `mistral-small-2603`, search by meaning, and the token line in Vercel's logs. Only the scripted fake has answered so far. Expect the Security Advisor's lint 0028 on `search_passages` there; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Mistral key.
-- **Next:** once the pull request is merged, slice 3, *Chat that searches the interviews*, on a new branch from an up-to-date `main` (*Deferred*: the legal basis is due by slice 8, `research-to-prd.md` by slice 4). Slice 3 should treat search results as candidates: five always come back, even when none is close.
-- **Waiting on the owner:** pushing `main` (plan notes only) and then `feat/search-interviews`, opening a pull request, and merging it once its five checks pass; the merge runs the staging deploy.
+  - KI-1: tokens per answer grow with the conversation. The quality check (slice 9) will measure it; slice 5 decides how older passages reach the model.
+- **Next:** once the pull request is merged, the owner tries the chat on staging: ask "Who wants a notification for every item someone adds?", open the search line, and find the line starting "Chat answer:" under **Logs** in the `prd-assistant-staging` project on Vercel. Then slice 4, *System prompt from the toolkit*, on a new branch from an up-to-date `main`, starting with `research-to-prd.md` (*Deferred*, due now). The legal basis is due by slice 8.
+- **Waiting on the owner:** pushing `feat/chat-searches-interviews`, opening a pull request and merging it once its five checks pass; the merge runs the staging deploy. Then the staging check above.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -22,15 +23,9 @@
 
 ### 1 · Set-up: the transcripts stored and listed, end to end · risk: normal · status: done (d2e56ad)
 
-### 2 · Search the interviews · risk: risky (permissions) · status: done (d96906f)
+### 2 · Search the interviews · risk: risky (permissions) · status: done (7006d9c)
 
-### 3 · Chat that searches the interviews · risk: normal · status: todo
-- **Goal:** a visitor chats with the assistant, answers stream in, and the model decides when to call `searchNotes`.
-- **Acceptance:**
-  - The chat streams through the AI SDK with `mistral-small-2603` behind an interface. A scripted fake model runs locally and in CI.
-  - While the assistant works, each step shows as one line, such as the search it ran and whose passages came back. Clicking a line shows the passages.
-  - Token usage is logged on the server for each answer. The demo notice sits under the chat box.
-  - When the provider call fails, the visitor sees a plain message and can retry. No half-written answer stays as if complete.
+### 3 · Chat that searches the interviews · risk: normal · status: done (01a813c)
 
 ### 4 · System prompt from the toolkit · risk: normal · status: todo
 - **Goal:** the assistant works like the toolkit's PRD prompt, grounded in the interviews.
