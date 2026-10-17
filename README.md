@@ -5,8 +5,22 @@ PRD Assistant is a web app being built to turn research notes into a product req
 ## Status
 
 - **Planning:** done. The [product description](docs/product/prd.md) and the [scope](docs/product/mvp.md) are approved.
-- **Build:** in progress. The first feature works end to end. Six fictional interviews are split into passages, embedded and stored in Postgres, then listed on a transcripts page. The drafting assistant isn't built yet.
+- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. A search finds the passages closest to a question; the drafting assistant that will use it isn't built yet.
 - **Demo:** none yet.
+
+## How it works
+
+### Searching the interviews
+
+Before the assistant writes anything, it searches the interviews and works from the passages it finds, not from what the model happens to know. This is retrieval-augmented generation (RAG). The search, built ahead of the assistant, has three parts.
+
+1. **Chunking by question and answer.** The notes loader cuts each interview into passages of one researcher question and the interviewee's whole answer ([`parse-interview.ts`](src/server/notes/parse-interview.ts)). A passage never mixes two people or two questions, so a citation points at one person's words, and a quote is checked against that answer alone. The question stays attached because answers lean on it: "Every single item, yes" means little without "How would you want to know when Ineke adds something?"
+2. **Embeddings.** Mistral's `mistral-embed-2312` turns each passage's question and answer into 1,024 numbers, stored beside the text in Postgres with pgvector ([`transcripts.sql`](supabase/schemas/transcripts.sql)). Texts with similar meanings get vectors that point in similar directions. The loader embeds only new or changed passages. The model's name is part of each passage's hash, so a new model re-embeds everything instead of mixing two models' vectors.
+3. **The similarity search.** A question is embedded with the same model. Then one SQL function, [`search_passages`](supabase/schemas/search.sql), ranks every passage by cosine distance to it and returns the five closest, each with the interviewee's name and the researcher's question ([`search.ts`](src/server/search.ts)). With tens of passages, comparing them all is exact and faster than an index; an approximate index (HNSW) pays off at thousands.
+
+The search refuses an empty question or one over 500 characters. Before anything reaches the database, it checks that the vector has exactly 1,024 numbers and isn't all zeros. The app's read key may read the passages but not the vectors, so `search_passages` runs with its owner's rights, and only the read key may call it. It returns the passage text that key can read anyway, plus each distance. Because the distances come from the vectors, a caller who sent enough probe vectors could work the vectors out. That's harmless here: they embed public text, which anyone can embed again with the same model.
+
+Locally and in CI, a fake embedder stands in for Mistral. It counts shared words, so the tests are free and always give the same result, but it knows no synonyms: to it, "ping" and "notification" are unrelated. Search by meaning runs only on staging and production.
 
 ## Quick start
 
@@ -170,7 +184,7 @@ Open **Actions → Deploy production → Run workflow** on `main`. You can enter
 | `src/app/` | Pages and routes |
 | `src/features/` | Feature UI, such as the transcripts list |
 | `src/components/ui/` | Shared UI components |
-| `src/server/` | Business operations: the notes loader, the AI providers and the settings checks |
+| `src/server/` | Business operations: the notes loader, the interview search, the AI providers and the settings checks |
 | `src/server/db/` | The data layer: database clients, queries and generated types |
 | `src/lib/` | Shared helpers: site facts, the environment guard, shared types |
 | `scripts/` | The Node helper commands behind the npm scripts |
