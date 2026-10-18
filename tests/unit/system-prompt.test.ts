@@ -2,7 +2,7 @@ import { hash } from "node:crypto";
 import type { UIMessageChunk } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat";
-import { MAX_QUOTE_LENGTH, PRD_SECTIONS } from "@/lib/prd";
+import { PRD_SECTIONS } from "@/lib/prd";
 import type { PassageMatch } from "@/lib/transcripts";
 import type { ChatModel, ChatModelCall } from "@/server/ai/chat-model";
 import { createFakeChatModel } from "@/server/ai/fake-chat-model";
@@ -12,20 +12,17 @@ import { SYSTEM_PROMPT } from "@/server/prompts/system-prompt";
 // The assistant's versioned instructions: the toolkit's PRD prompt, adapted
 // to draft from the interviews, with the rules of docs/plan.md (slice 4).
 
-// The fingerprint of each version: its text, and from version 4 on its
-// tools' wording too. A changed prompt gets the next version and a new line
-// here, and the quality check has to pass again before it ships
-// (src/server/AGENTS.md).
+// The fingerprint of each version's text. A changed prompt gets the next
+// version and a new line here, and the owner tries it on staging before it
+// ships (src/server/AGENTS.md). Lines stay, so no number is used twice.
 const FINGERPRINTS: Record<number, string> = {
   1: "a5d28c00292aef393496cc673ae2af2d5737b691f71450c8b205c2e7d9c6154b",
   2: "3bf468b79076e61f45234366ca73c0ecde2a5e6bdd9e95f28485bb66d0f89ddc",
   3: "1e63f29249cc4026273f1e385b150d1aea8e660476a3a2efe96357ceeb725804",
+  // Its text and its tools' wording. It saved nothing on staging
+  // (2026-10-18), so the prompt went back to version 3.
   4: "aabe554870e08560a0d877a3333012cded67cb001b9bbd673ea98f43da44e5d2",
 };
-
-function fingerprint({ text, tools }: typeof SYSTEM_PROMPT): string {
-  return hash("sha256", JSON.stringify({ text, tools }));
-}
 
 /** The toolkit template's nine sections, in its order. */
 const SECTIONS = [
@@ -66,9 +63,9 @@ afterEach(() => {
 });
 
 describe("the system prompt", () => {
-  it("gets the next version whenever its text or its tools' wording changes", () => {
+  it("gets the next version whenever its text changes", () => {
     expect(
-      fingerprint(SYSTEM_PROMPT),
+      hash("sha256", SYSTEM_PROMPT.text),
       "The prompt changed: give it the next version and add its fingerprint to FINGERPRINTS",
     ).toBe(FINGERPRINTS[SYSTEM_PROMPT.version]);
   });
@@ -179,22 +176,6 @@ describe("the system prompt", () => {
     ],
     ["interpretations are marked as such", 'starts with "Interpretation:"'],
     [
-      "only interpretations are marked, not restatements",
-      'A statement that restates its quotes says who said them. Only a statement that infers something from passages, beyond what their words say, starts with "Interpretation:"',
-    ],
-    [
-      "name the interviewees, never users",
-      'name the interviewees or say how many of the six, never "users"',
-    ],
-    [
-      "quote only the words that back the statement",
-      `A quote holds only the words that back its statement: from a few words up to one sentence, at most ${MAX_QUOTE_LENGTH} characters, never a whole answer.`,
-    ],
-    [
-      "search for the opposite view before saving",
-      "Before you save a section that reports what interviewees want, search for anyone who wants the opposite",
-    ],
-    [
       "unsupported assumptions become open questions",
       "is never written as a finding or a requirement: it becomes an open question",
     ],
@@ -233,41 +214,5 @@ describe("the system prompt", () => {
 
   it("names the same nine sections that saveSection takes", () => {
     expect(PRD_SECTIONS).toEqual(SECTIONS);
-  });
-});
-
-// On staging, gpt-oss-20b kept the prompt's task but dropped its writing
-// rules, so they repeat where the model reads them as it writes.
-describe("the tools' wording", () => {
-  const { saveSection } = SYSTEM_PROMPT.tools;
-
-  it.each([
-    [
-      "a statement names the interviewees, never users",
-      saveSection.statement,
-      'A finding names the interviewees it rests on, or how many of the six households, never "users".',
-    ],
-    [
-      "a statement is an interpretation only beyond its quotes",
-      saveSection.statement,
-      'Start with "Interpretation:" only when it says more than its quotes do.',
-    ],
-    [
-      "a quote holds only the words that back the statement",
-      saveSection.quote,
-      "Only the words that back the statement, copied exactly: a few words up to one sentence, never a whole answer.",
-    ],
-    [
-      "a quote's limit",
-      saveSection.quote,
-      `At most ${MAX_QUOTE_LENGTH} characters.`,
-    ],
-    [
-      "search for the opposite view before saving",
-      saveSection.description,
-      "Before you save a section that reports what interviewees want, search for anyone who wants the opposite.",
-    ],
-  ])("has the rule: %s", (_, wording, rule) => {
-    expect(wording).toContain(rule);
   });
 });

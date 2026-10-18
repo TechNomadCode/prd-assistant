@@ -1,11 +1,7 @@
 import { APICallError, type UIMessageChunk } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
-import {
-  MAX_QUOTE_LENGTH,
-  type CheckedSection,
-  type SectionDraft,
-} from "@/lib/prd";
+import type { CheckedSection, SectionDraft } from "@/lib/prd";
 import {
   passageAnchor,
   type PassageMatch,
@@ -27,7 +23,6 @@ import {
   streamAnswer,
   type ChatDependencies,
 } from "@/server/chat";
-import { SYSTEM_PROMPT } from "@/server/prompts/system-prompt";
 import { SearchQueryError } from "@/server/search";
 
 const HENK: PassageMatch = {
@@ -704,89 +699,6 @@ describe("saving a section", () => {
       ["searchNotes"],
     ]);
     expect(textIn(chunks)).toBe("I couldn't save the section.");
-  });
-
-  it("tells the model each tool's versioned wording, so the writing rules sit where it writes", async () => {
-    const { model, calls } = modelReplying(reply("Hello."));
-
-    await answer([visitor("Hi.")], model);
-
-    const offered = Object.fromEntries(
-      (calls[0]?.tools ?? []).map((tool) => [tool.name, tool]),
-    );
-    const { searchNotes, saveSection } = SYSTEM_PROMPT.tools;
-    expect(offered.searchNotes).toMatchObject({
-      description: searchNotes.description,
-      inputSchema: {
-        properties: { query: { description: searchNotes.query } },
-      },
-    });
-    expect(offered.saveSection).toMatchObject({
-      description: saveSection.description,
-      inputSchema: {
-        properties: {
-          statements: {
-            items: {
-              properties: {
-                text: { description: saveSection.statement },
-                citations: {
-                  description: saveSection.citations,
-                  items: {
-                    properties: {
-                      source: { description: saveSection.source },
-                      quote: {
-                        description: saveSection.quote,
-                        maxLength: MAX_QUOTE_LENGTH,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-  });
-
-  it("refuses a quote longer than one long sentence, so the model saves the few words that back the statement", async () => {
-    const wholeAnswer =
-      "I'd like my phone to ping me every time she puts something on the list. Every single item, yes. ".repeat(
-        3,
-      );
-    const quoting = (quote: string): SectionDraft => ({
-      section: "Introduction / Overview",
-      statements: [
-        {
-          text: "Henk wants a ping for every item.",
-          citations: [{ source: "henk-4", quote }],
-        },
-      ],
-    });
-    const { model, calls } = modelReplying(
-      saveDraft(quoting(wholeAnswer), "save-1"),
-      saveDraft(quoting("Every single item, yes"), "save-2"),
-      reply("Saved."),
-    );
-
-    const chunks = await answer([visitor("Draft the first section.")], model);
-
-    expect(wholeAnswer.length).toBeGreaterThan(MAX_QUOTE_LENGTH);
-    expect(chunks).toContainEqual(
-      expect.objectContaining({
-        type: "tool-input-error",
-        toolCallId: "save-1",
-      }),
-    );
-    expect(JSON.stringify(calls[1]?.prompt.at(-1))).toContain(
-      "Invalid input for tool saveSection",
-    );
-    expect(savedIn(chunks)?.statements[0]?.citations).toEqual([
-      expect.objectContaining({
-        quote: "Every single item, yes",
-        confirmed: true,
-      }),
-    ]);
   });
 
   it("offers no tools on the last call, so the answer ends in words even when the model calls a tool the chat doesn't have", async () => {
