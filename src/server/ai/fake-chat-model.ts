@@ -3,6 +3,7 @@ import { z } from "zod";
 import { listNames } from "../../lib/chat.ts";
 import {
   CHAT_SOURCE,
+  MAX_QUOTE_LENGTH,
   nextSection,
   PRD_SECTIONS,
   type SectionDraft,
@@ -42,9 +43,6 @@ export const FAKE_FLAWED_SECTION = "fake: flawed section";
 
 /** A model searches with a short question, not a whole message. */
 const MAX_QUERY_LENGTH = 300;
-
-/** A model quotes a few words up to one sentence. */
-const MAX_QUOTE_LENGTH = 300;
 
 /** How many passages a fake section is built from. */
 const PASSAGES_PER_SECTION = 3;
