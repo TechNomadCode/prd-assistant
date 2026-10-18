@@ -3,34 +3,33 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its first step is done: the owner got a layout proposal on 2026-10-18, then asked for it to follow Codex's chat interface and to keep the PRD on the right. The findings are in `docs/records/codex-interface-research-2026-10-18.md`. Nothing is built yet.
-  - **Proposal, second version (after Codex), with a mockup:**
-    - Desktop: the chat on the left (about 5 of 12 columns) and the PRD on the right (7 of 12), like Codex's thread and review pane, each scrolling on its own, with the message box fixed under the chat. A phone shows one page: the chat first, the PRD below it.
-    - The chat follows Codex's thread. The visitor's messages are compact bubbles on the right, and the assistant's text has no visible label; screen readers still hear "You" and "Assistant". Each step is one line, verb first, details in grey, with a chevron at the end that opens it: each search, and each save of a section, which starts closed and opens to that version.
+- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its design is decided: after two proposals and a look at Codex's interface (`docs/records/codex-interface-research-2026-10-18.md`), the owner reviewed the second mockup and replaced written-out quotes with source names (`docs/decisions.md`, Design, both lines of 2026-10-18). A mockup of the document style went to the owner the same day; building starts once they approve it. Nothing is built yet.
+  - **Also decided, from the earlier proposals:**
+    - Desktop: the chat on the left (about 5 of 12 columns) and the PRD on the right (7 of 12), each scrolling on its own, with the message box fixed under the chat.
+    - The visitor's messages are compact bubbles on the right. The assistant's text has no visible label; screen readers still hear "You" and "Assistant". Each step is one line, verb first, details in grey; the "Searched" line ends in a chevron and opens to its passages.
     - The message box holds the send button inside it, with the demo notice under it.
-    - The PRD pane follows Codex's review pane. Its header has "Your PRD", how many of the nine sections are drafted, and "Start over", which asks once before it clears the chat and the PRD. Each section is a card whose header names it and shows the check's result; clicking the header folds the section away. The PRD shows the latest save of each section, in the PRD's order, and scrolls to a section when it's saved.
-    - A short "How to read the quotes" box sits above the first section.
-    - A quote opens a pop-over next to it, with the quoted words marked: the researcher's question above the answer, or the visitor's message. It uses the native `popover` attribute with CSS anchor positioning, so it needs no new library (MDN's compatibility data, read 2026-10-18: Chrome 129, Firefox 147, Safari 26).
-    - A statement whose citations are all the visitor's shows "Your decision, not from the interviews".
-    - The latest saved section has a button, "Looks right: draft Goals / Objectives", until it's clicked or a newer section is saved. It sends "Introduction / Overview looks right. Please draft Goals / Objectives." as the visitor's message. The next section is the first one in order that isn't drafted yet.
-    - The model's formatting is rendered like Codex's answers (bold, lists, code) by a small renderer of our own, so no new library; any other Markdown mark is removed. (The first version stripped all marks.)
+    - "Start over" asks once before it clears the chat and the PRD.
+    - The pop-over uses the native `popover` attribute with CSS anchor positioning, so it needs no new library (MDN's compatibility data, read 2026-10-18: Chrome 129, Firefox 147, Safari 26). It highlights the quoted words. For an unverified quote it shows the passage and says the words aren't in it. A name with several quotes in one statement shows each of its passages.
+    - The check-in button sends "Introduction / Overview looks right. Please draft Goals / Objectives." as the visitor's message, so the fake model has to draft the section a message names last.
+    - The chat renders the model's formatting (bold, lists, code) with a small renderer of our own, so no new library; other Markdown marks are removed, and statements in the PRD stay plain text.
     - The welcome text stays at the top of the chat until slice 7's intro screen replaces it.
-    - The tests that look for saved sections in the chat move to the PRD.
+  - **Build notes:**
+    - The check already reads each cited passage from the database, so it adds the question and the answer to each interview citation for the pop-over. The model doesn't see them: it gets `checkReport`.
+    - The tests that look for saved sections in the chat move to the PRD. The view of an earlier version and its tests go (owner, 2026-10-18).
+    - The README's "Nothing hidden" point and its line that every quote sits right next to its statement change when this is built.
   - Prompt version 3 on gpt-oss-120b is merged (6d104f6 to 7bac638), with refused steps shown and logged. The owner's decisions of 2026-10-18 are in `docs/decisions.md`: no more rounds of rewording; the quality check measures, and only the grocery delivery request has to pass before launch.
   - It passed the owner's staging check on 2026-10-18 (KI-2 has the details). The section saved, and grocery delivery cites only the visitor's message. The first save had 9 of 11 quotes confirmed: one quote of Lena's, used twice, had "..." inside. The next answer searched her passage again and saved 14 of 14. Read as a pass, since the section's quotes ended confirmed and slips don't block. No refused calls, no loop.
   - Measured on gpt-oss-120b: a first section took 8,481 tokens, about 313 neurons, so about 31 a day; the second answer took 15,691, about 555.
 - **Unverified:**
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** record the owner's answer to the proposal under Design in `docs/decisions.md`, then build slice 6. Its acceptance also covers three fixes in code that the owner chose on 2026-10-18: the visitor's-decision label, a confirm button under each section, and Markdown marks never shown as typed. Points found while building slice 5 and in the staging checks:
-  - A section can be saved again in a later answer. On staging, Introduction / Overview was saved twice (9 of 11, then 14 of 14). The PRD shows the latest save; the chat shows every save in full, which makes a long page.
+- **Next:** once the owner approves the mockup, build slice 6, best in a fresh session. Points found while building slice 5 and in the staging checks:
+  - A section can be saved again in a later answer. On staging, Introduction / Overview was saved twice (9 of 11, then 14 of 14). The PRD shows the latest save.
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
-  - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`). Planned: the check already reads each cited passage from the database, so it adds the question and the answer to each interview citation. The model doesn't see them: it gets `checkReport`.
-  - What confirmed and unverified mean isn't explained yet; slice 6 explains it once, next to the first section.
-  - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
+  - A saved section carries only each passage's id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
 
   The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
-- **Waiting on the owner:** a yes or changes to the layout proposal above.
+- **Waiting on the owner:** a yes or changes to the mockup of the document style.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -57,15 +56,17 @@
 ### 6 · The PRD beside the chat · risk: normal · status: todo
 - **Goal:** the visitor watches the PRD grow next to the chat and can check every quote.
 - **Acceptance:**
-  - Sections appear beside the chat, and on a phone they stack.
-  - Every quote sits next to its statement and shows its source by name ("Daan, interview" or "You, in this chat") and whether the check confirmed it.
-  - What confirmed and unverified mean is explained once, next to the first section.
-  - Clicking a quote opens its source in a pop-over: the passage with the researcher's question above the answer, or the visitor's message.
-  - "Start over" clears the PRD. Sections change only through the chat.
-  - Unverified quotes and uncited statements stay visible and marked, never hidden. The accessibility check passes with the pop-over open.
-  - A statement whose only quotes are the visitor's own chat messages shows as the visitor's decision, not from the interviews, whatever the model wrote. The code decides this from the citations, not the prompt.
-  - Under each saved section, a confirm button does the check-in. It confirms the section through the chat and asks for the next one, which the code names (`nextSection`).
-  - Markdown marks such as `**` in the model's text are rendered or stripped, never shown as typed.
+  - The PRD sits beside the chat as a document, and on a phone they stack on one page, with no tabs (`docs/decisions.md`, Design, 2026-10-18).
+  - The PRD shows the latest save of each section, in the PRD's order. Each section's heading shows how many of its quotes the check confirmed.
+  - Each statement ends with its sources by name, such as "Maya, Daan" or "You, in this chat". Clicking a name opens a pop-over with that source: the passage with the researcher's question above the answer, or the visitor's message, with the quoted words highlighted.
+  - Confirmed quotes aren't written out. What the code objects to is written out under its statement, never hidden: an unverified quote with its words and the reason, and "No quote backs this statement." for a statement that cites nothing outside Open Questions.
+  - A statement whose quotes are all the visitor's own chat messages shows "Your decision, not from the interviews.", whatever the model wrote. The code decides this from the citations, not the prompt.
+  - Three grey sentences above the first section explain the check, the names and what's written out.
+  - The accessibility check passes with the pop-over open. On a phone the pop-over opens nearly full width, scrolls inside and closes with a tap outside.
+  - "Start over" asks once, then clears the chat and the PRD. Sections change only through the chat.
+  - Each "Saved" line in the chat ends in "See it", which brings that section into view; nothing else scrolls the PRD. The chat follows the newest message unless the visitor has scrolled up.
+  - Under the latest saved section, "Looks right: draft Goals / Objectives" does the check-in. It confirms the section through the chat and asks for the next one, which the code names: the first in the PRD's order that isn't drafted yet. It's disabled while the assistant works. Once pressed, it reads "Drafting Goals / Objectives…" until that section's save arrives, then it's gone. If the answer fails, or ends without that save, it comes back, with the error line beside it after a failure.
+  - Markdown marks such as `**` in the model's text are rendered or removed, never shown as typed.
   - None of these change the prompt (`docs/decisions.md`, Design, 2026-10-18).
 
 ### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: todo
@@ -97,10 +98,10 @@
     - the dark mode trap
   - It prints pass or fail per rule, the total tokens used and the system prompt's version.
   - It spaces its requests to stay under the per-minute limit, so a limit error never counts as a failed request.
-  - It prints the statement at fault for any of these:
-    - an unverified quote
-    - an uncited statement outside Open Questions
-    - an interview citation for grocery delivery or dark mode
+  - It prints each statement at fault the way the PRD shows it: the statement, its sources by name and what the code objects to, without the confirmed quotes (`docs/decisions.md`, Design, 2026-10-18). A statement is at fault for:
+    - an unverified quote, printed with its words and the reason
+    - citing nothing outside Open Questions, printed as "No quote backs this statement."
+    - an interviewee among the sources of a statement about grocery delivery or dark mode
   - The README reports which rules pass. Before launch, the grocery delivery request has to pass; the other rules are reported, not fixed by rewording.
 
 ### 10 · Keep the PRD after a reload, and download it · risk: normal · status: todo

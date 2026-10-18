@@ -49,8 +49,8 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - As a reviewer, I land on a short screen that tells me my role and my task, click its one button, and get a drafted section with checked quotes within 2 minutes.
 - As a reviewer, I can read the full interviews from a quieter link on that screen *(whether this is a page of its own is open; see Design Considerations)*.
 - As a reviewer, while the AI works, I see each step as one line, such as the search it ran and whose passages came back, and clicking a line shows the passages.
-- As a reviewer, every quote shows its source by name, like "Daan, interview" or "You, in this chat", and whether the check confirmed it, and statements that cite nothing are flagged. What confirmed and unverified mean is explained once, next to the first section.
-- As a reviewer, I click a quote and its passage opens in a pop-over, with the researcher's question above the answer.
+- As a reviewer, every statement names its sources, like "Maya, Daan" or "You, in this chat". Only what the check objects to is written out under it: an unverified quote with the reason, a statement that cites nothing, or my own decision. How to read this is explained once, above the first section.
+- As a reviewer, I click a source's name and its passage opens in a pop-over, with the researcher's question above the answer and the quoted words highlighted.
 - As a reviewer, after the first section, a suggested message invites me to try to break it, for example by claiming users asked for grocery delivery, and I see that the AI can't make the interviews say it.
 - As a reviewer, I see a line under the chat box saying this is a demo with fictional notes and that I shouldn't enter personal information.
 - As a user, the assistant drafts before it asks me anything. It asks only when a section needs something the interviews don't say, and the first time it explains in one sentence that my answer will be recorded as my own decision.
@@ -100,9 +100,9 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - Each statement cites one or more sources, each with a short quote: an interview passage, or the visitor's own message in this chat when the statement records their decision.
 - The app's code checks each quote against its source: an interview quote against the interviewee's answer, never the researcher's question; a visitor quote against what the visitor actually wrote in this chat, never the assistant's messages. A quote passes when it has the same words in the same order as its source, ignoring letter case, spacing, quote style and punctuation at the ends of the quote. Citations that fail are shown as unverified.
 - Statements that cite neither are flagged.
-- Every quote shows its source by name, like "Daan, interview" or "You, in this chat", and whether the check confirmed it. What confirmed and unverified mean is explained once, next to the first section.
-- Every quote sits next to its statement, so the reader can judge whether the statement reads it fairly. The check proves only that the quoted words exist and belong to that person.
-- Clicking a quote opens its source in a pop-over: the passage with the researcher's question above the answer, or the visitor's message.
+- Each statement ends with its sources by name, like "Maya, Daan" or "You, in this chat". Confirmed quotes aren't written out in the PRD: a hundred visible quotes read as a log that nobody reads. Only what the check objects to is written out under the statement: an unverified quote with its words and the reason, "No quote backs this statement." and "Your decision, not from the interviews." How to read this is explained once, above the first section.
+- Every quote is one click from its statement, so the reader can judge whether the statement reads it fairly. The check proves only that the quoted words exist and belong to that person.
+- Clicking a source's name opens it in a pop-over: the passage with the researcher's question above the answer, or the visitor's message, with the quoted words highlighted.
 - What neither the notes nor the visitor's answers support goes under Open Questions.
 - Where the notes contradict each other, the section states both views with their citations, and the choice between them goes under Open Questions.
 
@@ -151,7 +151,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **README**
 - Explains the RAG design and how citations are checked. The demo's link for engineers leads here.
-- Says plainly that the check proves the quoted words exist and belong to that person, not that the statement reads them fairly, which is why every quote sits next to its statement.
+- Says plainly that the check proves the quoted words exist and belong to that person, not that the statement reads them fairly, which is why every quote is one click from its statement.
 - States how many tokens a full PRD uses, taken from the quality check.
 - Includes a short screen recording of the app working.
 - Explains how to deploy your own copy for real answers.
@@ -208,12 +208,12 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Screens**
 - Home: first a short intro screen (a few sentences, one button, a quieter link to the transcripts), then the chat with the PRD next to it. On a phone they stack.
 - A page with the interview transcripts, for now. Open: whether it stays once quotes open their source, and if so how it reads. Decided with the intro screen.
-- Quotes open their source in a pop-over, with the researcher's question above the answer.
+- A statement's source names open its quotes in a pop-over, with the researcher's question above the answer.
 
 **Progressive disclosure**
 - Each moment shows only what the visitor needs right then. Details open when they ask for them.
 - Each step the AI takes is one line that opens to show its passages.
-- What confirmed and unverified mean is explained once, next to the first section.
+- Confirmed quotes open on a click; only what the check objects to is written out. How to read this is explained once, above the first section.
 - The suggestion to try to break it appears only after the first section.
 - The link for engineers stays quiet and leads to the README's explanation and the code.
 
