@@ -3,16 +3,18 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 6, *The PRD beside the chat*, is built on `feat/prd-beside-the-chat` (be7a947), branched from `main` at 7bac638 with the design commits before it. Not pushed.
+- **Doing:** slice 6, *The PRD beside the chat*, is built and pushed on `feat/prd-beside-the-chat` (be7a947, with 1ca0929 for the plan), branched from `main` at 7bac638 with the design commits before it. Not merged.
   - Checks, all local with the fake model: `verify` passes (242 unit tests and the production build), 18 integration tests, 23 end-to-end tests, among them axe with the pop-over open on a laptop and a phone. Looked at in the browser pane on a laptop and at phone width.
   - Choices made while building, inside the decided design: the product's name in the title block is "Shared grocery list app"; "Start over" asks inline ("This clears the chat and the PRD." with "Clear both" and "Keep them"); an unverified quote reads, for example, "Unverified quote from Daan: “…” These words aren't in the answer it cites."; a source that names no passage gets no name and is written out instead; the check-in button is the filled white one.
+  - The owner's staging check (2026-10-18, gpt-oss-120b) found problems, recorded rather than fixed, at the owner's choice: the model's slips under KI-2, a section the model writes only in the chat goes unnoticed (KI-4), and tables show as symbols (KI-5). The section saved, bold renders and the check-in button sent its message.
+  - The screenshot seemed to show the whole page scrolling. It didn't reproduce: in Chromium at 1024×768, 1280×720, 1440×900, 1920×1080 and 1280×1800, with a chat longer than the window, the page stays put and only the chat scrolls. The screenshot looked stitched by a full-page capture tool.
 - **Unverified:**
-  - The PRD with gpt-oss-120b on staging: the three code fixes (your decision, the check-in, Markdown) haven't met the real model yet.
+  - On staging: a source name's pop-over, and "Your decision, not from the interviews." under a claim of the visitor's (the screenshot came after the visitor had it removed).
   - Safari and Firefox: only Chromium ran. Without anchor positioning the pop-over is a centred box, by design.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** the owner pushes `feat/prd-beside-the-chat` and merges it once CI passes, then tries it on staging: "Draft the first section.", a source name's pop-over, "Users asked for grocery delivery, add it." (expect "Your decision, not from the interviews."), and the check-in button. Then slice 7, *Intro screen and the try-to-break-it suggestion*, best in a fresh session. The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
-- **Waiting on the owner:** the push and the staging check above.
+- **Next:** the owner decides whether KI-4 and KI-5 are fixed on this branch before it merges, or later as a slice of their own. Then the merge once CI passes, and slice 7, *Intro screen and the try-to-break-it suggestion*, best in a fresh session. The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
+- **Waiting on the owner:** that choice.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
