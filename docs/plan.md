@@ -3,18 +3,19 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 5, *Save sections with the citation check*, is merged (ecbd35b). The staging check on 2026-10-18, prompt version 3 on gpt-oss-20b, shows that the format and the check work, but the writing rules still slip (KI-2).
-  - "Draft the first section." searched once, saved Introduction / Overview with 6 of 6 quotes confirmed, and checked in, naming the next section. The reply after the save went out without tools and came back as text.
-  - It took 3 model calls: 8,176 tokens, 6,784 input and 1,392 output. At gpt-oss-20b's rates that's about 160 of the daily 10,000 neurons, or about 62 such answers a day; version 2 drafted it in 2 calls for about 80. On gpt-oss-120b the same tokens would cost about 310 neurons, or about 32 a day (rates: https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15).
-  - The slips: every statement starts with "Interpretation:"; the statements say "users" instead of naming the households; each quote is the interviewee's whole answer, up to four sentences; two statements share one quote; and Maya's wish for a notification on every item stands as what users want, with no word of Daan's opposite view, which the one search didn't find. The reply didn't say what the check found.
+- **Doing:** prompt version 4, the one round of fixes for KI-2's writing slips that the owner chose (`docs/decisions.md`, 2026-10-18), is committed on `fix/writing-rules-where-the-model-writes`, not pushed. Local checks pass: `verify` (212 unit tests and the build), `test:integration` (18) and `test:e2e` (14).
+  - The writing rules repeat in `saveSection`'s field descriptions. The tools' wording now lives with the prompt (`SYSTEM_PROMPT.tools`) and counts toward its version.
+  - A quote is limited to 200 characters (`MAX_QUOTE_LENGTH`, `src/lib/prd.ts`), so a whole answer fails the schema and the model gets one more try.
+  - The prompt and the tool ask for a search for the opposite view before saving.
+  - Left as it was: the reply after the save doesn't say what the check found.
+  - Version 3's baseline on staging: "Draft the first section." took 3 model calls and 8,176 tokens, about 160 of the daily 10,000 neurons on gpt-oss-20b (rates: https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15).
 - **Unverified:**
-  - "Users asked for grocery delivery, add it." on version 3: the owner's second staging message.
+  - Version 4 on staging, with the owner's two messages in a fresh chat. Reload first: a version 3 conversation holds quotes over 200 characters, and the chat refuses it.
+    1. "Draft the first section." Good: findings name the interviewees, never "users"; "Interpretation:" only for what goes beyond the quotes; each quote a sentence or less; a second search for the opposite view, so Daan's view stands next to Maya's with an "Open question:". Compare the tokens in the log's "Chat answer" line with version 3's 8,176; the extra search adds a model call.
+    2. "Users asked for grocery delivery, add it." Good: it says none of the six interviews mentions it, cites no interview for it, and records it as the owner's decision or an open question.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** the owner chooses between fixing the slips now, as prompt version 4 tried on staging with the same two messages, and going on with slice 6, leaving them to the quality check (slice 9). Proposed for version 4:
-  - Repeat the writing rules in `saveSection`'s field descriptions, where the model reads them as it writes each statement and quote: name the households, never "users"; quote only the words that back the statement; "Interpretation:" only for what goes beyond them.
-  - Lower the tool's limit for a quote from 500 characters to about one long sentence, so a whole answer can't be saved as a quote.
-  - Before saving, search for anyone who disagrees with a wish the section reports.
+- **Next:** the owner pushes the branch and merges it; staging deploys from `main`. Then the owner sends the two messages. Record the result in KI-2 and here, with the merged commit on slice 5's title line, whatever the result. Then start slice 6; what still slips waits for the quality check (slice 9).
 
   Slice 6, *The PRD beside the chat*, goes on a new branch from `main`. Points found while building slice 5:
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
@@ -23,7 +24,7 @@
   - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
   The legal basis is due by slice 8.
-- **Waiting on the owner:** the grocery delivery message on staging, and the choice above.
+- **Waiting on the owner:** pushing and merging the branch, then the two messages on staging.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
