@@ -2,8 +2,12 @@
 // services). Any change here reruns the quality check; a new embedding model
 // also re-embeds every passage.
 
-export const CHAT_MODEL = "@cf/openai/gpt-oss-20b";
-export const FALLBACK_CHAT_MODEL = "@cf/openai/gpt-oss-120b";
+/**
+ * gpt-oss-120b since 2026-10-18; gpt-oss-20b before, which skipped writing
+ * rules and once saved nothing on staging. Both take the same request
+ * format on Cloudflare.
+ */
+export const CHAT_MODEL = "@cf/openai/gpt-oss-120b";
 export const EMBEDDING_MODEL = "@cf/baai/bge-large-en-v1.5";
 
 /** bge-large-en-v1.5 returns 1024 numbers; `passages.embedding` matches it. */
