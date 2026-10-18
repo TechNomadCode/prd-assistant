@@ -46,13 +46,11 @@ export function SearchStep({ part }: { part: SearchNotesPart }) {
             aria-expanded={open}
             aria-controls={passagesId}
             onClick={() => setOpen(!open)}
-            className="flex gap-2 text-left text-muted-foreground hover:text-foreground"
+            className="text-left text-muted-foreground hover:text-foreground"
           >
-            <span aria-hidden="true">{open ? "▾" : "▸"}</span>
-            <span>
-              Searched the interviews for “{query}”: closest passages from{" "}
-              {listNames(whoseWords(passages))}
-            </span>
+            <span className="text-foreground">Searched</span> the interviews for
+            “{query}”: closest passages from {listNames(whoseWords(passages))}{" "}
+            <span aria-hidden="true">{open ? "⌃" : "⌄"}</span>
           </button>
           <ol
             id={passagesId}

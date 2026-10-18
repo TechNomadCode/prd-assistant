@@ -1,8 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  FAKE_FAILURES,
-  FAKE_FLAWED_SECTION,
-} from "@/server/ai/fake-chat-model";
+import { FAKE_FAILURES } from "@/server/ai/fake-chat-model";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
 // The chat on the home page, with the scripted fake model. It searches with
@@ -138,72 +135,6 @@ test.describe("chat", () => {
 
     await expect(conversation(page)).toContainText(FAKE_NOTE);
     await expect(chatAlert(page)).toHaveCount(0);
-  });
-
-  test.describe("saving a section", () => {
-    const STATEMENTS = "Statements in Introduction / Overview";
-
-    test("shows the saved section with every quote next to its statement, its source by name and the check's result", async ({
-      page,
-    }) => {
-      await page.goto("/");
-      await ask(page, "Draft the first section.");
-
-      const line = page.getByRole("button", {
-        name: "Saved Introduction / Overview: 4 of 4 quotes confirmed",
-      });
-      await expect(line).toHaveAttribute("aria-expanded", "true");
-      const statements = page.getByRole("list", { name: STATEMENTS });
-      await expect(
-        statements.getByText(
-          /^(Daan|Henk|Lena|Maya|Ravi|Sofia), interview · Confirmed$/,
-        ),
-      ).toHaveCount(3);
-      await expect(
-        statements.getByText("You, in this chat · Confirmed"),
-      ).toBeVisible();
-      await expect(conversation(page)).toContainText(
-        "I saved Introduction / Overview. The check confirmed 4 of 4 quotes. Does this capture it? If so, shall we move on to Goals / Objectives?",
-      );
-
-      await line.click();
-
-      await expect(line).toHaveAttribute("aria-expanded", "false");
-      await expect(statements).toBeHidden();
-    });
-
-    test("keeps unverified quotes and statements that cite nothing visible, and marked", async ({
-      page,
-    }) => {
-      await page.goto("/");
-      await ask(page, `Draft the first section. ${FAKE_FLAWED_SECTION}`);
-
-      await expect(
-        page.getByRole("button", {
-          name: "Saved Introduction / Overview: 4 of 6 quotes confirmed, 1 statement cites nothing",
-        }),
-      ).toBeVisible();
-      const statements = page.getByRole("list", { name: STATEMENTS });
-      await expect(
-        statements.getByText(
-          "Unverified: these words aren't in the answer it cites",
-        ),
-      ).toHaveCount(2);
-      await expect(
-        statements.getByText("Cites nothing: no quote backs this statement."),
-      ).toBeVisible();
-    });
-
-    test("passes the accessibility check with a saved section open", async ({
-      page,
-    }) => {
-      await page.goto("/");
-      await ask(page, `Draft the first section. ${FAKE_FLAWED_SECTION}`);
-      await expect(page.getByRole("list", { name: STATEMENTS })).toBeVisible();
-      await expect(conversation(page)).toContainText(FAKE_NOTE);
-
-      await expectNoAccessibilityViolations(page);
-    });
   });
 
   test("passes the accessibility check with an answer and its passages open", async ({

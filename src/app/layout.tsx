@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="flex min-h-full flex-col">
+      <body className="group/body flex min-h-full flex-col lg:has-[[data-workspace]]:h-dvh">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:bg-foreground focus:px-3 focus:py-2 focus:text-background"
@@ -22,7 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to content
         </a>
         <header className="border-b border-border">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-4 sm:px-6">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-4 group-has-[[data-workspace]]/body:max-w-7xl sm:px-6">
             <Link href="/" className="text-base font-semibold tracking-tight">
               {site.name}
             </Link>
@@ -38,12 +38,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </header>
         <main
           id="main"
-          className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 sm:px-6"
+          className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 has-[[data-workspace]]:max-w-7xl sm:px-6 lg:has-[[data-workspace]]:min-h-0 lg:has-[[data-workspace]]:py-6"
         >
           {children}
         </main>
         <footer className="border-t border-border">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground sm:px-6">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground group-has-[[data-workspace]]/body:max-w-7xl sm:px-6 lg:group-has-[[data-workspace]]/body:py-3">
             <p>A portfolio demo. The interviews are fictional.</p>
             <a
               href={site.links.repository}

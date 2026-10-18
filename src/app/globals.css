@@ -13,6 +13,10 @@
   --muted-foreground: #b4b4b4;
   --border: rgb(255 255 255 / 0.18);
   --border-strong: rgb(255 255 255 / 0.5);
+  /* The PRD's page, slightly lighter than the pane around it. */
+  --page: #141414;
+  /* The visitor's messages in the chat. */
+  --bubble: #262626;
 }
 
 @theme inline {
@@ -22,6 +26,8 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-page: var(--page);
+  --color-bubble: var(--bubble);
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -41,4 +47,49 @@ body {
 :focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
+}
+
+/*
+ * The pop-over a source's name opens. On a phone it isn't anchored: nearly
+ * full width, scrolling inside, closed by a tap outside. On a laptop it sits
+ * by the name that opened it where the browser has anchor positioning, and is
+ * a centred box where it hasn't (iPhones before iOS 26 among them).
+ */
+.source-popover {
+  width: calc(100vw - 1.5rem);
+  max-height: 80dvh;
+  overflow-y: auto;
+  margin: auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.source-popover::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+@media (min-width: 64rem) {
+  .source-popover {
+    width: min(32.5rem, calc(100vw - 2rem));
+    max-height: min(32rem, 80dvh);
+  }
+
+  .source-popover::backdrop {
+    background: transparent;
+  }
+
+  @supports (position-area: bottom) {
+    .source-popover {
+      inset: auto;
+      margin: 0.375rem 0;
+      position-area: bottom span-left;
+      position-try-fallbacks:
+        bottom span-right,
+        top span-left,
+        top span-right;
+    }
+  }
 }

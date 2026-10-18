@@ -161,6 +161,8 @@ const checkedCitationSchema = z.discriminatedUnion("source", [
     source: z.literal("interview"),
     passage: z.string(),
     interviewee: z.string(),
+    question: z.string(),
+    answer: z.string(),
     quote: z.string(),
     confirmed: z.boolean(),
   }),

@@ -1,4 +1,5 @@
 import type { ChatStatus } from "ai";
+import type { SectionName } from "@/lib/prd";
 import {
   textOf,
   type ChatMessage,
@@ -8,6 +9,7 @@ import {
   type SearchNotesPart,
 } from "@/lib/chat";
 import { cn } from "@/lib/utils";
+import { RichText } from "./rich-text";
 import { SearchStep } from "./search-step";
 import { SectionStep } from "./section-step";
 
@@ -39,9 +41,12 @@ function shownParts(message: ChatMessage): ShownPart[] {
 export function Conversation({
   messages,
   status,
+  onSeeSection,
 }: {
   messages: ChatMessage[];
   status: ChatStatus;
+  /** Brings a saved section into view in the PRD. */
+  onSeeSection?: (section: SectionName) => void;
 }) {
   const last = messages.at(-1);
   const working = status === "submitted" || status === "streaming";
@@ -56,9 +61,9 @@ export function Conversation({
         message.role === "user" ? (
           <li
             key={message.id}
-            className="space-y-1 rounded-(--radius-control) border border-border bg-surface px-4 py-3"
+            className="ml-auto w-fit max-w-[85%] rounded-(--radius-control) bg-bubble px-3 py-2"
           >
-            <p className="text-sm font-medium text-muted-foreground">You</p>
+            <p className="sr-only">You</p>
             <p className="leading-relaxed whitespace-pre-wrap">
               {textOf(message)}
             </p>
@@ -68,12 +73,13 @@ export function Conversation({
             key={message.id}
             parts={shownParts(message)}
             unfinished={status === "error" && message === last}
+            onSeeSection={onSeeSection}
           />
         ),
       )}
       {waiting && (
-        <li className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">Assistant</p>
+        <li>
+          <p className="sr-only">Assistant</p>
           <p className="text-muted-foreground">Working…</p>
         </li>
       )}
@@ -96,32 +102,36 @@ function failedStep(toolName: string): string {
 function AssistantMessage({
   parts,
   unfinished,
+  onSeeSection,
 }: {
   parts: ShownPart[];
   unfinished: boolean;
+  onSeeSection?: (section: SectionName) => void;
 }) {
   if (parts.length === 0) return null;
   return (
     <li className="space-y-3">
-      <p className="text-sm font-medium text-muted-foreground">Assistant</p>
+      <p className="sr-only">Assistant</p>
       {parts.map((part, index) => {
         switch (part.type) {
           case "text":
             return (
-              <p
+              <RichText
                 key={index}
-                className={cn(
-                  "leading-relaxed whitespace-pre-wrap",
-                  unfinished && "text-muted-foreground",
-                )}
-              >
-                {part.text}
-              </p>
+                text={part.text}
+                className={cn(unfinished && "text-muted-foreground")}
+              />
             );
           case "tool-searchNotes":
             return <SearchStep key={part.toolCallId} part={part} />;
           case "tool-saveSection":
-            return <SectionStep key={part.toolCallId} part={part} />;
+            return (
+              <SectionStep
+                key={part.toolCallId}
+                part={part}
+                onSee={onSeeSection}
+              />
+            );
           case "dynamic-tool":
             return (
               <p

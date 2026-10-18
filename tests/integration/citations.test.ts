@@ -102,6 +102,8 @@ describe("checking quotes against the stored interviews", () => {
         source: "interview",
         passage: "henk-3",
         interviewee: "Henk",
+        question: expect.any(String),
+        answer: expect.stringContaining("Black on white or white on black"),
         quote: "Black on white or white on black",
         confirmed: true,
       },

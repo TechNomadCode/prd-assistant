@@ -18,9 +18,10 @@ import type {
 // The fake chat model used locally and in CI. It follows a script instead of
 // thinking: it searches the interviews with the visitor's own words, then
 // answers from the closest passage, quoting it word for word. Asked for a
-// section (a message with "draft" or "section" in it), it saves one built
-// from the passages it found instead, then says what the check found. The
-// chat runs end to end with no provider and no key. Deterministic and free.
+// section (a message with "draft" or "section" in it), it saves the section
+// the message names last, or the first, built from the passages it found
+// instead, then says what the check found. The chat runs end to end with no
+// provider and no key. Deterministic and free.
 //
 // Phrases in a visitor's message steer it:
 // - "fake: fail before answering": the provider call fails before any
@@ -213,15 +214,29 @@ function searchQuery(message: string): string {
   return query.replace(/\s+/g, " ").trim().slice(0, MAX_QUERY_LENGTH);
 }
 
-/** The section the visitor names, or the first. Longer names match first. */
+/**
+ * The section the visitor names last, or the first. "Introduction / Overview
+ * looks right. Please draft Goals / Objectives." asks for Goals / Objectives.
+ */
 function requestedSection(message: string): SectionName {
   const text = message.toLowerCase();
-  const named = [...PRD_SECTIONS]
-    .sort((a, b) => b.length - a.length)
-    .find((name) =>
-      text.includes((name.split(" / ")[0] ?? name).toLowerCase()),
-    );
-  return named ?? PRD_SECTIONS[0];
+  let named: SectionName = PRD_SECTIONS[0];
+  let end = -1;
+  let length = 0;
+  for (const name of PRD_SECTIONS) {
+    const words = (name.split(" / ")[0] ?? name).toLowerCase();
+    const found = text.lastIndexOf(words);
+    if (found === -1) continue;
+    // "Non-Functional Requirements" holds "Functional Requirements": where
+    // both end at once, the longer name is the one meant.
+    const ends = found + words.length;
+    if (ends > end || (ends === end && words.length > length)) {
+      named = name;
+      end = ends;
+      length = words.length;
+    }
+  }
+  return named;
 }
 
 /**
