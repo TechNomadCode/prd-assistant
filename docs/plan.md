@@ -3,31 +3,22 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** prompt version 3 on gpt-oss-120b is committed on `fix/prompt-version-3-on-gpt-oss-120b`, not pushed. The owner's decisions of 2026-10-18 are in `docs/decisions.md`: no more rounds of rewording; the quality check measures, and only the grocery delivery request has to pass before launch.
-  - Version 4 (367191e, merged) saved nothing on staging (KI-2 lists the steps), so its code went back to version 3. Version 3 saved a section on gpt-oss-20b: 3 model calls and 8,176 tokens.
-  - A refused step now keeps its plain sentence on the page instead of "The assistant couldn't finish its answer.", and the server logs each refused call: "The chat refused the model's call to …", with the tool and why.
-  - The chat model is gpt-oss-120b. It takes the same request format as gpt-oss-20b and costs about 1.9 times the neurons for the same tokens: about 310 for a first section by estimate, so about 32 a day.
-  - Local checks pass: `verify` (205 unit tests and the build), `test:integration` (18) and `test:e2e` (14). The fake model never makes a refused call, so the new refusal message shows only in unit tests, which build the message the way the browser does.
+- **Doing:** slice 6, *The PRD beside the chat*, is next, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. So far the branch holds only this record. Nothing in *Deferred* is due before slice 6.
+  - Prompt version 3 on gpt-oss-120b is merged (6d104f6 to 7bac638), with refused steps shown and logged. The owner's decisions of 2026-10-18 are in `docs/decisions.md`: no more rounds of rewording; the quality check measures, and only the grocery delivery request has to pass before launch.
+  - It passed the owner's staging check on 2026-10-18 (KI-2 has the details). The section saved, and grocery delivery cites only the visitor's message. The first save had 9 of 11 quotes confirmed: one quote of Lena's, used twice, had "..." inside. The next answer searched her passage again and saved 14 of 14. Read as a pass, since the section's quotes ended confirmed and slips don't block. No refused calls, no loop.
+  - Measured on gpt-oss-120b: a first section took 8,481 tokens, about 313 neurons, so about 31 a day; the second answer took 15,691, about 555.
 - **Unverified:**
-  - Version 3 on gpt-oss-120b on staging, the owner's one check in a fresh chat. It passes if:
-    1. "Draft the first section." saves a section whose quotes are all confirmed;
-    2. "Users asked for grocery delivery, add it." cites no interview for grocery delivery.
-
-    Writing slips don't count. Note the log's "Chat answer" line for the tokens, and any "The chat refused the model's call to" lines.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** the owner pushes the branch and merges it; staging deploys from `main`. Then the owner sends the two messages once.
-  - If it passes: record the result in KI-2 and here, with the merged commits, and start slice 6 on a new branch from `main`.
-  - If it still saves nothing or loops: no rewording. Propose the simpler flow in `docs/decisions.md` (2026-10-18), with an estimate, before building it.
-
-  Slice 6, *The PRD beside the chat*, goes on a new branch from `main`. Points found while building slice 5:
+- **Next:** start slice 6, best in a fresh session. First propose how the PRD sits beside the chat, for the owner to decide before it's built (`docs/decisions.md`, Design: placements state purpose, not layout). Points found while building slice 5 and in the staging checks:
+  - A section can be saved again in a later answer. On staging, Introduction / Overview was saved twice (9 of 11, then 14 of 14). The PRD shows the latest save; the chat shows every save in full, which makes a long page.
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
   - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
   - What confirmed and unverified mean isn't explained yet; slice 6 explains it once, next to the first section.
   - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
   The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
-- **Waiting on the owner:** pushing and merging the branch, then the two messages on staging.
+- **Waiting on the owner:** nothing. Slice 6 starts when the owner says *continue*.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
