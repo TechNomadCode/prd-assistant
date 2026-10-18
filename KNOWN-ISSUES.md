@@ -27,7 +27,7 @@ Since slice 5 (prompt version 3), each section reaches the app as a `saveSection
 
 The answer also used twice the tokens of version 2: 8,176 against 4,048. Partly, as a guess, because the whole answers are written out in the save and sent back with the reply.
 
-The check can't catch these slips by design: it proves the quoted words exist and belong to that person. The cause is a guess until compared: a small model keeps the task but drops detailed rules. Fixing it means rewording the prompt, for example repeating the rules in the tool's field descriptions and tightening the quote limit, or the stronger fallback, `@cf/openai/gpt-oss-120b`, which by Cloudflare's rates (pricing page, updated 2026-10-15) uses about 1.9 times the neurons for the same tokens. The quality check (slice 9) decides between them.
+The check can't catch these slips by design: it proves the quoted words exist and belong to that person. The cause is a guess until compared: a small model keeps the task but drops detailed rules. One round of rewording followed; see below.
 
 Prompt version 4 (2026-10-18, 367191e) was the one round of rewording the owner chose (`docs/decisions.md`): the rules on naming the households, "Interpretation:" and short quotes repeat in `saveSection`'s field descriptions; a quote is limited to 200 characters, so a whole answer fails the schema; and the prompt and the tool ask for a search for the opposite view before saving. On staging (2026-10-18), "Draft the first section." saved nothing:
 - It searched twice: "shared household grocery list app", then "notification shared list", which found Sofia's and Daan's views against a notification per item next to Maya's.
@@ -37,3 +37,5 @@ Prompt version 4 (2026-10-18, 367191e) was the one round of rewording the owner 
 - 6 model calls, 17,465 tokens (16,843 input, 622 output): about twice version 3's 8,176 for a saved section, or about 340 of the daily 10,000 neurons.
 
 One answer can't show the cause. As a guess, the instruction to search before saving kept it searching.
+
+The owner's answer (`docs/decisions.md`, 2026-10-18): the prompt went back to version 3, and the chat runs on gpt-oss-120b, which costs about 1.9 times the neurons for the same tokens. No more rounds of rewording. Writing slips don't block anything, because the citation check shows them; the quality check (slice 9) measures them. Version 3 on gpt-oss-120b hasn't run on staging yet; if it still saves nothing or loops, a simpler flow is proposed instead.
