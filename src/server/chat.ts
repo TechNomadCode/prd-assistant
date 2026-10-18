@@ -21,7 +21,7 @@ import {
 import {
   CHAT_SOURCE,
   isFlagged,
-  MAX_QUOTE_LENGTH,
+  OPEN_QUESTIONS,
   PRD_SECTIONS,
   tally,
   type CheckedCitation,
@@ -44,7 +44,11 @@ import {
 } from "./citations.ts";
 import { providerSettings, readChatEnv } from "./env.ts";
 import { SYSTEM_PROMPT } from "./prompts/system-prompt.ts";
-import { SearchQueryError, searchInterviews } from "./search.ts";
+import {
+  MAX_QUERY_LENGTH,
+  SearchQueryError,
+  searchInterviews,
+} from "./search.ts";
 
 // The chat: the visitor's conversation in, the assistant's answer streamed
 // out. The model follows the versioned system prompt, decides when to search
@@ -83,18 +87,18 @@ const MAX_OUTPUT_TOKENS = 4096;
 export const MAX_MESSAGES = 200;
 
 // A drafted section's limits: roomy for a model, tight for a forged request.
-// A quote's limit (MAX_QUOTE_LENGTH) is tighter, so a whole answer can't
-// pass as one.
 const MAX_STATEMENTS = 40;
 const MAX_STATEMENT_LENGTH = 1000;
 const MAX_CITATIONS = 8;
 const MAX_SOURCE_LENGTH = 100;
-
-// What the model reads about each tool is versioned with the prompt.
-const WORDING = SYSTEM_PROMPT.tools;
+const MAX_QUOTE_LENGTH = 500;
 
 const searchNotesInput = z.object({
-  query: z.string().describe(WORDING.searchNotes.query),
+  query: z
+    .string()
+    .describe(
+      `What to look for, as a short question or topic in plain words. At most ${MAX_QUERY_LENGTH} characters.`,
+    ),
 });
 
 const passageMatchSchema = z.object({
@@ -116,12 +120,14 @@ const citationDraftSchema = z.object({
     .string()
     .min(1)
     .max(MAX_SOURCE_LENGTH)
-    .describe(WORDING.saveSection.source),
+    .describe(
+      `A passage id, such as henk-4, for an interviewee's words, or "${CHAT_SOURCE}" for the product manager's own words in this chat.`,
+    ),
   quote: z
     .string()
     .min(1)
     .max(MAX_QUOTE_LENGTH)
-    .describe(WORDING.saveSection.quote),
+    .describe("Their exact words, from a few words up to one sentence."),
 }) satisfies z.ZodType<CitationDraft>;
 
 const saveSectionInput = z.object({
@@ -133,11 +139,15 @@ const saveSectionInput = z.object({
           .string()
           .min(1)
           .max(MAX_STATEMENT_LENGTH)
-          .describe(WORDING.saveSection.statement),
+          .describe(
+            "One finding, requirement or open question, in plain text.",
+          ),
         citations: z
           .array(citationDraftSchema)
           .max(MAX_CITATIONS)
-          .describe(WORDING.saveSection.citations),
+          .describe(
+            `The sources it rests on. Empty only in ${OPEN_QUESTIONS}.`,
+          ),
       }),
     )
     .min(1)
@@ -205,7 +215,8 @@ function createTools(
 ) {
   return {
     searchNotes: tool({
-      description: WORDING.searchNotes.description,
+      description:
+        "Searches the six interviews. Returns the five passages closest in meaning to the query, closest first: each is the researcher's question and one interviewee's whole answer. They are candidates, so some may not be about the query at all.",
       inputSchema: searchNotesInput,
       outputSchema: searchNotesOutput,
       async execute({ query }) {
@@ -232,7 +243,8 @@ function createTools(
       }),
     }),
     saveSection: tool({
-      description: WORDING.saveSection.description,
+      description:
+        "Saves one drafted section of the PRD as statements with their citations. The app checks every quote: an interview quote against the cited passage's answer, never the researcher's question; a chat quote against the product manager's own messages, never yours. Returns what the check found; the product manager sees the section with the results.",
       inputSchema: saveSectionInput,
       outputSchema: saveSectionOutput,
       async execute(draft) {

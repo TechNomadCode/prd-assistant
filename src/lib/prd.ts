@@ -25,12 +25,6 @@ export const OPEN_QUESTIONS: SectionName =
 /** A citation's `source` when it quotes the visitor's own words in this chat. */
 export const CHAT_SOURCE = "chat";
 
-/**
- * A quote's limit: one long sentence. The interviews' longest sentence has
- * 163 characters, and most whole answers are longer than this.
- */
-export const MAX_QUOTE_LENGTH = 200;
-
 export type CitationDraft = {
   /** A passage id, such as henk-4, or `CHAT_SOURCE`. */
   source: string;
