@@ -1,4 +1,4 @@
-import { APICallError, type UIMessageChunk } from "ai";
+import { APICallError, readUIMessageStream, type UIMessageChunk } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
 import type { CheckedSection, SectionDraft } from "@/lib/prd";
@@ -1021,6 +1021,136 @@ describe("when something fails", () => {
     );
     expect(JSON.stringify(calls[1]?.prompt)).not.toContain("ECONNREFUSED");
     expect(error).toHaveBeenCalledWith("The interview search failed:", cause);
+  });
+});
+
+// On staging (2026-10-18), every refused step read "The assistant couldn't
+// finish its answer.", and the log didn't say what the model had called
+// (KNOWN-ISSUES.md, KI-3).
+describe("a step the chat refuses", () => {
+  function callTool(
+    toolName: string,
+    input: unknown,
+    toolCallId: string,
+  ): ChatModelStreamPart[] {
+    return [
+      {
+        type: "tool-call",
+        toolCallId,
+        toolName,
+        input: typeof input === "string" ? input : JSON.stringify(input),
+      },
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: "tool_calls" },
+        usage: usage(100, 10),
+      },
+    ];
+  }
+
+  /** The assistant's message as the browser builds it from the stream. */
+  async function shownAnswer(messages: ChatMessage[], model: ChatModel) {
+    let shown: ChatMessage | undefined;
+    for await (const message of readUIMessageStream<ChatMessage>({
+      stream: streamAnswer(messages, {
+        dependencies: {
+          model,
+          search: async () => [HENK, DAAN],
+          findPassages: async () => STORED,
+        },
+      }),
+    })) {
+      shown = message;
+    }
+    return shown;
+  }
+
+  /** Everything the server logged as an error, one line per call. */
+  function errorLog(): string[] {
+    return error.mock.calls.map((call: unknown[]) =>
+      call.map(String).join(" "),
+    );
+  }
+
+  it("keeps its plain sentence on screen, so a step the model can retry doesn't read as a failed answer", async () => {
+    const { model } = modelReplying(
+      callTool("browser.search", { query: "notifications" }, "call-1"),
+      callTool(
+        "saveSection",
+        { section: "Executive Summary", statements: [] },
+        "save-1",
+      ),
+      reply("Henk wants a ping for every item."),
+    );
+
+    const shown = await shownAnswer([visitor("Who wants pings?")], model);
+
+    expect(shown?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "dynamic-tool",
+          toolName: "browser.search",
+          state: "output-error",
+          errorText: "The assistant tried a step it can't take at this point.",
+        }),
+        // A tool the chat has keeps its own part, even when refused.
+        expect.objectContaining({
+          type: "tool-saveSection",
+          state: "output-error",
+          errorText:
+            "The drafted section wasn't in the form the check reads, so it wasn't saved.",
+        }),
+        expect.objectContaining({
+          type: "text",
+          text: "Henk wants a ping for every item.",
+        }),
+      ]),
+    );
+  });
+
+  it("logs the tool the model called and what was offered, even when nothing was", async () => {
+    // Like gpt-oss on staging: it kept searching after the search was off.
+    const { model } = modelReplying(
+      ...[1, 2, 3, 4, 5, 6].map((call) =>
+        callTool("searchNotes", { query: `topic ${call}` }, `call-${call}`),
+      ),
+    );
+
+    await answer([visitor("Draft the first section.")], model);
+
+    const refusals = errorLog().filter((line) => line.includes("refused"));
+    expect(refusals).toEqual([
+      "The chat refused the model's call to searchNotes: that tool isn't on offer now (offered: saveSection).",
+      "The chat refused the model's call to searchNotes: that tool isn't on offer now (offered: saveSection).",
+      "The chat refused the model's call to searchNotes: that tool isn't on offer now (offered: none).",
+    ]);
+  });
+
+  it("logs which part of the input didn't fit, without the input itself, which may hold the visitor's words", async () => {
+    const secret = "Daan's spare key is under the mat";
+    const { model } = modelReplying(
+      callTool(
+        "saveSection",
+        {
+          section: "Executive Summary",
+          statements: [{ text: secret, citations: [] }],
+        },
+        "save-1",
+      ),
+      callTool("searchNotes", `{"query": "${secret}"`, "call-2"),
+      reply("Sorry, I couldn't save the section."),
+    );
+
+    await answer([visitor(`Draft the first section. ${secret}`)], model);
+
+    const refusals = errorLog().filter((line) => line.includes("refused"));
+    expect(refusals).toEqual([
+      expect.stringMatching(
+        /^The chat refused the model's call to saveSection: its input doesn't fit the tool: section: /,
+      ),
+      "The chat refused the model's call to searchNotes: its input isn't valid JSON.",
+    ]);
+    expect(errorLog().join("\n")).not.toContain(secret);
   });
 });
 

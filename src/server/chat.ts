@@ -4,11 +4,13 @@ import {
   createUIMessageStream,
   InvalidToolInputError,
   isStepCount,
+  JSONParseError,
   NoSuchToolError,
   safeValidateUIMessages,
   streamText,
   tool,
   toUIMessageStream,
+  TypeValidationError,
   type LanguageModelUsage,
 } from "ai";
 import { z } from "zod";
@@ -474,15 +476,23 @@ export function streamAnswer(
             return { activeTools };
           },
           abortSignal,
-          onStepEnd: ({ usage, finishReason }) => {
+          onStepEnd: ({ usage, finishReason, dynamicToolCalls }) => {
             steps.push(usage);
             lastFinishReason = finishReason;
+            for (const call of dynamicToolCalls) {
+              if (call.invalid) logRefusal(call.toolName, call.error);
+            }
           },
           // Errors the provider reports; the stream carries on to its end.
           onError: ({ error }) => {
             console.error("The chat model failed:", error);
           },
         });
+        // A refused tool call comes twice: with describeError's sentence,
+        // then as a tool-output-error whose error is the SDK's message as a
+        // string, which describeError can't place. The browser keeps the
+        // later one, so it gets the first sentence again.
+        const refusals = new Map<string, string>();
         for await (const chunk of toUIMessageStream<typeof tools, ChatMessage>({
           stream: result.stream,
           tools,
@@ -505,7 +515,17 @@ export function streamAnswer(
           )
             answered = true;
           if (chunk.type === "error") failed = true;
-          writer.write(chunk);
+          if (chunk.type === "tool-input-error")
+            refusals.set(chunk.toolCallId, chunk.errorText);
+          const refusal =
+            chunk.type === "tool-output-error"
+              ? refusals.get(chunk.toolCallId)
+              : undefined;
+          if (chunk.type === "tool-output-error" && refusal !== undefined) {
+            writer.write({ ...chunk, errorText: refusal });
+          } else {
+            writer.write(chunk);
+          }
         }
         // A model can stop after only reasoning. Without this, the visitor
         // would see nothing at all, not even an error.
@@ -558,6 +578,59 @@ function describeError(error: unknown): string {
     return "The assistant tried a step it can't take at this point.";
   }
   return "The assistant couldn't finish its answer.";
+}
+
+/** At most this many schema problems in one log line. */
+const MAX_LOGGED_ISSUES = 5;
+
+/**
+ * Logs a tool call the chat refused: the tool the model asked for and why,
+ * never its input, which may quote the visitor's words.
+ */
+function logRefusal(toolName: string, error: unknown) {
+  console.error(
+    `The chat refused the model's call to ${toolName}: ${refusalReason(error)}`,
+  );
+}
+
+function refusalReason(error: unknown): string {
+  if (NoSuchToolError.isInstance(error)) {
+    const offered = error.availableTools?.length
+      ? error.availableTools.join(", ")
+      : "none";
+    return `that tool isn't on offer now (offered: ${offered}).`;
+  }
+  if (InvalidToolInputError.isInstance(error)) {
+    if (JSONParseError.isInstance(error.cause)) {
+      return "its input isn't valid JSON.";
+    }
+    if (TypeValidationError.isInstance(error.cause)) {
+      return `its input doesn't fit the tool: ${schemaIssues(error.cause.cause)}.`;
+    }
+  }
+  return `${error instanceof Error ? error.name : "an unknown error"}.`;
+}
+
+/** Where the input broke the schema and how, from Zod's issues, without values. */
+function schemaIssues(cause: unknown): string {
+  const issues = z
+    .object({
+      issues: z.array(
+        z.object({
+          path: z.array(z.union([z.string(), z.number()])),
+          message: z.string(),
+        }),
+      ),
+    })
+    .safeParse(cause);
+  if (!issues.success) return "no details";
+  const listed = issues.data.issues
+    .slice(0, MAX_LOGGED_ISSUES)
+    .map((issue) => `${issue.path.join(".") || "the input"}: ${issue.message}`);
+  const more = issues.data.issues.length - listed.length;
+  return more > 0
+    ? `${listed.join("; ")}; and ${more} more`
+    : listed.join("; ");
 }
 
 function logUsage(model: ChatModel, steps: LanguageModelUsage[]) {

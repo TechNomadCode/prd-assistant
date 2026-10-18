@@ -31,17 +31,9 @@ The check can't catch these slips by design: it proves the quoted words exist an
 
 Prompt version 4 (2026-10-18, 367191e) was the one round of rewording the owner chose (`docs/decisions.md`): the rules on naming the households, "Interpretation:" and short quotes repeat in `saveSection`'s field descriptions; a quote is limited to 200 characters, so a whole answer fails the schema; and the prompt and the tool ask for a search for the opposite view before saving. On staging (2026-10-18), "Draft the first section." saved nothing:
 - It searched twice: "shared household grocery list app", then "notification shared list", which found Sofia's and Daan's views against a notification per item next to Maya's.
-- It then called a tool the app doesn't have. The page shows it as "A step", so its name was neither `saveSection` nor `searchNotes`; nothing logs which (KI-3).
+- It then called a tool the app doesn't have. The page shows it as "A step", so its name was neither `saveSection` nor `searchNotes`; nothing logged which. Refused calls are logged since then.
 - It searched a third time, then called `searchNotes` twice more after the search was switched off, the second time on the last call, which carried no tools. The answer ended without words: "The chat model ended without an answer: finish reason tool-calls."
 - It never called `saveSection`, so the 200-character limit never applied, and none of the field descriptions' rules could show.
 - 6 model calls, 17,465 tokens (16,843 input, 622 output): about twice version 3's 8,176 for a saved section, or about 340 of the daily 10,000 neurons.
 
 One answer can't show the cause. As a guess, the instruction to search before saving kept it searching.
-
-## KI-3 · A refused step shows a generic message, and the server doesn't log it
-**Found:** 2026-10-18 · **Severity:** medium
-When the model calls a tool the chat refuses (one it doesn't have, one that's switched off, or one whose input fails the schema), the page shows "<step> didn't work. The assistant couldn't finish its answer." instead of the specific sentence `describeError` writes, such as "The assistant tried a step it can't take at this point." On staging (2026-10-18) the version 4 answer showed this line three times.
-
-The cause, reproduced locally with a scripted model: the AI SDK sends a `tool-input-error` chunk with our specific `errorText`, then a `tool-output-error` chunk for the same call whose error arrives as a plain string. `describeError` can't recognise a string, so it returns the generic sentence, and the browser replaces the first message with it. The unit tests check the first chunk only, so they pass.
-
-The server logs nothing about a refused call, so the staging log can't say which tool the model called or why it was refused. Fixing it means keeping the specific message for the call's second chunk, and logging each refused call's tool name and reason without the input, which may hold the visitor's words.
