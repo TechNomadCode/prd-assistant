@@ -50,7 +50,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 - The two tools, with `saveSection` taking a list of statements with citations to interview passages or the visitor's own messages (PRD: Tools).
 - The citation check:
   - normalised quote matching, for interview passages and the visitor's own messages
-  - each quote's source by name, confirmed or unverified, explained once next to the first section
+  - each statement's sources by name, with only what the check objects to written out, explained once above the first section
   - uncited statements flagged
   - pop-overs with the researcher's question above the answer
   - contradictions with both views
