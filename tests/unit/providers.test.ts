@@ -86,6 +86,10 @@ describe("choosing the chat model", () => {
     expect(model.modelId).toBe(CHAT_MODEL);
   });
 
+  it("runs the chat on gpt-oss-120b (docs/decisions.md, 2026-10-18)", () => {
+    expect(createChatModel(cloudflare).modelId).toBe("@cf/openai/gpt-oss-120b");
+  });
+
   it.each([["mistral"], ["openai"], ["Fake"], [undefined]])(
     "rejects an unknown adapter name: %s",
     (provider) => {
