@@ -3,16 +3,17 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its first step is done: the owner got this layout proposal on 2026-10-18, with a mockup. Nothing is built yet.
-  - **Proposal:**
-    - Desktop: the chat on the left (about 5 of 12 columns) and the PRD on the right (7 of 12), each scrolling on its own, with the message box fixed under the chat. A phone shows one page: the chat first, the PRD below it.
-    - In the chat, each save is one closed line that opens to that version. The PRD shows the latest save of each section, in the PRD's order, and scrolls to a section when it's saved.
-    - The PRD's header: "Your PRD", how many of the nine sections are drafted, and "Start over", which asks once before it clears the chat and the PRD.
+- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its first step is done: the owner got a layout proposal on 2026-10-18, then asked for it to follow Codex's chat interface and to keep the PRD on the right. The findings are in `docs/records/codex-interface-research-2026-10-18.md`. Nothing is built yet.
+  - **Proposal, second version (after Codex), with a mockup:**
+    - Desktop: the chat on the left (about 5 of 12 columns) and the PRD on the right (7 of 12), like Codex's thread and review pane, each scrolling on its own, with the message box fixed under the chat. A phone shows one page: the chat first, the PRD below it.
+    - The chat follows Codex's thread. The visitor's messages are compact bubbles on the right, and the assistant's text has no visible label; screen readers still hear "You" and "Assistant". Each step is one line, verb first, details in grey, with a chevron at the end that opens it: each search, and each save of a section, which starts closed and opens to that version.
+    - The message box holds the send button inside it, with the demo notice under it.
+    - The PRD pane follows Codex's review pane. Its header has "Your PRD", how many of the nine sections are drafted, and "Start over", which asks once before it clears the chat and the PRD. Each section is a card whose header names it and shows the check's result; clicking the header folds the section away. The PRD shows the latest save of each section, in the PRD's order, and scrolls to a section when it's saved.
     - A short "How to read the quotes" box sits above the first section.
     - A quote opens a pop-over next to it, with the quoted words marked: the researcher's question above the answer, or the visitor's message. It uses the native `popover` attribute with CSS anchor positioning, so it needs no new library (MDN's compatibility data, read 2026-10-18: Chrome 129, Firefox 147, Safari 26).
     - A statement whose citations are all the visitor's shows "Your decision, not from the interviews".
     - The latest saved section has a button, "Looks right: draft Goals / Objectives", until it's clicked or a newer section is saved. It sends "Introduction / Overview looks right. Please draft Goals / Objectives." as the visitor's message. The next section is the first one in order that isn't drafted yet.
-    - Markdown marks are stripped, not rendered, so no new library.
+    - The model's formatting is rendered like Codex's answers (bold, lists, code) by a small renderer of our own, so no new library; any other Markdown mark is removed. (The first version stripped all marks.)
     - The welcome text stays at the top of the chat until slice 7's intro screen replaces it.
     - The tests that look for saved sections in the chat move to the PRD.
   - Prompt version 3 on gpt-oss-120b is merged (6d104f6 to 7bac638), with refused steps shown and logged. The owner's decisions of 2026-10-18 are in `docs/decisions.md`: no more rounds of rewording; the quality check measures, and only the grocery delivery request has to pass before launch.
