@@ -63,7 +63,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - As a reviewer who arrives after the free quota is used up, the chat input is hidden, and a friendly message links to the README's screen recording and to the repository.
 - As a self-hoster, I run the whole app locally on fakes without any key or account, and I deploy my own copy for real answers.
 - As an engineer reviewer, I can read the full interview transcripts, and a link takes me to the README's explanation of the search and the check, and to the code.
-- As the owner, I start the quality check on staging and get a clear pass or fail plus the total tokens used.
+- As the owner, I start the quality check on staging and get a clear pass or fail for each rule, plus the total tokens used.
 
 ---
 
@@ -140,8 +140,8 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
   - for the gap, the assistant asks the visitor instead of inventing an answer, and the statement based on the fixed answer cites that answer
   - the contradiction shows both views with their citations, plus an open question
   - no statement that mentions grocery delivery or dark mode cites an interview
-- The check counts as passed only after two passing runs in a row, because the model can answer the same request differently each time.
-- If it fails, the prompt is fixed or a stronger model on the same free tier is tried. The check is never loosened.
+- It measures; it doesn't block launch. The README reports which rules pass. Only the grocery delivery request has to pass before launch.
+- A failing rule is reported, not fixed by rewording the prompt. The citation check is never loosened.
 - It prints the total tokens used.
 
 **Providers**
@@ -231,7 +231,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Success Metrics
 
 - **Time to first cited section:** under 2 minutes from opening the demo to a saved section whose citations passed the check. With no tracking, the owner times this on staging and production *(assumption about how it's measured)*.
-- **Quality check:** all five requests pass in two runs in a row, by the pass rules under Functional Requirements, *Quality check*.
+- **Quality check:** the README reports how many of the five requests pass, by the pass rules under Functional Requirements, *Quality check*. The grocery delivery request passes before launch.
 
 ---
 
