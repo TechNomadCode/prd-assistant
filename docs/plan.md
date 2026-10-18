@@ -3,8 +3,9 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its design is decided: after two proposals and a look at Codex's interface (`docs/records/codex-interface-research-2026-10-18.md`), the owner reviewed the second mockup and replaced written-out quotes with source names (`docs/decisions.md`, Design, both lines of 2026-10-18). A mockup of the document style went to the owner the same day; building starts once they approve it. Nothing is built yet.
-  - **Also decided, from the earlier proposals:**
+- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its design is decided: after two proposals and a look at Codex's interface (`docs/records/codex-interface-research-2026-10-18.md`), the owner reviewed the second mockup and replaced written-out quotes with source names (`docs/decisions.md`, Design, both lines of 2026-10-18). The owner then made the document style final the same day: a title block, all nine sections as an outline, bulleted statements and a slightly lighter page (fourth mockup). Nothing is built yet.
+  - **Also decided:**
+    - The explanation, under the title block: "The app's code, not the model, checks every quote word for word against its source. Click a name to see the quote in its full answer; a quote the check can't confirm is written out as Unverified. A confirmed quote proves the words are there, not that the statement reads them fairly."
     - Desktop: the chat on the left (about 5 of 12 columns) and the PRD on the right (7 of 12), each scrolling on its own, with the message box fixed under the chat.
     - The visitor's messages are compact bubbles on the right. The assistant's text has no visible label; screen readers still hear "You" and "Assistant". Each step is one line, verb first, details in grey; the "Searched" line ends in a chevron and opens to its passages.
     - The message box holds the send button inside it, with the demo notice under it.
@@ -23,13 +24,13 @@
 - **Unverified:**
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** once the owner approves the mockup, build slice 6, best in a fresh session. Points found while building slice 5 and in the staging checks:
+- **Next:** build slice 6, best in a fresh session. Points found while building slice 5 and in the staging checks:
   - A section can be saved again in a later answer. On staging, Introduction / Overview was saved twice (9 of 11, then 14 of 14). The PRD shows the latest save.
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
   - A saved section carries only each passage's id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
 
   The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
-- **Waiting on the owner:** a yes or changes to the mockup of the document style.
+- **Waiting on the owner:** nothing. Slice 6 starts when the owner says *continue*.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -56,7 +57,7 @@
 ### 6 · The PRD beside the chat · risk: normal · status: todo
 - **Goal:** the visitor watches the PRD grow next to the chat and can check every quote.
 - **Acceptance:**
-  - The PRD sits beside the chat as a document, and on a phone they stack on one page, with no tabs (`docs/decisions.md`, Design, 2026-10-18).
+  - The PRD sits beside the chat as a document, and on a phone they stack on one page, with no tabs (`docs/decisions.md`, Design, 2026-10-18). It shows all nine sections from the start; the ones not drafted yet are grey headings.
   - The PRD shows the latest save of each section, in the PRD's order. Each section's heading shows how many of its quotes the check confirmed.
   - Each statement ends with its sources by name, such as "Maya, Daan" or "You, in this chat". Clicking a name opens a pop-over with that source: the passage with the researcher's question above the answer, or the visitor's message, with the quoted words highlighted.
   - Confirmed quotes aren't written out. What the code objects to is written out under its statement, never hidden: an unverified quote with its words and the reason, and "No quote backs this statement." for a statement that cites nothing outside Open Questions.
