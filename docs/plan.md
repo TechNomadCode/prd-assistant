@@ -3,24 +3,27 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 5, *Save sections with the citation check*, is done on branch `feat/save-sections-with-citation-check` (ddd9e04), not pushed. The branch also carries the two records that were unpushed on local `main`.
-  - The model saves each drafted section with `saveSection`. The app's code checks every quote against the cited passage's answer in the database, or the visitor's own messages, and the chat shows each saved section as a line that opens to its statements, quotes, sources and results.
-  - Each answer gets three searches and one save, with one retry for a section the check can't read; no tools after the save or on the last call.
-  - Prompt version 3. Searches from earlier answers reach the model as passage ids and interviewees only, which closed KI-1.
-  - Locally, with the fake model: `verify`, `test:integration`, `test:sql` and `test:e2e` pass. No database change, so no reset.
+- **Doing:** slice 5, *Save sections with the citation check*, is merged (ecbd35b). The staging check on 2026-10-18, prompt version 3 on gpt-oss-20b, shows that the format and the check work, but the writing rules still slip (KI-2).
+  - "Draft the first section." searched once, saved Introduction / Overview with 6 of 6 quotes confirmed, and checked in, naming the next section. The reply after the save went out without tools and came back as text.
+  - It took 3 model calls: 8,176 tokens, 6,784 input and 1,392 output. At gpt-oss-20b's rates that's about 160 of the daily 10,000 neurons, or about 62 such answers a day; version 2 drafted it in 2 calls for about 80. On gpt-oss-120b the same tokens would cost about 310 neurons, or about 32 a day (rates: https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15).
+  - The slips: every statement starts with "Interpretation:"; the statements say "users" instead of naming the households; each quote is the interviewee's whole answer, up to four sentences; two statements share one quote; and Maya's wish for a notification on every item stands as what users want, with no word of Daan's opposite view, which the one search didn't find. The reply didn't say what the check found.
 - **Unverified:**
-  - Whether gpt-oss-20b saves sections whose quotes pass with prompt version 3 (KI-2), and what a section costs now: a draft takes at least three model calls (a search, the save, the reply). The quality check (slice 9) decides between gpt-oss-20b and gpt-oss-120b.
-  - The last call without tools hasn't happened on staging yet. Cloudflare's schema allows it.
+  - "Users asked for grocery delivery, add it." on version 3: the owner's second staging message.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** after the merge, the owner's staging check: "Draft the first section.", then "Users asked for grocery delivery, add it.", noting what the saved sections show and each answer's token line in the staging logs. Then slice 6, *The PRD beside the chat*, on a new branch from `main`. Points found while building slice 5:
+- **Next:** the owner chooses between fixing the slips now, as prompt version 4 tried on staging with the same two messages, and going on with slice 6, leaving them to the quality check (slice 9). Proposed for version 4:
+  - Repeat the writing rules in `saveSection`'s field descriptions, where the model reads them as it writes each statement and quote: name the households, never "users"; quote only the words that back the statement; "Interpretation:" only for what goes beyond them.
+  - Lower the tool's limit for a quote from 500 characters to about one long sentence, so a whole answer can't be saved as a quote.
+  - Before saving, search for anyone who disagrees with a wish the section reports.
+
+  Slice 6, *The PRD beside the chat*, goes on a new branch from `main`. Points found while building slice 5:
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
   - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
   - What confirmed and unverified mean isn't explained yet; slice 6 explains it once, next to the first section.
   - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
   The legal basis is due by slice 8.
-- **Waiting on the owner:** pushing the branch and opening the pull request, then the staging check above.
+- **Waiting on the owner:** the grocery delivery message on staging, and the choice above.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -42,7 +45,7 @@
 
 ### 4 · System prompt from the toolkit · risk: normal · status: done (197c29d, with fix a6e2e37)
 
-### 5 · Save sections with the citation check · risk: normal · status: done (ddd9e04)
+### 5 · Save sections with the citation check · risk: normal · status: done (ecbd35b)
 
 ### 6 · The PRD beside the chat · risk: normal · status: todo
 - **Goal:** the visitor watches the PRD grow next to the chat and can check every quote.
