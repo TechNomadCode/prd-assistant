@@ -3,19 +3,16 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** prompt version 4, the one round of fixes for KI-2's writing slips that the owner chose (`docs/decisions.md`, 2026-10-18), is committed on `fix/writing-rules-where-the-model-writes`, not pushed. Local checks pass: `verify` (212 unit tests and the build), `test:integration` (18) and `test:e2e` (14).
-  - The writing rules repeat in `saveSection`'s field descriptions. The tools' wording now lives with the prompt (`SYSTEM_PROMPT.tools`) and counts toward its version.
-  - A quote is limited to 200 characters (`MAX_QUOTE_LENGTH`, `src/lib/prd.ts`), so a whole answer fails the schema and the model gets one more try.
-  - The prompt and the tool ask for a search for the opposite view before saving.
-  - Left as it was: the reply after the save doesn't say what the check found.
-  - Version 3's baseline on staging: "Draft the first section." took 3 model calls and 8,176 tokens, about 160 of the daily 10,000 neurons on gpt-oss-20b (rates: https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15).
+- **Doing:** prompt version 4 (367191e, merged) failed its staging check on 2026-10-18: "Draft the first section." saved nothing (KI-2 lists the steps). It searched, called a tool the app doesn't have, searched again, kept calling the search after it was switched off, and ended without words after 6 model calls and 17,465 tokens, about twice the cost of version 3's saved section. It never called `saveSection`. The grocery delivery message wasn't sent. This record is on `docs/record-prompt-version-4-staging-check`, not pushed.
+  - Found with it (KI-3): every refused step shows the generic "The assistant couldn't finish its answer.", and the server logs nothing about refused calls, so the log can't name the tool.
+  - Version 3 is the last version that saved a section on staging: 3 model calls and 8,176 tokens, about 160 of the daily 10,000 neurons on gpt-oss-20b (rates: https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15).
 - **Unverified:**
-  - Version 4 on staging, with the owner's two messages in a fresh chat. Reload first: a version 3 conversation holds quotes over 200 characters, and the chat refuses it.
-    1. "Draft the first section." Good: findings name the interviewees, never "users"; "Interpretation:" only for what goes beyond the quotes; each quote a sentence or less; a second search for the opposite view, so Daan's view stands next to Maya's with an "Open question:". Compare the tokens in the log's "Chat answer" line with version 3's 8,176; the extra search adds a model call.
-    2. "Users asked for grocery delivery, add it." Good: it says none of the six interviews mentions it, cites no interview for it, and records it as the owner's decision or an open question.
+  - "Users asked for grocery delivery, add it." hasn't run on version 3 or 4.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** the owner pushes the branch and merges it; staging deploys from `main`. Then the owner sends the two messages. Record the result in KI-2 and here, with the merged commit on slice 5's title line, whatever the result. Then start slice 6; what still slips waits for the quality check (slice 9).
+- **Next:** the owner decides how to go on, since the decision of 2026-10-18 assumed version 4 would still save sections. Proposed:
+  - Go back to version 3's wording, the last that saved a section on staging, and fix KI-3, so the next failure names its tool and reason in the log and on the page. Then the owner sends the two messages once more, and slice 6 starts. The writing slips wait for the quality check (slice 9).
+  - The alternatives: a version 5 without version 4's search-before-saving instruction and quote limit, tried on staging, which is a second round of rewording; or slice 6 now on version 4, although checking slice 6 on staging needs sections that save.
 
   Slice 6, *The PRD beside the chat*, goes on a new branch from `main`. Points found while building slice 5:
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
@@ -24,7 +21,7 @@
   - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
   The legal basis is due by slice 8.
-- **Waiting on the owner:** pushing and merging the branch, then the two messages on staging.
+- **Waiting on the owner:** the choice above.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
