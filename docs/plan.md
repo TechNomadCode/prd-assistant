@@ -3,22 +3,33 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 6, *The PRD beside the chat*, is next, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. So far the branch holds only this record. Nothing in *Deferred* is due before slice 6.
+- **Doing:** slice 6, *The PRD beside the chat*, on `feat/prd-beside-the-chat`, branched from `main` at 7bac638. Nothing in *Deferred* is due before it. Its first step is done: the owner got this layout proposal on 2026-10-18, with a mockup. Nothing is built yet.
+  - **Proposal:**
+    - Desktop: the chat on the left (about 5 of 12 columns) and the PRD on the right (7 of 12), each scrolling on its own, with the message box fixed under the chat. A phone shows one page: the chat first, the PRD below it.
+    - In the chat, each save is one closed line that opens to that version. The PRD shows the latest save of each section, in the PRD's order, and scrolls to a section when it's saved.
+    - The PRD's header: "Your PRD", how many of the nine sections are drafted, and "Start over", which asks once before it clears the chat and the PRD.
+    - A short "How to read the quotes" box sits above the first section.
+    - A quote opens a pop-over next to it, with the quoted words marked: the researcher's question above the answer, or the visitor's message. It uses the native `popover` attribute with CSS anchor positioning, so it needs no new library (MDN's compatibility data, read 2026-10-18: Chrome 129, Firefox 147, Safari 26).
+    - A statement whose citations are all the visitor's shows "Your decision, not from the interviews".
+    - The latest saved section has a button, "Looks right: draft Goals / Objectives", until it's clicked or a newer section is saved. It sends "Introduction / Overview looks right. Please draft Goals / Objectives." as the visitor's message. The next section is the first one in order that isn't drafted yet.
+    - Markdown marks are stripped, not rendered, so no new library.
+    - The welcome text stays at the top of the chat until slice 7's intro screen replaces it.
+    - The tests that look for saved sections in the chat move to the PRD.
   - Prompt version 3 on gpt-oss-120b is merged (6d104f6 to 7bac638), with refused steps shown and logged. The owner's decisions of 2026-10-18 are in `docs/decisions.md`: no more rounds of rewording; the quality check measures, and only the grocery delivery request has to pass before launch.
   - It passed the owner's staging check on 2026-10-18 (KI-2 has the details). The section saved, and grocery delivery cites only the visitor's message. The first save had 9 of 11 quotes confirmed: one quote of Lena's, used twice, had "..." inside. The next answer searched her passage again and saved 14 of 14. Read as a pass, since the section's quotes ended confirmed and slips don't block. No refused calls, no loop.
   - Measured on gpt-oss-120b: a first section took 8,481 tokens, about 313 neurons, so about 31 a day; the second answer took 15,691, about 555.
 - **Unverified:**
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** start slice 6, best in a fresh session. Its acceptance now also covers three fixes in code that the owner chose on 2026-10-18: the visitor's-decision label, a confirm button under each section, and Markdown marks never shown as typed. First propose how the PRD sits beside the chat, for the owner to decide before it's built (`docs/decisions.md`, Design: placements state purpose, not layout). Points found while building slice 5 and in the staging checks:
+- **Next:** record the owner's answer to the proposal under Design in `docs/decisions.md`, then build slice 6. Its acceptance also covers three fixes in code that the owner chose on 2026-10-18: the visitor's-decision label, a confirm button under each section, and Markdown marks never shown as typed. Points found while building slice 5 and in the staging checks:
   - A section can be saved again in a later answer. On staging, Introduction / Overview was saved twice (9 of 11, then 14 of 14). The PRD shows the latest save; the chat shows every save in full, which makes a long page.
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
-  - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
+  - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`). Planned: the check already reads each cited passage from the database, so it adds the question and the answer to each interview citation. The model doesn't see them: it gets `checkReport`.
   - What confirmed and unverified mean isn't explained yet; slice 6 explains it once, next to the first section.
   - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
   The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
-- **Waiting on the owner:** nothing. Slice 6 starts when the owner says *continue*.
+- **Waiting on the owner:** a yes or changes to the layout proposal above.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
