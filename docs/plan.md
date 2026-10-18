@@ -3,16 +3,22 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** prompt version 4 (367191e, merged) failed its staging check on 2026-10-18: "Draft the first section." saved nothing (KI-2 lists the steps). It searched, called a tool the app doesn't have, searched again, kept calling the search after it was switched off, and ended without words after 6 model calls and 17,465 tokens, about twice the cost of version 3's saved section. It never called `saveSection`. The grocery delivery message wasn't sent. This record is on `docs/record-prompt-version-4-staging-check`, not pushed.
-  - Found with it (KI-3): every refused step shows the generic "The assistant couldn't finish its answer.", and the server logs nothing about refused calls, so the log can't name the tool.
-  - Version 3 is the last version that saved a section on staging: 3 model calls and 8,176 tokens, about 160 of the daily 10,000 neurons on gpt-oss-20b (rates: https://developers.cloudflare.com/workers-ai/platform/pricing/, updated 2026-10-15).
+- **Doing:** prompt version 3 on gpt-oss-120b is committed on `fix/prompt-version-3-on-gpt-oss-120b`, not pushed. The owner's decisions of 2026-10-18 are in `docs/decisions.md`: no more rounds of rewording; the quality check measures, and only the grocery delivery request has to pass before launch.
+  - Version 4 (367191e, merged) saved nothing on staging (KI-2 lists the steps), so its code went back to version 3. Version 3 saved a section on gpt-oss-20b: 3 model calls and 8,176 tokens.
+  - A refused step now keeps its plain sentence on the page instead of "The assistant couldn't finish its answer.", and the server logs each refused call: "The chat refused the model's call to …", with the tool and why.
+  - The chat model is gpt-oss-120b. It takes the same request format as gpt-oss-20b and costs about 1.9 times the neurons for the same tokens: about 310 for a first section by estimate, so about 32 a day.
+  - Local checks pass: `verify` (205 unit tests and the build), `test:integration` (18) and `test:e2e` (14). The fake model never makes a refused call, so the new refusal message shows only in unit tests, which build the message the way the browser does.
 - **Unverified:**
-  - "Users asked for grocery delivery, add it." hasn't run on version 3 or 4.
+  - Version 3 on gpt-oss-120b on staging, the owner's one check in a fresh chat. It passes if:
+    1. "Draft the first section." saves a section whose quotes are all confirmed;
+    2. "Users asked for grocery delivery, add it." cites no interview for grocery delivery.
+
+    Writing slips don't count. Note the log's "Chat answer" line for the tokens, and any "The chat refused the model's call to" lines.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** the owner decides how to go on, since the decision of 2026-10-18 assumed version 4 would still save sections. Proposed:
-  - Go back to version 3's wording, the last that saved a section on staging, and fix KI-3, so the next failure names its tool and reason in the log and on the page. Then the owner sends the two messages once more, and slice 6 starts. The writing slips wait for the quality check (slice 9).
-  - The alternatives: a version 5 without version 4's search-before-saving instruction and quote limit, tried on staging, which is a second round of rewording; or slice 6 now on version 4, although checking slice 6 on staging needs sections that save.
+- **Next:** the owner pushes the branch and merges it; staging deploys from `main`. Then the owner sends the two messages once.
+  - If it passes: record the result in KI-2 and here, with the merged commits, and start slice 6 on a new branch from `main`.
+  - If it still saves nothing or loops: no rewording. Propose the simpler flow in `docs/decisions.md` (2026-10-18), with an estimate, before building it.
 
   Slice 6, *The PRD beside the chat*, goes on a new branch from `main`. Points found while building slice 5:
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
@@ -20,8 +26,8 @@
   - What confirmed and unverified mean isn't explained yet; slice 6 explains it once, next to the first section.
   - Saved sections show open in the chat for now; with the PRD beside the chat they can start closed, like the search line.
 
-  The legal basis is due by slice 8.
-- **Waiting on the owner:** the choice above.
+  The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
+- **Waiting on the owner:** pushing and merging the branch, then the two messages on staging.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -71,10 +77,10 @@
   - When Cloudflare answers 429 with code 3036 (the day's free allocation is used up), the chat input and the intro button are hidden. A message links to the README's recording and the repository, and says when it resets (00:00 UTC).
   - When Cloudflare answers any other 429 (the per-minute limit, 300 requests for text generation), the app retries briefly, then tells the visitor the demo is busy and to try again in a minute. This is never shown as the quota being used up.
   - The 31st message in a day is refused with a friendly message, and no raw IP address is ever stored.
-  - Before starting, the owner decides the legal basis (see *Deferred*).
+  - Before starting, the owner decides the legal basis and the limit's size (see *Deferred*).
 
 ### 9 · Quality check on staging · risk: normal · status: todo
-- **Goal:** the owner can show that the free model writes PRD sections that pass the citation check.
+- **Goal:** the owner can show how well the free model's PRD sections pass the citation check, and the README reports it. It measures; it doesn't block launch (`docs/decisions.md`, Launch).
 - **Acceptance:**
   - A workflow the owner starts on staging sends the five fixed requests to the real model and applies the pass rules in the product description:
     - the intro request
@@ -82,12 +88,13 @@
     - the gap, with a fixed visitor answer
     - the grocery delivery suggestion
     - the dark mode trap
-  - It prints pass or fail per rule, the total tokens used and the system prompt's version. The check counts as passed only after two passing runs in a row on the same version.
+  - It prints pass or fail per rule, the total tokens used and the system prompt's version.
   - It spaces its requests to stay under the per-minute limit, so a limit error never counts as a failed request.
-  - The run fails, printing the statement at fault, on any of these:
+  - It prints the statement at fault for any of these:
     - an unverified quote
     - an uncited statement outside Open Questions
     - an interview citation for grocery delivery or dark mode
+  - The README reports which rules pass. Before launch, the grocery delivery request has to pass; the other rules are reported, not fixed by rewording.
 
 ### 10 · Keep the PRD after a reload, and download it · risk: normal · status: todo
 - **Goal:** the PRD survives a reload and downloads as Markdown. This piece is first to go if time runs short.
