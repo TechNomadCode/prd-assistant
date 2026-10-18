@@ -9,7 +9,7 @@ What happens and how to reproduce it. What's known about the cause, with guesses
 -->
 
 ## KI-2 · The chat model skips some of its instructions
-**Found:** 2026-10-17 · **Severity:** high
+**Found:** 2026-10-17 · **Severity:** medium (high until 2026-10-18; slips no longer block anything, `docs/decisions.md`)
 On staging, with prompt version 2 and gpt-oss-20b, "Draft the first section." drafted an Introduction / Overview that broke several rules:
 - Each citation named the passage, such as "(Maya, maya-3)", but quoted none of its words.
 - It wrote "users" instead of naming the interviewees.
@@ -38,4 +38,7 @@ Prompt version 4 (2026-10-18, 367191e) was the one round of rewording the owner 
 
 One answer can't show the cause. As a guess, the instruction to search before saving kept it searching.
 
-The owner's answer (`docs/decisions.md`, 2026-10-18): the prompt went back to version 3, and the chat runs on gpt-oss-120b, which costs about 1.9 times the neurons for the same tokens. No more rounds of rewording. Writing slips don't block anything, because the citation check shows them; the quality check (slice 9) measures them. Version 3 on gpt-oss-120b hasn't run on staging yet; if it still saves nothing or loops, a simpler flow is proposed instead.
+The owner's answer (`docs/decisions.md`, 2026-10-18): the prompt went back to version 3, and the chat runs on gpt-oss-120b, which costs about 1.9 times the neurons for the same tokens. No more rounds of rewording. Writing slips don't block anything, because the citation check shows them; the quality check (slice 9) measures them. On staging (2026-10-18), version 3 on gpt-oss-120b passed the owner's check: the section saved, its quotes ended up confirmed, and grocery delivery cites no interview. No refused calls and no loop.
+- "Draft the first section." searched once and saved Introduction / Overview with 9 of 11 quotes confirmed. The two that failed are one quote of Lena's, used twice, with "..." in place of a sentence: shortened inside, which the prompt forbids. The answer ended with the save and no words, so it didn't check in. 3 model calls, 8,481 tokens (7,299 input, 1,182 output), about 313 neurons.
+- "Users asked for grocery delivery, add it." searched for grocery delivery, searched Lena's passage again, and saved the section once more, 14 of 14 confirmed. Grocery delivery cites only the visitor's message, but its statement reads "Some households expressed interest in a grocery delivery integration", and the reply doesn't say that no interview mentions it. 4 model calls, 15,691 tokens (14,167 input, 1,524 output), about 555 neurons.
+- Slips that remain, which the citation check shows or the reader can see: "users" in a finding, statements that read more into a quote than it says, and `**` Markdown in the reply, shown as typed.
