@@ -10,7 +10,7 @@
 - **Unverified:**
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** start slice 6, best in a fresh session. First propose how the PRD sits beside the chat, for the owner to decide before it's built (`docs/decisions.md`, Design: placements state purpose, not layout). Points found while building slice 5 and in the staging checks:
+- **Next:** start slice 6, best in a fresh session. Its acceptance now also covers three fixes in code that the owner chose on 2026-10-18: the visitor's-decision label, a confirm button under each section, and Markdown marks never shown as typed. First propose how the PRD sits beside the chat, for the owner to decide before it's built (`docs/decisions.md`, Design: placements state purpose, not layout). Points found while building slice 5 and in the staging checks:
   - A section can be saved again in a later answer. On staging, Introduction / Overview was saved twice (9 of 11, then 14 of 14). The PRD shows the latest save; the chat shows every save in full, which makes a long page.
   - The PRD can be built from the conversation's `saveSection` results, the latest per section; `src/lib/prd.ts` has the shared types, `tally` and `isFlagged`.
   - The pop-over needs each quoted passage's question and answer, but a saved section carries only the passage id, interviewee and quote; a confirmed chat quote names its message (`messageId`).
@@ -51,6 +51,10 @@
   - Clicking a quote opens its source in a pop-over: the passage with the researcher's question above the answer, or the visitor's message.
   - "Start over" clears the PRD. Sections change only through the chat.
   - Unverified quotes and uncited statements stay visible and marked, never hidden. The accessibility check passes with the pop-over open.
+  - A statement whose only quotes are the visitor's own chat messages shows as the visitor's decision, not from the interviews, whatever the model wrote. The code decides this from the citations, not the prompt.
+  - Under each saved section, a confirm button does the check-in. It confirms the section through the chat and asks for the next one, which the code names (`nextSection`).
+  - Markdown marks such as `**` in the model's text are rendered or stripped, never shown as typed.
+  - None of these change the prompt (`docs/decisions.md`, Design, 2026-10-18).
 
 ### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: todo
 - **Goal:** a first-time visitor understands their role and gets a checked section with one click.
