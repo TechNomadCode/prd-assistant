@@ -272,6 +272,14 @@ describe("the fake chat model", () => {
       expect(draft.section).toBe("Non-Functional Requirements");
     });
 
+    it("drafts the section the visitor names last, as the check-in asks", async () => {
+      const draft = await savedDraft(
+        "Introduction / Overview looks right. Please draft Goals / Objectives.",
+      );
+
+      expect(draft.section).toBe("Goals / Objectives");
+    });
+
     it("adds flaws for the check to catch when the message asks for them", async () => {
       const draft = await savedDraft(
         `Draft the first section. ${FAKE_FLAWED_SECTION}`,

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ChatStatus } from "ai";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Conversation } from "@/features/chat/conversation";
 import type { ChatMessage, SaveSectionPart, SearchNotesPart } from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
@@ -179,34 +179,12 @@ describe("Conversation", () => {
               source: "interview",
               passage: "henk-4",
               interviewee: "Henk",
-              quote: "Every single item, yes",
+              question: HENK.question,
+              answer: HENK.answer,
+              quote: "ping me every time",
               confirmed: true,
-            },
-            {
-              source: "chat",
-              quote: "Users want pings",
-              confirmed: true,
-              messageId: "visitor-1",
-            },
-          ],
-        },
-        {
-          text: "Daan wants no pings.",
-          citations: [
-            {
-              source: "interview",
-              passage: "daan-5",
-              interviewee: "Daan",
-              quote: "How would you want to hear about new items?",
-              confirmed: false,
             },
             { source: "chat", quote: "nobody wants pings", confirmed: false },
-            {
-              source: "unknown",
-              passage: "grocery-1",
-              quote: "deliver it",
-              confirmed: false,
-            },
           ],
         },
         { text: "The app is a shared household list.", citations: [] },
@@ -226,75 +204,53 @@ describe("Conversation", () => {
       } as SaveSectionPart;
     }
 
-    /** The statements' own items, without the quotes' items inside them. */
-    function statementsIn(list: HTMLElement) {
-      return within(list)
-        .getAllByRole("listitem")
-        .filter((item) => item.parentElement === list);
-    }
-
-    function showSaved(section: CheckedSection = SECTION) {
-      show([question, answer(saved("output-available", { output: section }))]);
-      return screen.getByRole("list", {
-        name: `Statements in ${section.section}`,
-      });
-    }
-
-    it("shows one line saying what the check found, open to the statements", () => {
-      const statements = showSaved();
-
-      const line = screen.getByRole("button", {
-        name: "Saved Introduction / Overview: 2 of 5 quotes confirmed, 1 statement cites nothing",
-      });
-      expect(line).toHaveAttribute("aria-expanded", "true");
-      expect(statements).toBeVisible();
-      expect(line.getAttribute("aria-controls")).toBe(statements.id);
-
-      fireEvent.click(line);
-
-      expect(line).toHaveAttribute("aria-expanded", "false");
-      expect(statements).not.toBeVisible();
-    });
-
-    it("shows every quote next to its statement, with its source by name and whether the check confirmed it", () => {
-      const [first, second] = statementsIn(showSaved());
-
-      expect(first).toHaveTextContent(
-        /^Henk wants a ping for every item\.\s*“Every single item, yes”\s*Henk, interview · Confirmed\s*“Users want pings”\s*You, in this chat · Confirmed$/,
+    it("shows one line saying what the check found, ending in See it, which brings the section into view", () => {
+      const onSeeSection = vi.fn();
+      render(
+        <Conversation
+          messages={[
+            question,
+            answer(saved("output-available", { output: SECTION })),
+          ]}
+          status="ready"
+          onSeeSection={onSeeSection}
+        />,
       );
-      expect(second).toHaveTextContent(
-        "“How would you want to hear about new items?”Daan, interview · Unverified: these words aren't in the answer it cites",
-      );
-      expect(second).toHaveTextContent(
-        "“nobody wants pings”You, in this chat · Unverified: these words aren't in your messages",
-      );
-      expect(second).toHaveTextContent(
-        "“deliver it”Source “grocery-1” · Unverified: no such passage in the interviews",
-      );
-    });
-
-    it("flags a statement that cites nothing", () => {
-      const statements = statementsIn(showSaved());
-
-      expect(statements.at(-1)).toHaveTextContent(
-        /^The app is a shared household list\.\s*Cites nothing: no quote backs this statement\.$/,
-      );
-    });
-
-    it("doesn't flag an open question that cites nothing", () => {
-      showSaved({
-        section: "Open Questions / Future Considerations",
-        statements: [
-          { text: "Open question: which shop comes first?", citations: [] },
-        ],
-      });
 
       expect(
-        screen.getByRole("button", {
-          name: "Saved Open Questions / Future Considerations: no quotes",
-        }),
-      ).toBeInTheDocument();
-      expect(screen.queryByText(/Cites nothing/)).not.toBeInTheDocument();
+        screen.getByRole("list", { name: "Conversation" }),
+      ).toHaveTextContent(
+        "Saved Introduction / Overview: 1 of 2 quotes confirmed, 1 statement cites nothing · See it",
+      );
+      expect(
+        screen.queryByText("Henk wants a ping for every item."),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "See it: Introduction / Overview" }),
+      );
+
+      expect(onSeeSection).toHaveBeenCalledWith("Introduction / Overview");
+    });
+
+    it("counts an open question that cites nothing as no quotes, not as a fault", () => {
+      show([
+        question,
+        answer(
+          saved("output-available", {
+            output: {
+              section: "Open Questions / Future Considerations",
+              statements: [{ text: "Which shop comes first?", citations: [] }],
+            },
+          }),
+        ),
+      ]);
+
+      expect(
+        screen.getByRole("list", { name: "Conversation" }),
+      ).toHaveTextContent(
+        /Saved Open Questions \/ Future Considerations: no quotes$/,
+      );
     });
 
     it("shows a section while its quotes are checked", () => {

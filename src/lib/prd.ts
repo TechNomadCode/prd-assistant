@@ -46,6 +46,9 @@ export type CheckedCitation =
       passage: string;
       /** Whose answer the passage holds, from the database. */
       interviewee: string;
+      /** The researcher's question and the answer, for the pop-over. */
+      question: string;
+      answer: string;
       quote: string;
       confirmed: boolean;
     }
@@ -97,4 +100,61 @@ export function tally(section: CheckedSection) {
 /** The section after this one, or none after the last. */
 export function nextSection(section: SectionName): SectionName | undefined {
   return PRD_SECTIONS[PRD_SECTIONS.indexOf(section) + 1];
+}
+
+/**
+ * A statement whose quotes all come from the visitor's own chat messages: the
+ * visitor's decision, not a finding from the interviews, whatever the model
+ * wrote. The code decides this from the citations, never the prompt.
+ */
+export function isVisitorDecision(statement: CheckedStatement): boolean {
+  return (
+    statement.citations.length > 0 &&
+    statement.citations.every((citation) => citation.source === "chat")
+  );
+}
+
+/** One name at the end of a statement, with the quotes it stands for. */
+export type StatementSource = {
+  /** "Maya", or "You, in this chat". */
+  name: string;
+  citations: Exclude<CheckedCitation, { source: "unknown" }>[];
+};
+
+/** The name the PRD shows for the visitor's own words. */
+export const VISITOR_NAME = "You, in this chat";
+
+/**
+ * Whose words a statement rests on, each name once, in the order cited. A
+ * source that names no passage has no name: it's written out as unverified.
+ */
+export function sourcesOf(statement: CheckedStatement): StatementSource[] {
+  const sources = new Map<string, StatementSource>();
+  for (const citation of statement.citations) {
+    if (citation.source === "unknown") continue;
+    const name =
+      citation.source === "chat" ? VISITOR_NAME : citation.interviewee;
+    const source = sources.get(name) ?? { name, citations: [] };
+    source.citations.push(citation);
+    sources.set(name, source);
+  }
+  return [...sources.values()];
+}
+
+/**
+ * The section to draft next: the first in the PRD's order that isn't drafted
+ * yet, or none once all nine are.
+ */
+export function firstUndrafted(
+  drafted: ReadonlySet<SectionName>,
+): SectionName | undefined {
+  return PRD_SECTIONS.find((section) => !drafted.has(section));
+}
+
+/** A stable id for a section in the PRD, such as prd-goals-objectives. */
+export function sectionAnchor(section: SectionName): string {
+  return `prd-${section
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")}`;
 }

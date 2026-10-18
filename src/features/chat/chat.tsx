@@ -1,30 +1,59 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
-import { useState, type KeyboardEvent } from "react";
+import type { ChatStatus } from "ai";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
+import type { SectionName } from "@/lib/prd";
 import { Conversation } from "./conversation";
 
-const transport = new DefaultChatTransport<ChatMessage>({ api: "/api/chat" });
+/** Within this many pixels of the bottom, the chat counts as following. */
+const FOLLOW_MARGIN = 48;
 
-/** The chat with the assistant: the conversation, the message box below it. */
-export function Chat() {
-  const { messages, sendMessage, regenerate, setMessages, status } =
-    useChat<ChatMessage>({ transport });
+/**
+ * The chat with the assistant: the welcome and the conversation, which
+ * scroll on their own, and the message box under them.
+ */
+export function Chat({
+  welcome,
+  messages,
+  status,
+  onSend,
+  onRetry,
+  onSeeSection,
+}: {
+  welcome: ReactNode;
+  messages: ChatMessage[];
+  status: ChatStatus;
+  onSend: (text: string) => void;
+  onRetry: () => void;
+  onSeeSection: (section: SectionName) => void;
+}) {
   const [draft, setDraft] = useState("");
+  const scroller = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
 
   const working = status === "submitted" || status === "streaming";
   const canSend = !working && draft.trim() !== "";
 
+  // The chat follows the newest message, unless the visitor scrolled up.
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (element && following.current) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [messages, status]);
+
   function send() {
     if (!canSend) return;
-    // An answer that broke off never reaches the model as if it were whole.
-    if (status === "error" && messages.at(-1)?.role === "assistant") {
-      setMessages(messages.slice(0, -1));
-    }
-    void sendMessage({ text: draft.trim() });
+    following.current = true;
+    onSend(draft.trim());
     setDraft("");
   }
 
@@ -40,27 +69,47 @@ export function Chat() {
   }
 
   return (
-    <section aria-labelledby="chat-title" className="space-y-6">
+    <section
+      aria-labelledby="chat-title"
+      className="flex flex-col gap-4 lg:min-h-0 lg:flex-1"
+    >
       <h2 id="chat-title" className="sr-only">
         Chat with the assistant
       </h2>
 
-      <Conversation messages={messages} status={status} />
+      <div
+        ref={scroller}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          following.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight <
+            FOLLOW_MARGIN;
+        }}
+        className="relative space-y-8 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
+      >
+        {welcome}
 
-      {status === "error" && (
-        <div
-          role="alert"
-          className="space-y-3 border-l-2 border-foreground py-1 pl-4"
-        >
-          <p>
-            Something went wrong before the assistant could finish. Try again in
-            a moment.
-          </p>
-          <Button variant="outline" onClick={() => void regenerate()}>
-            Try again
-          </Button>
-        </div>
-      )}
+        <Conversation
+          messages={messages}
+          status={status}
+          onSeeSection={onSeeSection}
+        />
+
+        {status === "error" && (
+          <div
+            role="alert"
+            className="space-y-3 border-l-2 border-foreground py-1 pl-4"
+          >
+            <p>
+              Something went wrong before the assistant could finish. Try again
+              in a moment.
+            </p>
+            <Button variant="outline" onClick={onRetry}>
+              Try again
+            </Button>
+          </div>
+        )}
+      </div>
 
       <form
         onSubmit={(event) => {
@@ -72,7 +121,7 @@ export function Chat() {
         <label htmlFor="chat-message" className="sr-only">
           Your message
         </label>
-        <div className="flex items-end gap-3">
+        <div className="relative">
           <textarea
             id="chat-message"
             value={draft}
@@ -82,9 +131,13 @@ export function Chat() {
             maxLength={MAX_MESSAGE_LENGTH}
             aria-describedby="chat-notice"
             placeholder="For example: draft the first section, or ask who wants a notification for every new item."
-            className="min-h-24 w-full resize-y rounded-(--radius-control) border border-border-strong bg-background px-3 py-2 leading-relaxed text-foreground placeholder:text-muted-foreground"
+            className="block min-h-24 w-full resize-none rounded-(--radius-control) border border-border-strong bg-background py-2 pr-20 pl-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground"
           />
-          <Button type="submit" disabled={!canSend}>
+          <Button
+            type="submit"
+            disabled={!canSend}
+            className="absolute right-2 bottom-2 h-8 px-3"
+          >
             Send
           </Button>
         </div>

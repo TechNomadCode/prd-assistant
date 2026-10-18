@@ -1,5 +1,5 @@
 import type { UIDataTypes, UIMessage } from "ai";
-import type { CheckedSection, SectionDraft } from "./prd.ts";
+import type { CheckedSection, SectionDraft, SectionName } from "./prd.ts";
 import type { PassageMatch } from "./transcripts.ts";
 
 // The chat as the browser and the server both see it. The assistant has two
@@ -60,4 +60,46 @@ const names = new Intl.ListFormat("en-GB", {
 /** "Maya", "Maya and Henk", "Maya, Henk and Daan". */
 export function listNames(people: string[]): string {
   return names.format(people);
+}
+
+/** A section as the PRD shows it: its latest save, and when that came. */
+export type SavedSection = {
+  section: CheckedSection;
+  /** The save's place among all saves, oldest first, from 0. */
+  order: number;
+};
+
+/**
+ * The PRD so far, built from the conversation: the latest save of each
+ * section. A section saved again in a later answer replaces the earlier one.
+ */
+export function savedSections(
+  messages: readonly Pick<ChatMessage, "role" | "parts">[],
+): Map<SectionName, SavedSection> {
+  const sections = new Map<SectionName, SavedSection>();
+  let order = 0;
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    for (const part of message.parts) {
+      if (
+        part.type === "tool-saveSection" &&
+        part.state === "output-available"
+      ) {
+        sections.set(part.output.section, { section: part.output, order });
+        order += 1;
+      }
+    }
+  }
+  return sections;
+}
+
+/** The section saved last, if any. */
+export function latestSave(
+  sections: ReadonlyMap<SectionName, SavedSection>,
+): SavedSection | undefined {
+  let latest: SavedSection | undefined;
+  for (const saved of sections.values()) {
+    if (latest === undefined || saved.order > latest.order) latest = saved;
+  }
+  return latest;
 }

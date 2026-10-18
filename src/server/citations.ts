@@ -166,6 +166,8 @@ function checkCitation(
     source: "interview",
     passage: passage.passage,
     interviewee: passage.participant,
+    question: passage.question,
+    answer: passage.answer,
     quote,
     // The answer only: the researcher's question is never the interviewee's.
     confirmed: quoteIsIn(quote, passage.answer),

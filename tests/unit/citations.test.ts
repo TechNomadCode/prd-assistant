@@ -110,13 +110,15 @@ describe("matching a quote", () => {
 });
 
 describe("checking a section", () => {
-  it("confirms an interview quote from the cited answer, naming the interviewee from the database", () => {
+  it("confirms an interview quote from the cited answer, with the interviewee, the question and the answer from the database", () => {
     expect(
       checkOne("daan-5", "I look at the list when I'm about to go shopping"),
     ).toEqual({
       source: "interview",
       passage: "daan-5",
       interviewee: "Daan",
+      question: DAAN_5.question,
+      answer: DAAN_5.answer,
       quote: "I look at the list when I'm about to go shopping",
       confirmed: true,
     });
@@ -287,6 +289,8 @@ describe("what the check found", () => {
             source: "interview",
             passage: "daan-2",
             interviewee: "Daan",
+            question: "Q",
+            answer: "Forgetting things.",
             quote: "Forgetting",
             confirmed: true,
           },
