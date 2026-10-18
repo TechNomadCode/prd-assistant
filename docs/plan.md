@@ -13,8 +13,11 @@
   - Safari and Firefox: only Chromium ran. Without anchor positioning the pop-over is a centred box, by design.
   - Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`).
   - Production hasn't run; it waits for launch and its Cloudflare token.
-- **Next:** the owner decides whether KI-4 and KI-5 are fixed on this branch before it merges, or later as a slice of their own. Then the merge once CI passes, and slice 7, *Intro screen and the try-to-break-it suggestion*, best in a fresh session. The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
-- **Waiting on the owner:** that choice.
+- **Next**, the owner's choices of 2026-10-18 (`docs/decisions.md`):
+  1. On this branch, before it merges: fix KI-5, each row of a table as its own line in the chat, with a unit test.
+  2. KI-4 gets no notice beside the button; the fix goes at the cause. Write the proposal for the simpler flow (`docs/decisions.md`, External services, 2026-10-18) with an estimate, and ask whether it's built before this branch merges or as a piece of its own. Build nothing of it before the owner agrees.
+  3. Then the merge once CI passes, and slice 7, *Intro screen and the try-to-break-it suggestion*. The legal basis and the rate limit's size are due by slice 8 (`docs/decisions.md`, *Deferred*).
+- **Waiting on the owner:** nothing now. The proposal in step 2 will need their answer.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
