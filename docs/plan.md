@@ -3,7 +3,7 @@
 ## Now
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
-- **Doing:** slice 9a, *The measurement's recorder*, is built on `feat/measurement-recorder` (2bdbc40) and waits for its independent review before it's pushed (risky: secrets). `verify` passed (283 unit tests, the production build) and gitleaks found nothing in the history; tested on the fake model and on Cloudflare-shaped replies with a fake token, no real-model call.
+- **Doing:** slice 9b, *The measurement's runner*, is next. Slice 9a, *The measurement's recorder*, is merged into `main` (b339dbd, with 2eec2ad for the plan). Its independent review (a Fable session, read-only, 2026-10-19) found no blocker; its two low findings were fixed before the merge and confirmed in a second look, and the third is in 9b's acceptance. `verify` passed (285 unit tests, the production build) and gitleaks found nothing in the history; tested on the fake model and on Cloudflare-shaped replies with a fake token, no real-model call.
   - **Free checks of 2026-10-19 (the estimate's appendix G):** the guard with `--real-chat`, started from the agent's shell, passed, so a command started there loads `.env.development.local` (nothing about the token was printed). gpt-oss-120b's `sync-input.json` takes `temperature` (default 0.6), `top_p`, `top_k` and `seed`, but no `reasoning_effort`, and its messages name only `role` and `content`, so whether Cloudflare reads `reasoning_content` stays open. Record sizes wait for the first real round.
   - **For 9b:** `measurement/answer.ts` and `setup.ts` import `chat.ts` and the prompt (`@/` paths, `server-only`), so the runner can't run under plain Node like `scripts/load-notes.ts`; 9b picks how it runs them, without a new dependency unless the owner agrees.
   - Before 9a, everything was merged into `main`: the estimate and the decision on measuring (15ff604, 6a7e41e), slice 6, *The PRD beside the chat* (4a2ca18, with 55b4513 for the plan), the table fix (f8b59c3, with fee74f6, 26bd7e1, b6103fa and 153614a for the records), the real chat model locally (1d16023, with 40f40ed for the decision and the rules), the MIT license (4549f3f), and the records of 2026-10-19 (086a4e6 the table fix's staging check, 629a42a measuring the model's behaviour, 14b6167 the `app-real` entry, 0d91210 the smoke test, 58a3cca `[skip ci]`).
@@ -16,9 +16,9 @@
   - Choices made inside the decided design: the product's name in the title block is "Shared grocery list app"; "Start over" asks inline ("This clears the chat and the PRD.", with "Clear both" and "Keep them"); an unverified quote reads "Unverified quote from Daan: “…” These words aren't in the answer it cites."; a source that names no passage is written out instead; the check-in button is the filled white one; a table's header row is bold and its cells are joined with " · "; the token lives in `.env.development.local`, because `next dev` alone reads it and `env:local` never rewrites it; the browser pane runs the real model through `app-real` in `.claude/launch.json`, and `app` keeps the fakes.
 - **Unverified:** on staging, a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, and the table fix; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
 - **Next:**
-  1. **The independent review of 9a** (`feat/measurement-recorder`), then the owner pushes it. Then 9b and 9c, one per session, each on its own branch from an up-to-date `main`. Before 9c's baseline, guide the owner through the paid month, with the steps from Cloudflare's current docs.
+  1. **Slice 9b**, then 9c, one per session, each on its own branch from an up-to-date `main`. Before 9c's baseline, guide the owner through the paid month, with the steps from Cloudflare's current docs.
   2. **Slice 9d** after the baseline. Slices 7, 8 and 10 follow once 9d is done, so they're built on settled AI behaviour (the owner, 2026-10-19). Slice 7's button request ("Draft the first section.") and grocery delivery suggestion are the measurement's fixed texts, shared from one place. The legal basis and the rate limit's size are due by slice 8 (*Deferred*). KI-6 when the owner asks for it.
-- **Waiting on the owner:** the independent review of 9a, then pushing `feat/measurement-recorder` and opening its pull request; the paid month when 9c's baseline is due; the GitHub description and topics whenever they like.
+- **Waiting on the owner:** the paid month when 9c's baseline is due; the GitHub description and topics whenever they like.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -62,13 +62,7 @@
   - The 31st message in a day is refused with a friendly message, and no raw IP address is ever stored.
   - Before starting, the owner decides the legal basis and the limit's size (see *Deferred*).
 
-### 9a · The measurement's recorder · risk: risky (secrets) · status: done (2bdbc40), review pending
-- **Goal:** every real-model call in a measurement is recorded in full, and the token never is. The design and its sources: `docs/records/measurement-estimate-2026-10-19.md` (local).
-- **Acceptance:**
-  - A recording `fetch` and a model wrapper capture each call: request and reply bodies, tokens, reasoning, finish reason, retries, timings and Cloudflare's reply id. Request headers are never kept, and `chat.ts` doesn't change.
-  - A record that contains the token or "Bearer " is refused and never written; tests prove it with a fake token.
-  - Each run saves its setup: the model, the prompt's version and fingerprint, the tools' fingerprint, the code version and any uncommitted change, the search and the passages' fingerprint, the library and Node versions, the time and the run number.
-  - Records go to `docs/records/measurements/`. Tested on the fake model and on recorded replies, with no real-model call.
+### 9a · The measurement's recorder · risk: risky (secrets) · status: done (b339dbd)
 
 ### 9b · The measurement's runner · risk: normal · status: todo
 - **Goal:** one command runs the fixed requests on the real model and the real search.
