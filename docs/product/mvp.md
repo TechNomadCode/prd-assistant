@@ -10,7 +10,7 @@
 **Main hypothesis:** the chosen free model, guided by the app's prompts and its two tools (`searchNotes`, `saveSection`), writes PRD sections that pass the citation check on all five fixed quality-check requests.
 - Ref: PRD Goals (every statement is checked in code) and Success Metrics (quality check).
 - **Measured, not a gate:** the quality check reports which requests pass, and the README says so. Only the grocery delivery request has to pass before launch.
-- **If the model fails a rule,** the failure is reported, not fixed by rewording. The chat runs on gpt-oss-120b. Never loosen the citation check.
+- **If the model fails a rule,** it may be tuned with measured changes, one at a time; what still fails is reported. The chat runs on gpt-oss-120b. Never loosen the citation check.
 
 **Second hypothesis:** a reviewer gets a cited section, with its citations checked, within 2 minutes of opening the demo.
 - Ref: PRD Goals (first product goal) and Success Metrics (time to first cited section).
@@ -61,7 +61,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 - Token usage logged per answer. The quality check prints the total (PRD: Token usage).
 - Quota used up: the input is hidden, and a message links to the recording and the repository (PRD: Free quota used up).
 - Versioned system prompts built from the toolkit's PRD prompt and traceability rules (PRD: System prompts).
-- The quality check: five fixed requests on staging, started by the owner, including an answer from the visitor, the live suggestion to break it and a harder dark mode trap. It measures, and the README reports what passes; only the grocery delivery request has to pass before launch (PRD: Quality check).
+- The quality check: five fixed requests on the development machine, five runs each, including an answer from the visitor, the live suggestion to break it and a harder dark mode trap. It measures, and the README reports what passes; only the grocery delivery request has to pass before launch (PRD: Quality check).
 - Fake and real providers behind interfaces, with a word-overlap fake embedder (PRD: Providers).
 - Rate limit: 30 messages per visitor per day, with hashed IP addresses kept only for the limit window. Security headers and `noindex` (PRD: Non-Functional Requirements).
 - README: RAG design, citation check, tokens per PRD, screen recording, deploying your own copy (PRD: README).
@@ -86,7 +86,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 - **Timebox:** two to three days of building for the features, plus set-up and launch.
 - **Stack:** Next.js, Supabase (Postgres with pgvector), Vercel, the Vercel AI SDK with one provider's package. No LangChain or other AI frameworks. The search is plain SQL.
 - **Provider:** a free tier with no billing attached that covers chat and embeddings, allows a public demo, and suits a Dutch account and EU visitors. Cloudflare Workers AI on the free plan, which replaced Mistral when Mistral's free plan refused API keys; its free limits are checked (docs/decisions.md).
-- **Local:** only fakes run. Real model calls happen on staging and production only, and prompt changes are tried first in the provider's playground.
+- **Local:** the fakes run, except `npm run dev:real` and the quality check, which use the machine's own token; prompt changes are measured there before they ship.
 - **Owner:** must be able to explain every part. After each piece comes a plain explanation and an explain-back.
 
 ---

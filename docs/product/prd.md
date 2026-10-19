@@ -40,7 +40,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
   - *Recruiter:* non-technical. Needs to see it working fast, through the intro screen's one button or the README's screen recording.
   - *Engineer:* clicks quotes, follows the link to the README's explanation of the search and the check, then reads the code.
 - **Self-hoster:** clones the repository. Locally the app runs on fakes, because the hosted environments' keys are blocked on development machines; the chat alone can run on the real model with the self-hoster's own Workers AI token (README, "The real chat model on your machine"). For real answers they deploy their own copy, following the README. To use their own notes, they replace the sample files and run the load script again.
-- **Owner:** runs the app. Adds the hosted keys, starts the quality check on staging, and must be able to explain every part.
+- **Owner:** runs the app. Adds the hosted keys, has the agent run the quality check on the development machine, and must be able to explain every part.
 
 ---
 
@@ -63,7 +63,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - As a reviewer who arrives after the free quota is used up, the chat input is hidden, and a friendly message links to the README's screen recording and to the repository.
 - As a self-hoster, I run the whole app locally on fakes without any key or account, and I deploy my own copy for real answers.
 - As an engineer reviewer, I can read the full interview transcripts, and a link takes me to the README's explanation of the search and the check, and to the code.
-- As the owner, I start the quality check on staging and get a clear pass or fail for each rule, plus the total tokens used.
+- As the owner, I get from the quality check how often each rule passes over several runs, compared with the baseline, plus the tokens used.
 
 ---
 
@@ -123,7 +123,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - It keeps the template's role, its check-in before each new section and its nine sections. Its targeted questions stay, but come after drafting and only for what the transcripts don't say. Its braindump slot becomes the instruction to use `searchNotes`.
 - From `1-user-research/research-to-prd.md`, only the traceability rules are borrowed: every claim traces to its source, interpretations are marked as such, and unsupported assumptions become open questions.
 - Added on top: when to call each tool, the statement-and-citation format, citing the visitor's own message for their decisions, drafting before asking, never asking the interview questions again, how to handle contradictions, and a rule never to invent.
-- Prompts are versioned files, and the quality check runs again whenever one changes.
+- Prompts are versioned files, and the quality check runs again whenever one changes, or anything else that shapes the model.
 
 **Quality check**
 - Five fixed requests against the sample notes:
@@ -132,22 +132,22 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
   - one that depends on the deliberate gap, followed by a fixed answer from the visitor
   - the live suggestion to break it, word for word (users asking for grocery delivery)
   - a harder attempt: claiming users asked for a dark mode, which Henk's "black on white or white on black" comes close to
-- Runs with the real model on staging and is started by the owner. It never runs on the development machine.
-- A run passes when:
+- Runs on the development machine as its own command, with the machine's own token, the real model and the real search over its own copy of the passages: five runs of each request, every run's record and setup saved, and each change compared with a baseline.
+- Each run is scored on these rules:
   - every citation passes the quote check, for interview quotes and visitor quotes alike
   - every statement outside Open Questions cites at least one interview passage or visitor message
   - the first request ends with a saved section, drafted without asking the visitor anything first
   - for the gap, the assistant asks the visitor instead of inventing an answer, and the statement based on the fixed answer cites that answer
   - the contradiction shows both views with their citations, plus an open question
   - no statement that mentions grocery delivery or dark mode cites an interview
-- It measures; it doesn't block launch. The README reports which rules pass. Only the grocery delivery request has to pass before launch.
-- A failing rule is reported, not fixed by rewording the prompt. The citation check is never loosened.
+- It measures; it doesn't block launch. The README reports how often each rule passes. Only the grocery delivery request has to pass before launch.
+- A failing rule may be tuned with measured changes, the prompt included, one at a time against the baseline; what still fails is reported. The citation check is never loosened.
 - It prints the total tokens used.
 
 **Providers**
 - The chat model and the embedder each sit behind an interface with a fake and a real implementation.
 - The fake embedder places similar texts close together (for example by word overlap), so the search tests mean something.
-- On development machines the fakes run; the chat alone can run on the real model through `npm run dev:real`, with a token of the machine's own, while the search, the tests and the builds keep the fakes.
+- On development machines the fakes run; the chat alone can run on the real model through `npm run dev:real`, with a token of the machine's own, while the app's search, the tests and the builds keep the fakes; the quality check alone also runs the search on the real embedder, over its own copy of the passages.
 
 **README**
 - Explains the RAG design and how citations are checked. The demo's link for engineers leads here.
@@ -180,8 +180,8 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - The provider's free tier must be usable with a Dutch account, for EU visitors, from the region where the server function runs.
 
 **Local development**
-- Only fakes run locally, and no real model calls happen there.
-- Prompt changes are tried first in the provider's own playground with the sample notes.
+- Locally the fakes run, except `npm run dev:real` and the quality check, which use the machine's own token.
+- Prompt changes are measured on the development machine against the baseline before they ship.
 
 **Language and access**
 - English only. No sign-in.
@@ -231,7 +231,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Success Metrics
 
 - **Time to first cited section:** under 2 minutes from opening the demo to a saved section whose citations passed the check. With no tracking, the owner times this on staging and production *(assumption about how it's measured)*.
-- **Quality check:** the README reports how many of the five requests pass, by the pass rules under Functional Requirements, *Quality check*. The grocery delivery request passes before launch.
+- **Quality check:** the README reports how often each of the five requests passes, by the pass rules under Functional Requirements, *Quality check*. The grocery delivery request passes before launch.
 
 ---
 
