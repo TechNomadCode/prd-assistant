@@ -97,6 +97,24 @@ export function tally(section: CheckedSection) {
   };
 }
 
+/** Written out under a statement that cites nothing outside Open Questions. */
+export const NO_QUOTE = "No quote backs this statement.";
+
+/**
+ * An unverified quote, written out with its words and the reason, as the PRD
+ * shows it under its statement; the measurement's report prints the same.
+ */
+export function objection(citation: CheckedCitation): string {
+  switch (citation.source) {
+    case "interview":
+      return `Unverified quote from ${citation.interviewee}: “${citation.quote}” These words aren't in the answer it cites.`;
+    case "chat":
+      return `Unverified quote from you: “${citation.quote}” These words aren't in your messages.`;
+    case "unknown":
+      return `Unverified quote: “${citation.quote}” There's no passage “${citation.passage}” in the interviews.`;
+  }
+}
+
 /** The section after this one, or none after the last. */
 export function nextSection(section: SectionName): SectionName | undefined {
   return PRD_SECTIONS[PRD_SECTIONS.indexOf(section) + 1];

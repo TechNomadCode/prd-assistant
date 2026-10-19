@@ -6,7 +6,7 @@ import type { ChatMessage } from "../../lib/chat.ts";
 import type { CheckedSection } from "../../lib/prd.ts";
 import { readChatRequest } from "../chat.ts";
 import { fingerprint } from "./recorder.ts";
-import type { MeasuredRequest } from "./requests.ts";
+import { findRequest, type MeasuredRequest } from "./requests.ts";
 
 // The saved conversations C2, D and E start from (docs/plan.md, slice 9b):
 // the gap's answer from the first run of C1 in which the model asked, the two
@@ -27,7 +27,8 @@ export type SavedConversation = {
 };
 
 /** Words that show the reply is about using the list without a connection. */
-const GAP_WORDS = /offline|signal|reception|connection|connectivity|internet/i;
+export const GAP_WORDS =
+  /offline|signal|reception|connection|connectivity|internet/i;
 
 /** The answer as one assistant message, rebuilt from its recorded chunks. */
 export async function rebuildAnswer(
@@ -50,7 +51,10 @@ export async function rebuildAnswer(
   return { ...message, id };
 }
 
-function savedSections(chunks: Record<string, unknown>[]): CheckedSection[] {
+/** The sections this answer saved, from its `saveSection` calls that worked. */
+export function savedSections(
+  chunks: Record<string, unknown>[],
+): CheckedSection[] {
   const saves = new Set(
     chunks
       .filter(
@@ -99,6 +103,18 @@ export function qualifies(
     .split(/(?<=[.?!])\s+/)
     .find((sentence) => sentence.includes("?") && GAP_WORDS.test(sentence));
   return asked === undefined ? null : `it asked: "${asked.trim()}"`;
+}
+
+/**
+ * The id of the message a request sends: `visitor-1` for a new chat, one more
+ * for each saved conversation it continues, as `visitorMessage` numbers it.
+ */
+export function visitorMessageId(request: MeasuredRequest): string {
+  let count = 1;
+  for (let at = request; at.continues !== null; count++) {
+    at = findRequest(at.continues);
+  }
+  return `visitor-${count}`;
 }
 
 /** The visitor's message, numbered after the ones before it. */

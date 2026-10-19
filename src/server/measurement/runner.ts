@@ -36,6 +36,7 @@ import {
   writeRecord,
   type RecordSecrets,
 } from "./records.ts";
+import { findRule, type RuleName } from "./score.ts";
 import {
   REQUESTS,
   type MeasuredRequest,
@@ -62,8 +63,23 @@ export const LIVE_SITE_SECONDS = 60;
 /** A measurement's name, such as "baseline" or "prompt-v4". */
 const MEASUREMENT_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-const DATE_FOLDER = /^\d{4}-\d{2}-\d{2}$/;
-const RECORD_FILE = /^([A-Za-z0-9]+)-(\d+)\.json$/;
+export const DATE_FOLDER = /^\d{4}-\d{2}-\d{2}$/;
+export const RECORD_FILE = /^([A-Za-z0-9]+)-(\d+)\.json$/;
+
+/** A rule one change is meant to improve, on one request. */
+export type Target = { request: RequestName; rule: RuleName };
+
+/** `measurement.json`: why a measurement runs, written before its first answer. */
+export type MeasurementAbout = {
+  name: string;
+  purpose: string;
+  startedAt: string;
+  conversationsFrom: string;
+  /** The measurement a change is compared with, such as the baseline. */
+  compareWith?: string;
+  /** The rules the change is meant to improve. */
+  targets?: Target[];
+};
 
 export type BatchOptions = {
   /** The measurement this batch adds to; its records live under this name. */
@@ -77,6 +93,10 @@ export type BatchOptions = {
   planOnly: boolean;
   /** Take the saved conversations of another measurement, such as the baseline. */
   conversationsFrom?: string | undefined;
+  /** The measurement this one is compared with, written down before it runs. */
+  compareWith?: string | undefined;
+  /** The rules the change is meant to improve, written down before it runs. */
+  targets?: Target[] | undefined;
 };
 
 export type BatchEnvironment = {
@@ -173,7 +193,11 @@ export function planRuns(
 }
 
 function checkOptions(options: BatchOptions) {
-  for (const name of [options.measurement, options.conversationsFrom]) {
+  for (const name of [
+    options.measurement,
+    options.conversationsFrom,
+    options.compareWith,
+  ]) {
     if (name !== undefined && !MEASUREMENT_NAME.test(name)) {
       throw new Error(
         `"${name}" isn't a measurement's name: lowercase letters, digits and dashes, such as baseline.`,
@@ -189,15 +213,49 @@ function checkOptions(options: BatchOptions) {
     throw new Error(`${options.runs} runs: give a whole number from 1.`);
   }
   if (options.requests.length === 0) throw new Error("No request chosen.");
+  if (options.compareWith === options.measurement) {
+    throw new Error("A measurement can't be compared with itself.");
+  }
+  const targets = options.targets ?? [];
+  if ((options.compareWith === undefined) !== (targets.length === 0)) {
+    throw new Error(
+      "A comparison names the measurement it's compared with (--compare-with) and the rule it targets (--target), both before it runs.",
+    );
+  }
+  for (const { request, rule } of targets) {
+    if (!findRule(rule).requests.includes(request)) {
+      throw new Error(`The rule ${rule} isn't scored on request ${request}.`);
+    }
+  }
+}
+
+/** What a measurement keeps from its first batch on: the purpose, the comparison and its targets. */
+function aboutOf({
+  purpose,
+  compareWith,
+  targets,
+}: Pick<BatchOptions, "purpose" | "compareWith" | "targets">): string {
+  return JSON.stringify({
+    purpose: purpose.trim(),
+    compareWith: compareWith ?? null,
+    targets: (targets ?? [])
+      .map(({ request, rule }) => `${request}:${rule}`)
+      .sort(),
+  });
 }
 
 /** A measurement keeps one purpose; a batch with another needs a new name. */
 async function checkPurpose(file: string, options: BatchOptions) {
   if (!existsSync(file)) return;
-  const about = JSON.parse(await readFile(file, "utf8")) as { purpose: string };
+  const about = JSON.parse(await readFile(file, "utf8")) as MeasurementAbout;
   if (about.purpose.trim() !== options.purpose.trim()) {
     throw new Error(
       `The measurement "${options.measurement}" was started for another purpose ("${about.purpose}"). Give this batch's purpose a new measurement name.`,
+    );
+  }
+  if (aboutOf(about) !== aboutOf(options)) {
+    throw new Error(
+      `The measurement "${options.measurement}" was started with another comparison or target. Give this batch the same --compare-with and --target, or a new measurement name.`,
     );
   }
 }
@@ -214,7 +272,10 @@ async function notePurpose(file: string, options: BatchOptions, time: Date) {
         purpose: options.purpose,
         startedAt: time.toISOString(),
         conversationsFrom: options.conversationsFrom ?? options.measurement,
-      },
+        ...(options.compareWith
+          ? { compareWith: options.compareWith, targets: options.targets }
+          : {}),
+      } satisfies MeasurementAbout,
       null,
       2,
     )}\n`,
@@ -348,6 +409,11 @@ export async function runBatch(
   const sofar = totals(ledger, start);
 
   print(`Measurement "${options.measurement}": ${options.purpose.trim()}`);
+  if (options.compareWith) {
+    print(
+      `  Compared with "${options.compareWith}" on ${(options.targets ?? []).map(({ request, rule }) => `${request} ${rule}`).join(", ")}.`,
+    );
+  }
   if (planned.length === 0) {
     print(
       `Nothing to send: every run from 1 to ${options.runs} of ${options.requests.join(", ")} has a record.`,
@@ -416,7 +482,10 @@ export async function runBatch(
       at,
       planned,
       saved,
-      ownConversations: options.conversationsFrom === undefined,
+      // A flow change names itself to save its own conversations.
+      ownConversations:
+        (options.conversationsFrom ?? options.measurement) ===
+        options.measurement,
       meter: createMeter({ cap, ...env.meter }),
       expectedOf,
     });
