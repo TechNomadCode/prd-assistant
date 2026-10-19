@@ -37,7 +37,7 @@
 
 ### 5 · Save sections with the citation check · risk: normal · status: done (ecbd35b)
 
-### 6 · The PRD beside the chat · risk: normal · status: done (be7a947)
+### 6 · The PRD beside the chat · risk: normal · status: done (4a2ca18)
 
 ### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: todo
 - **Goal:** a first-time visitor understands their role and gets a checked section with one click.
