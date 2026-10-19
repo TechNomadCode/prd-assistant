@@ -8,12 +8,15 @@ import { createFakeChatModel } from "../ai/fake-chat-model.ts";
 import { createFakeEmbedder } from "../ai/fake-embedder.ts";
 import { EMBEDDING_MODEL } from "../ai/models.ts";
 import { MEASUREMENTS_DIR } from "./records.ts";
+import { gitIn, writeReport } from "./report.ts";
 import { REQUESTS, findRequest, type RequestName } from "./requests.ts";
 import {
   runBatch,
   type BatchEnvironment,
   type BatchOptions,
+  type Target,
 } from "./runner.ts";
+import { findRule } from "./score.ts";
 
 // `npm run measure` (scripts/measure.ts): the measurement on the real model
 // and the real search, with this machine's token from `.env.development.local`
@@ -33,7 +36,37 @@ export const USAGE = `Usage: npm run measure -- --name <measurement> --purpose "
   --runs <n>               runs per request, from 1 (default 5)
   --requests A,B,C1,...    which requests (default all: ${REQUESTS.map((request) => request.name).join(",")})
   --conversations-from <m> start C2, D and E from measurement m's saved conversations
+                           (default: the compared measurement's, else its own)
+  --compare-with <m>       the measurement this change is compared with, such as baseline
+  --target <request:rule>  the rule the change should improve, such as D:no-claim;
+                           repeat it for more; needed with --compare-with
   --plan                   print what it would send and cost; send nothing`;
+
+export const REPORT_USAGE = `Usage: npm run measure:report -- --name <measurement> [options]
+
+  --name <measurement>     the measurement to report on
+  --compare-with <m>       compare with measurement m (default: the one it named)
+  --fake                   a measurement of npm run measure:fake`;
+
+/** "D:no-claim" as a request and a rule that is scored on it. */
+export function parseTarget(text: string): Target {
+  const [request = "", rule = "", ...rest] = text.split(":");
+  if (rest.length > 0 || !request || !rule) {
+    throw new Error(
+      `"${text}" isn't a target: give a request and a rule, such as D:no-claim.`,
+    );
+  }
+  const target = {
+    request: findRequest(request.trim()).name,
+    rule: findRule(rule.trim()).name,
+  };
+  if (!findRule(target.rule).requests.includes(target.request)) {
+    throw new Error(
+      `The rule ${target.rule} isn't scored on request ${target.request}.`,
+    );
+  }
+  return target;
+}
 
 export function parseOptions(argv: string[]): BatchOptions & { fake: boolean } {
   const { values } = parseArgs({
@@ -45,6 +78,8 @@ export function parseOptions(argv: string[]): BatchOptions & { fake: boolean } {
       runs: { type: "string", default: "5" },
       requests: { type: "string" },
       "conversations-from": { type: "string" },
+      "compare-with": { type: "string" },
+      target: { type: "string", multiple: true },
       plan: { type: "boolean", default: false },
       fake: { type: "boolean", default: false },
     },
@@ -63,7 +98,33 @@ export function parseOptions(argv: string[]): BatchOptions & { fake: boolean } {
     runs: Number(values.runs),
     requests: [...new Set<RequestName>(requests)],
     planOnly: values.plan,
-    conversationsFrom: values["conversations-from"],
+    conversationsFrom: values["conversations-from"] ?? values["compare-with"],
+    compareWith: values["compare-with"],
+    targets: values.target?.map(parseTarget),
+    fake: values.fake,
+  };
+}
+
+export function parseReportOptions(argv: string[]): {
+  name: string;
+  compareWith: string | undefined;
+  fake: boolean;
+} {
+  const { values } = parseArgs({
+    args: argv,
+    strict: true,
+    options: {
+      name: { type: "string" },
+      "compare-with": { type: "string" },
+      fake: { type: "boolean", default: false },
+    },
+  });
+  if (!values.name) {
+    throw new Error(`Give the measurement's --name.\n\n${REPORT_USAGE}`);
+  }
+  return {
+    name: values.name,
+    compareWith: values["compare-with"],
     fake: values.fake,
   };
 }
@@ -134,8 +195,27 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
   };
 }
 
+/** `npm run measure:report`: reads the records only, so it needs no token. */
+async function report(argv: string[]): Promise<number> {
+  const { name, compareWith, fake } = parseReportOptions(argv);
+  const root = join(
+    process.cwd(),
+    fake ? FAKE_MEASUREMENTS_DIR : MEASUREMENTS_DIR,
+  );
+  const lines = await writeReport(root, name, {
+    compareWith,
+    git: gitIn(process.cwd()),
+  });
+  console.log(lines.join("\n"));
+  console.log(
+    `\nSaved in ${join(fake ? FAKE_MEASUREMENTS_DIR : MEASUREMENTS_DIR, name, "report.md")}.`,
+  );
+  return 0;
+}
+
 export async function main(argv: string[]): Promise<number> {
   try {
+    if (argv[0] === "--report") return await report(argv.slice(1));
     const { fake, ...options } = parseOptions(argv);
     const result = await runBatch(options, environment(fake, options.planOnly));
     return result.stopped ? 1 : 0;

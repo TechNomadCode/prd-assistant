@@ -6,11 +6,12 @@ import type { SavedSection } from "@/lib/chat";
 import {
   isFlagged,
   isVisitorDecision,
+  objection,
   PRD_SECTIONS,
   sectionAnchor,
   sourcesOf,
   tally,
-  type CheckedCitation,
+  NO_QUOTE,
   type CheckedStatement,
   type SectionName,
   type StatementSource,
@@ -200,9 +201,7 @@ function Statement({
           {unverified.map((citation, index) => (
             <p key={index}>{objection(citation)}</p>
           ))}
-          {isFlagged(section, statement) && (
-            <p>No quote backs this statement.</p>
-          )}
+          {isFlagged(section, statement) && <p>{NO_QUOTE}</p>}
           {isVisitorDecision(statement) && (
             <p>Your decision, not from the interviews.</p>
           )}
@@ -210,18 +209,6 @@ function Statement({
       )}
     </li>
   );
-}
-
-/** An unverified quote, written out with its words and the reason. */
-function objection(citation: CheckedCitation): string {
-  switch (citation.source) {
-    case "interview":
-      return `Unverified quote from ${citation.interviewee}: “${citation.quote}” These words aren't in the answer it cites.`;
-    case "chat":
-      return `Unverified quote from you: “${citation.quote}” These words aren't in your messages.`;
-    case "unknown":
-      return `Unverified quote: “${citation.quote}” There's no passage “${citation.passage}” in the interviews.`;
-  }
 }
 
 function CheckInButton({
