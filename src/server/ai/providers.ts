@@ -9,14 +9,18 @@ import { createFakeChatModel } from "./fake-chat-model.ts";
 import { createFakeEmbedder } from "./fake-embedder.ts";
 
 // AI_PROVIDER picks the implementation: "fake" on development machines and in
-// CI, "cloudflare" on staging and production. Anything else is an error, so a
-// typo can't quietly fall back to a provider nobody chose.
+// CI, "cloudflare" on staging and production. AI_CHAT_PROVIDER, when set, picks
+// the chat model's on its own, so `npm run dev:real` can run the chat on the
+// real model while the search keeps the fake embedder. Anything else is an
+// error, so a typo can't quietly fall back to a provider nobody chose.
 
 export const AI_PROVIDERS = ["fake", "cloudflare"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export type ProviderSettings = {
   provider: string | undefined;
+  /** The chat model's provider, when it differs from `provider`. */
+  chatProvider?: string | undefined;
   cloudflareAccountId?: string | undefined;
   cloudflareApiToken?: string | undefined;
 };
@@ -33,13 +37,19 @@ export function createEmbedder(settings: ProviderSettings): Embedder {
 }
 
 export function createChatModel(settings: ProviderSettings): ChatModel {
-  switch (settings.provider) {
+  const chosen = settings.chatProvider ?? settings.provider;
+  switch (chosen) {
     case "fake":
       return createFakeChatModel();
     case "cloudflare":
       return createCloudflareChatModel(requireCloudflare(settings));
     default:
-      throw unknownProvider(settings.provider);
+      throw unknownProvider(
+        chosen,
+        settings.chatProvider === undefined
+          ? "AI_PROVIDER"
+          : "AI_CHAT_PROVIDER",
+      );
   }
 }
 
@@ -53,14 +63,17 @@ function requireCloudflare({
   ];
   if (!cloudflareAccountId || !cloudflareApiToken) {
     throw new Error(
-      `AI_PROVIDER is "cloudflare", but ${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} empty.`,
+      `Cloudflare is the adapter, but ${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} empty.`,
     );
   }
   return { accountId: cloudflareAccountId, apiToken: cloudflareApiToken };
 }
 
-function unknownProvider(provider: string | undefined): Error {
+function unknownProvider(
+  provider: string | undefined,
+  variable = "AI_PROVIDER",
+): Error {
   return new Error(
-    `Unknown AI_PROVIDER "${provider ?? ""}". Use one of: ${AI_PROVIDERS.join(", ")}.`,
+    `Unknown ${variable} "${provider ?? ""}". Use one of: ${AI_PROVIDERS.join(", ")}.`,
   );
 }

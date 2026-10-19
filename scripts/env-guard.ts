@@ -1,12 +1,20 @@
 // The environment guard. package.json runs it before every dev, build, test
 // and database command. It stops the command when any env file or the shell
 // points at a hosted database or API, picks a real adapter, or holds a real
-// provider key. Hosted builds run `next build` directly (vercel.json), so it
+// provider key anywhere but `.env.development.local` (src/lib/env-guard.ts).
+// With `--real-chat` (`npm run dev:real`) it also insists that this machine's
+// token is there. Hosted builds run `next build` directly (vercel.json), so it
 // never blocks staging or production.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
-import { checkEnvironment, type EnvSource } from "../src/lib/env-guard.ts";
+import {
+  checkEnvironment,
+  PROVIDER_KEY_FILE,
+  type EnvSource,
+} from "../src/lib/env-guard.ts";
+
+const realChat = process.argv.includes("--real-chat");
 
 const envFiles = readdirSync(".").filter(
   (file) => file.startsWith(".env") && file !== ".env.example",
@@ -16,21 +24,28 @@ const sources: EnvSource[] = [
   { name: "the shell", values: process.env },
   ...envFiles.map((file) => ({
     name: file,
-    values: parseEnv(readFileSync(file, "utf8")),
+    // A Windows editor may start the file with a byte-order mark; Next's own
+    // loader skips it, so this does too, or the first variable goes unseen.
+    values: parseEnv(readFileSync(file, "utf8").replace(/^\uFEFF/, "")),
   })),
 ];
 
-const problems = checkEnvironment(sources);
+const problems = checkEnvironment(sources, { realChat });
 
 if (problems.length > 0) {
+  const onlyTheToken = problems.every((problem) => problem.missing);
   console.error(
-    "Environment guard: stopped. This machine runs only the local stack and fakes.",
+    onlyTheToken
+      ? `Environment guard: stopped. The real chat model needs this machine's own token in ${PROVIDER_KEY_FILE}.`
+      : "Environment guard: stopped. This machine runs the local stack and the fakes; the real chat model only through `npm run dev:real`.",
   );
   for (const { source, variable, reason } of problems) {
     console.error(`  - ${variable} in ${source} ${reason}`);
   }
   console.error(
-    "Fix the value, or run `npm run env:local` to write local settings.",
+    onlyTheToken
+      ? `Create ${PROVIDER_KEY_FILE} with your own account ID and token, as the README explains.`
+      : "Fix the value, or run `npm run env:local` to write local settings.",
   );
   process.exit(1);
 }

@@ -33,6 +33,9 @@ export function readAppEnv(env: Settings = process.env) {
 
 const aiSchema = z.object({
   AI_PROVIDER: z.enum(AI_PROVIDERS),
+  // The chat model's adapter alone; `npm run dev:real` sets it for the dev
+  // server. An empty line in an env file means unset, like a missing one.
+  AI_CHAT_PROVIDER: z.union([z.enum(AI_PROVIDERS), z.literal("")]).optional(),
   // 32 hexadecimal characters, so a token pasted here by mistake is refused.
   CLOUDFLARE_ACCOUNT_ID: z
     .string()
@@ -47,6 +50,7 @@ export function providerSettings(
 ): ProviderSettings {
   return {
     provider: env.AI_PROVIDER,
+    chatProvider: env.AI_CHAT_PROVIDER || undefined,
     cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
     cloudflareApiToken: env.CLOUDFLARE_API_TOKEN,
   };

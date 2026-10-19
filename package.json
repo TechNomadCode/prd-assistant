@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "node scripts/env-guard.ts && next dev",
+    "dev:real": "node scripts/env-guard.ts --real-chat && node scripts/dev-real.ts",
     "build": "node scripts/env-guard.ts && next build",
     "start": "node scripts/env-guard.ts && next start",
     "doctor": "node scripts/doctor.ts",
