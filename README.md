@@ -5,7 +5,7 @@ PRD Assistant is a web app being built to turn research notes into a product req
 ## Status
 
 - **Planning:** done. The [product description](docs/product/prd.md) and the [scope](docs/product/mvp.md) are approved.
-- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. On the home page, a streaming chat drafts the PRD with you, section by section, from the interviews: the model decides when to search them, and each search shows as a line that opens to its passages. The model saves each section it drafts, and the app's own code checks every quote before you see it. The PRD beside the chat comes next.
+- **Build:** in progress. Six fictional interviews are split into passages, embedded and stored in Postgres, and listed on a transcripts page. On the home page, a streaming chat drafts the PRD with you, section by section, from the interviews: the model decides when to search them, and each search shows as a line that opens to its passages. The model saves each section it drafts, and the app's own code checks every quote before you see it. Beside the chat, the PRD builds up as a document: each statement names its sources, a click on a name opens the quoted words in the full answer, and whatever the check objects to is written out under the statement. Next comes the intro screen.
 - **Demo:** none yet.
 
 ## How it works
@@ -177,7 +177,7 @@ Create the environments before the workflows reach `main`. Otherwise GitHub crea
 ### 5. Push and open a pull request
 
 ```bash
-git push -u origin feat/walking-skeleton
+git push -u origin <your-branch>
 ```
 
 On GitHub, open a pull request into `main` and wait for the five checks: `verify`, `verify:db`, `test:e2e`, `dependency audit` and `verify:secrets`.

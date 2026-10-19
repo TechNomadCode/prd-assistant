@@ -1031,8 +1031,8 @@ describe("when something fails", () => {
 });
 
 // On staging (2026-10-18), every refused step read "The assistant couldn't
-// finish its answer.", and the log didn't say what the model had called
-// (KNOWN-ISSUES.md, KI-3).
+// finish its answer.", and the log didn't say what the model had called.
+// Since then a refused call shows as its own step and is logged by name.
 describe("a step the chat refuses", () => {
   function callTool(
     toolName: string,
