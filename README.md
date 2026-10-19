@@ -62,6 +62,7 @@ Then open http://localhost:3000. Everything runs on your machine: the database i
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | The app in development mode, at http://localhost:3000 |
+| `npm run dev:real` | The same, with the chat on the real model and your own token (see below) |
 | `npm run build`, `npm start` | A production build, and serving it |
 | `npm run doctor` | Checks Node, Git, Docker, the pinned Supabase CLI, gitleaks and the GitHub CLI |
 | `npm run env:local` | Writes `.env.local` from the running local database |
@@ -76,7 +77,17 @@ Then open http://localhost:3000. Everything runs on your machine: the database i
 | `npm run verify:secrets` | Scans the whole Git history for secrets |
 | `npm run lint`, `typecheck`, `format`, `format:check` | The individual code checks |
 
-Every dev, build, test and database command first runs an environment guard. It stops if anything points at a hosted database or API, picks a real AI provider, or holds a real provider key.
+Every dev, build, test and database command first runs an environment guard. It stops if anything points at a hosted database or API, picks a real AI provider, or holds a real provider key anywhere but `.env.development.local`.
+
+### The real chat model on your machine
+
+By default the chat runs on a scripted fake, so the tests are free and always give the same result. To watch the real model, gpt-oss-120b on Cloudflare Workers AI, with a token of your own:
+
+1. Make a second token, the same way as in "Cloudflare, for the AI" below (steps 2 to 4): in the Cloudflare dashboard, open **AI → Workers AI**, select **Use REST API** and create it with **Create a Workers AI API Token** (the template gives it Workers AI Read and Edit on your account; https://developers.cloudflare.com/workers-ai/get-started/rest-api/). A token of its own means you can revoke it later without touching staging. Copy the token and the **Account ID** shown there.
+2. In your code editor, create `.env.development.local` in the project folder (that exact name, with no `.txt` ending, saved as UTF-8) with two lines: `CLOUDFLARE_ACCOUNT_ID=<the account ID>` and `CLOUDFLARE_API_TOKEN=<the token>`. Only `next dev` reads that file, and Git ignores it.
+3. Run `npm run dev:real` instead of `npm run dev`.
+
+The search still runs on the fake embedder, because the local passages carry its vectors, so which passages come back differs from staging. Every message spends neurons from the daily free allocation that staging and production share (10,000 a day; a first section costs about 310). Plain `npm run dev` reads the file too but keeps the fake chat; only `dev:real` switches the chat to the real model. Tests, builds and every other command keep the fakes, and the environment guard refuses the token anywhere but that file.
 
 ## Changing the database
 
@@ -96,11 +107,11 @@ Every table and function starts closed to the public API and opens only through 
 | | Local | Staging | Production |
 | --- | --- | --- | --- |
 | Database | Supabase in Docker on your machine | Supabase project `prd-assistant-staging`, Frankfurt | Supabase project `prd-assistant-production`, Frankfurt |
-| AI provider | Fakes (a word-overlap embedder and a scripted chat model) | Cloudflare Workers AI, free plan, staging token | Cloudflare Workers AI, free plan, production token from launch |
+| AI provider | Fakes (a word-overlap embedder and a scripted chat model); the real chat model only with `npm run dev:real` and your own token | Cloudflare Workers AI, free plan, staging token | Cloudflare Workers AI, free plan, production token from launch |
 | App | `npm run dev` | Vercel project `prd-assistant-staging`, private | Vercel project `prd-assistant`, public |
 | Who changes it | You, locally | GitHub Actions, after every merge to `main` | GitHub Actions, only when the owner starts it |
 
-Hosted keys never sit on a development machine. Search engines index nothing: every address sends `noindex` until a production domain is set at launch.
+The staging and production keys never sit on a development machine; a Workers AI token of your own may, in `.env.development.local`, for `npm run dev:real` only. Search engines index nothing: every address sends `noindex` until a production domain is set at launch.
 
 ## Secrets and settings
 

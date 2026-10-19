@@ -105,3 +105,49 @@ describe("choosing the chat model", () => {
     );
   });
 });
+
+describe("the chat model on its own adapter", () => {
+  const realChat = {
+    ...cloudflare,
+    provider: "fake",
+    chatProvider: "cloudflare",
+  };
+
+  it("runs the chat on Cloudflare while the embedder stays fake", () => {
+    expect(createChatModel(realChat).modelId).toBe(CHAT_MODEL);
+    expect(createEmbedder(realChat).model).toBe("fake-word-overlap");
+  });
+
+  it("reads AI_CHAT_PROVIDER, and refuses a name it doesn't know", () => {
+    const env = readChatEnv({
+      AI_PROVIDER: "fake",
+      AI_CHAT_PROVIDER: "cloudflare",
+      CLOUDFLARE_ACCOUNT_ID: cloudflare.cloudflareAccountId,
+      CLOUDFLARE_API_TOKEN: "test",
+    });
+    expect(providerSettings(env)).toEqual(realChat);
+    expect(
+      providerSettings(
+        readChatEnv({ AI_PROVIDER: "fake", AI_CHAT_PROVIDER: "" }),
+      ).chatProvider,
+    ).toBeUndefined();
+    expect(() =>
+      readChatEnv({ AI_PROVIDER: "fake", AI_CHAT_PROVIDER: "mistral" }),
+    ).toThrow(/AI_CHAT_PROVIDER/);
+  });
+
+  it.each([["mistral"], ["Fake"], [""]])(
+    "rejects an unknown chat adapter name by its own variable: %s",
+    (chatProvider) => {
+      expect(() => createChatModel({ provider: "fake", chatProvider })).toThrow(
+        `Unknown AI_CHAT_PROVIDER "${chatProvider}"`,
+      );
+    },
+  );
+
+  it("needs the token for the real chat model", () => {
+    expect(() =>
+      createChatModel({ provider: "fake", chatProvider: "cloudflare" }),
+    ).toThrow(/CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are empty/);
+  });
+});
