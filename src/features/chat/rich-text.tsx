@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * The assistant's text with its formatting: bold, inline code and lists are
- * shown as such, and every other mark is removed (src/lib/markdown.ts).
+ * shown as such, a table as one line per row, and every other mark is removed
+ * (src/lib/markdown.ts).
  */
 export function RichText({
   text,
