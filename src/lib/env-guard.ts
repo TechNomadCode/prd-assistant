@@ -2,8 +2,9 @@
 // stack and the fake adapters. `scripts/env-guard.ts` runs this before every
 // dev, build, test and database command. One exception, the owner's
 // (docs/decisions.md, 2026-10-19): a Workers AI token of this machine's own may
-// sit in `.env.development.local`, which only `next dev` reads, and
-// `npm run dev:real` runs the chat on the real model with it.
+// sit in `.env.development.local`, which only `next dev` and the measurement
+// (`npm run measure`, 2026-10-19) read: `npm run dev:real` runs the chat on
+// the real model with it, and the measurement the chat and its search.
 
 export type EnvSource = {
   /** Where the values came from, such as ".env.local" or "the shell". */
@@ -20,7 +21,7 @@ export type GuardProblem = {
 };
 
 export type GuardOptions = {
-  /** The command runs the chat on the real model, so its token must be there. */
+  /** The command runs the real model (`dev:real`, `measure`), so its token must be there. */
   realChat?: boolean;
 };
 
@@ -44,7 +45,7 @@ const PROVIDER_KEY_VARIABLES = [
   "CLOUDFLARE_API_TOKEN",
 ] as const;
 
-/** The one file that may hold them: `next dev` reads it, nothing else does. */
+/** The one file that may hold them: `next dev` and `npm run measure` read it, nothing else does. */
 export const PROVIDER_KEY_FILE = ".env.development.local";
 
 /** 32 hexadecimal characters, as `src/server/env.ts` checks too. */
@@ -106,7 +107,7 @@ export function checkEnvironment(
         problems.push({
           source: name,
           variable,
-          reason: `is set. On this machine the real provider's settings belong only in ${PROVIDER_KEY_FILE}, which only the dev server reads.`,
+          reason: `is set. On this machine the real provider's settings belong only in ${PROVIDER_KEY_FILE}, which only the dev server and the measurement read.`,
         });
       }
     }

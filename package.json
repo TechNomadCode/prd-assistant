@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "node scripts/env-guard.ts && next dev",
     "dev:real": "node scripts/env-guard.ts --real-chat && node scripts/dev-real.ts",
+    "measure": "node scripts/env-guard.ts --measure && node scripts/measure.ts",
+    "measure:fake": "node scripts/env-guard.ts && node scripts/measure.ts --fake",
     "build": "node scripts/env-guard.ts && next build",
     "start": "node scripts/env-guard.ts && next start",
     "doctor": "node scripts/doctor.ts",

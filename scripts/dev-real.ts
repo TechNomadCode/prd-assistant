@@ -4,7 +4,8 @@
 // variable already in the environment wins over every env file, so the
 // AI_CHAT_PROVIDER set here can't be undone by one). The search keeps the fake
 // embedder: the local passages carry its vectors. `npm run dev:real` runs the
-// guard with `--real-chat` first, then this. Every other command keeps the fakes.
+// guard with `--real-chat` first, then this. Every other command keeps the
+// fakes, except the measurement (`npm run measure`).
 
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
