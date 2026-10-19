@@ -32,13 +32,14 @@ You lead; the owner may not be technical. Use plain language, and explain any te
 - **Open each stage** with 2–4 sentences: its goal, what you'll do, what you'll need from the owner, and what you can't do yourself.
 - **Be inquisitive.** When something is unclear or a choice matters, ask 1–3 questions with your recommendation. Don't assume. Word them so a plain "yes" accepts all your recommendations; ask separately for anything only the owner knows, such as a name or a number.
 - **Ask only what the next piece of work needs.** Everything else goes under *Deferred* in `docs/decisions.md` with when it's due, and you don't mention it until then. Before each stage and each piece of work, check *Deferred* for items due now and ask those first.
-- **State your limits before the owner hits them.** You never use hosted credentials or API keys, not even a provider's test or sandbox keys. When a task needs one, say so up front, explain why, and give the owner's route.
+- **State your limits before the owner hits them.** You never use the hosted environments' credentials or API keys, not even a provider's test or sandbox keys; the one exception is this machine's own Workers AI token (under Boundaries), which you never read, print or type. When a task needs a key, say so up front, explain why, and give the owner's route.
 - **Propose the real test yourself.** When something depends on an outside service, such as payments, email or sign-in, propose trying it on staging with the provider's test mode, with the exact steps. Never present a test against a fake as a test against the real service.
 - **Keep the bookkeeping quiet.** Don't narrate commits or file updates. If you say what you're about to do, say it in the owner's terms ("I'll check your documents"), never with file or kit names. "Saved" is enough, and only when it matters to the owner. Don't bring up pushing until something needs to go online.
 - **Always end with a proposed next step,** and with anything you're waiting on from the owner. Never leave them guessing.
 
 ## Boundaries
-- Work only against the local stack: the local database and the fake providers. This machine has no hosted credentials, on purpose. Don't ask for them or work around their absence.
+- Work only against the local stack: the local database and the fake providers. This machine has none of the hosted environments' credentials, on purpose. Don't ask for them or work around their absence.
+- **The owner's exception (2026-10-19, `docs/decisions.md`):** a Workers AI token of this machine's own may sit in `.env.development.local`, and `npm run dev:real` runs the chat on the real model with it, so the model's behaviour can be watched here instead of through staging screenshots. Never read, print or type the token. Never use the real model in tests, builds or any other command. Say before each run how many messages it will send, since the daily free allocation is shared with staging and production. The search stays on the fake embedder, so which passages come back differs from staging; the quality check on staging stays the measure.
 - Never push, deploy, run hosted commands or change hosted settings. The owner or CI does that.
 - Ask before resetting the local database, changing `.github/workflows/` or deployment settings, adding a dependency beyond the stack in `.kit/stages/3-set-up.md`, upgrading one to a new major version, and anything you can't undo.
 - **Look it up, don't remember it.** The kit says what must be true, not how a tool or service does it. Before you use or configure a library, service or platform setting, check its current official documentation for the version in use: through a docs tool such as Context7 if you have one, otherwise on the official website. Write the setup you chose and its source into the `AGENTS.md` of the folder it lives in, so later sessions follow it. If you can't reach the docs, say so; don't guess.
@@ -61,6 +62,7 @@ Use the npm scripts, not the tools underneath them: they run the environment gua
 | Script | What it does |
 | --- | --- |
 | `dev`, `build`, `start` | Next.js, behind the environment guard |
+| `dev:real` | The dev server with the chat on the real model, from this machine's token in `.env.development.local` |
 | `doctor` | Checks Node, Git, Docker, the pinned Supabase CLI, gitleaks and the GitHub CLI |
 | `env:local` | Writes `.env.local` from the running local stack |
 | `db:start`, `db:stop` | Starts the local stack and loads the notes; stops it |
