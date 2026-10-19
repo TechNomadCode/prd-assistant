@@ -8,7 +8,8 @@ import {
   EMBEDDING_MODEL,
 } from "./models.ts";
 
-// The real embedder, used only on staging and production.
+// The real embedder, used on staging and production, and on this machine only
+// by the measurement (`npm run measure`) for its own copy of the passages.
 
 export function createCloudflareEmbedder(
   settings: CloudflareSettings,

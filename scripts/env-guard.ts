@@ -2,8 +2,8 @@
 // and database command. It stops the command when any env file or the shell
 // points at a hosted database or API, picks a real adapter, or holds a real
 // provider key anywhere but `.env.development.local` (src/lib/env-guard.ts).
-// With `--real-chat` (`npm run dev:real`) it also insists that this machine's
-// token is there. Hosted builds run `next build` directly (vercel.json), so it
+// With `--real-chat` (`npm run dev:real`) or `--measure` (`npm run measure`)
+// it also insists that this machine's token is there. Hosted builds run `next build` directly (vercel.json), so it
 // never blocks staging or production.
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -14,7 +14,8 @@ import {
   type EnvSource,
 } from "../src/lib/env-guard.ts";
 
-const realChat = process.argv.includes("--real-chat");
+const measure = process.argv.includes("--measure");
+const realChat = measure || process.argv.includes("--real-chat");
 
 const envFiles = readdirSync(".").filter(
   (file) => file.startsWith(".env") && file !== ".env.example",
@@ -36,8 +37,8 @@ if (problems.length > 0) {
   const onlyTheToken = problems.every((problem) => problem.missing);
   console.error(
     onlyTheToken
-      ? `Environment guard: stopped. The real chat model needs this machine's own token in ${PROVIDER_KEY_FILE}.`
-      : "Environment guard: stopped. This machine runs the local stack and the fakes; the real chat model only through `npm run dev:real`.",
+      ? `Environment guard: stopped. ${measure ? "The measurement" : "The real chat model"} needs this machine's own token in ${PROVIDER_KEY_FILE}.`
+      : "Environment guard: stopped. This machine runs the local stack and the fakes; the real model only through `npm run dev:real` and `npm run measure`.",
   );
   for (const { source, variable, reason } of problems) {
     console.error(`  - ${variable} in ${source} ${reason}`);
