@@ -45,14 +45,14 @@
 
 ### 6 · The PRD beside the chat · risk: normal · status: done (4a2ca18)
 
-### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: todo
+### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: built on `feat/intro-screen`, waiting for its pull request
 - **Goal:** a first-time visitor understands their role and gets a checked section with one click.
 - **Acceptance:**
   - The home page opens on a short screen. It says the visitor is the product manager, the six interviews are finished records, and the AI proves every line. One button drafts the first section, and a quieter link leads to the full interviews.
   - After the first section, and not before, a suggested message invites the visitor to claim users asked for grocery delivery.
   - A quiet link leads engineers to the README's explanation and the code. A visitor with a saved PRD goes straight to the chat.
   - When the first request fails, the visitor sees a clear message and the button again.
-  - Open question, decided in this slice: does the transcripts page stay now that quotes open in a pop-over? If it stays, decide then how it reads; until then it stays the plain list from slice 1.
+  - Decided (the owner, 2026-10-19): the transcripts page stays as it is, the plain list from slice 1, and the intro's quieter link leads there; the intro makes sense on its own, and nothing a reviewer needs is only on that page.
 
 ### 8 · Rate limit and the quota message · risk: risky (personal data, permissions) · status: todo
 - **Goal:** one visitor can't use up the free quota, and everyone sees a clear message once it's gone.

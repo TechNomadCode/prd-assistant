@@ -1,14 +1,26 @@
 import { expect, test } from "@playwright/test";
+import { site } from "@/lib/site";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
 test.describe("home page", () => {
-  test("introduces the app and leads to the transcripts", async ({ page }) => {
+  test("opens on the intro, whose quieter link leads to the full interviews", async ({
+    page,
+  }) => {
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { level: 1, name: "PRD Assistant" }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "You're the product manager of a shared grocery list app",
+      }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Draft the first section" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Your message" }),
+    ).toHaveCount(0);
 
-    await page.getByRole("link", { name: "Read the transcripts" }).click();
+    await page.getByRole("link", { name: "Read the full interviews" }).click();
 
     await expect(page).toHaveURL(/\/transcripts$/);
     await expect(
@@ -47,6 +59,21 @@ test.describe("transcripts page", () => {
     await expect(page.getByRole("article")).toHaveCount(6);
     await expectNoAccessibilityViolations(page);
   });
+});
+
+test("every page leads engineers to the README's explanation of the search and the check, and to the code", async ({
+  page,
+}) => {
+  for (const path of ["/", "/transcripts"]) {
+    await page.goto(path);
+    const footer = page.getByRole("contentinfo");
+    await expect(
+      footer.getByRole("link", { name: "How the search and the check work" }),
+    ).toHaveAttribute("href", `${site.links.repository}#how-it-works`);
+    await expect(
+      footer.getByRole("link", { name: "Source code on GitHub" }),
+    ).toHaveAttribute("href", site.links.repository);
+  }
 });
 
 test("every page tells search engines not to index it", async ({ request }) => {

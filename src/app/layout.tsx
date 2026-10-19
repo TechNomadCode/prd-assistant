@@ -45,12 +45,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <footer className="border-t border-border">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground group-has-[[data-workspace]]/body:max-w-7xl sm:px-6 lg:group-has-[[data-workspace]]/body:py-3">
             <p>A portfolio demo. The interviews are fictional.</p>
-            <a
-              href={site.links.repository}
-              className="underline underline-offset-4 hover:text-foreground"
-            >
-              Source code on GitHub
-            </a>
+            {/* For engineers: the README's explanation, then the code. */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <a
+                href={`${site.links.repository}#how-it-works`}
+                className="underline underline-offset-4 hover:text-foreground"
+              >
+                How the search and the check work
+              </a>
+              <a
+                href={site.links.repository}
+                className="underline underline-offset-4 hover:text-foreground"
+              >
+                Source code on GitHub
+              </a>
+            </div>
           </div>
         </footer>
       </body>
