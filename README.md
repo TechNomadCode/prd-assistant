@@ -216,3 +216,7 @@ Open **Actions → Deploy production → Run workflow** on `main`. You can enter
 | `docs/` | The plan, product documents and decisions |
 
 Built with my [AI App Starter](https://github.com/TechNomadCode/AI-Product-Development-Toolkit/tree/main/starters/nextjs-supabase-vercel).
+
+## License
+
+[MIT](LICENSE).
