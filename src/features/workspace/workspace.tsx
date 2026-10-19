@@ -2,8 +2,8 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useMemo, useState, type ReactNode } from "react";
-import { Chat } from "@/features/chat/chat";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Chat, MESSAGE_BOX_ID } from "@/features/chat/chat";
 import { PrdDocument } from "@/features/prd/prd-document";
 import {
   latestSave,
@@ -12,18 +12,39 @@ import {
   type ChatMessage,
 } from "@/lib/chat";
 import { firstUndrafted, sectionAnchor, type SectionName } from "@/lib/prd";
+import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
+import { breakItSuggestion, conversationStarted } from "./disclosure";
+import { Intro, INTRO_TITLE_ID } from "./intro";
 
 const transport = new DefaultChatTransport<ChatMessage>({ api: "/api/chat" });
+
+/** The chat and the PRD's heading, for screen readers. */
+const WORKSPACE_TITLE_ID = "workspace-title";
+
+/** Where focus goes when the intro gives way to the chat, or comes back. */
+const FOCUS_TARGETS = {
+  intro: INTRO_TITLE_ID,
+  workspace: WORKSPACE_TITLE_ID,
+  messageBox: MESSAGE_BOX_ID,
+} as const;
+
+type FocusTarget = keyof typeof FOCUS_TARGETS;
 
 /** A check-in the visitor sent: the section it asked for, and from where. */
 type SentCheckIn = { section: SectionName; fromMessage: number };
 
 /**
- * The chat and the PRD beside it: side by side on a laptop, each scrolling on
- * its own, and stacked on one page on a phone. The PRD is built from the
- * conversation: the latest save of each section.
+ * The home page: the intro first, then the chat and the PRD beside it, side
+ * by side on a laptop, each scrolling on its own, and stacked on one page on
+ * a phone. The PRD is built from the conversation: the latest save of each
+ * section.
  */
-export function Workspace({ welcome }: { welcome: ReactNode }) {
+export function Workspace() {
+  // The intro's request is on its way; if it fails before saving a section,
+  // the intro comes back.
+  const introRequest = useRef(false);
+  // Where focus goes once the intro has given way to the chat, or come back.
+  const focusNext = useRef<FocusTarget>(undefined);
   const {
     messages,
     sendMessage,
@@ -32,13 +53,21 @@ export function Workspace({ welcome }: { welcome: ReactNode }) {
     stop,
     clearError,
     status,
-  } = useChat<ChatMessage>({ transport });
+  } = useChat<ChatMessage>({ transport, onFinish: afterAnswer });
+  // The message box's text lives here, not in the chat, so it outlasts the
+  // intro coming back after a failed first request.
+  const [draft, setDraft] = useState("");
   const [checkIn, setCheckIn] = useState<SentCheckIn>();
+  // The visitor left the intro, through its button or to ask a question.
+  const [leftIntro, setLeftIntro] = useState(false);
+  const [introFailed, setIntroFailed] = useState(false);
 
+  const onIntro = !leftIntro && !conversationStarted(messages);
   const working = status === "submitted" || status === "streaming";
   const sections = useMemo(() => savedSections(messages), [messages]);
   const latest = latestSave(sections)?.section.section;
   const next = firstUndrafted(new Set(sections.keys()));
+  const suggestion = useMemo(() => breakItSuggestion(messages), [messages]);
   const visitorMessages = useMemo(
     () =>
       new Map(
@@ -49,17 +78,70 @@ export function Workspace({ welcome }: { welcome: ReactNode }) {
     [messages],
   );
 
+  // sendMessage adds the message only after an await, so focus moves once
+  // the new view has rendered, never in the event itself. A layout effect,
+  // because a failed first request isn't a click: React runs a plain effect
+  // for it only after the browser paints, and until then focus is on the
+  // page, its element gone.
+  useLayoutEffect(() => {
+    const target = focusNext.current;
+    focusNext.current = undefined;
+    if (target !== undefined) {
+      document.getElementById(FOCUS_TARGETS[target])?.focus();
+    }
+  }, [onIntro]);
+
   const checkInArrived =
     checkIn !== undefined &&
     savedSections(messages.slice(checkIn.fromMessage)).has(checkIn.section);
   const checkInOpen = checkIn !== undefined && !checkInArrived;
 
-  function send(text: string) {
+  function send(text: string, { fromIntro = false } = {}) {
+    introRequest.current = fromIntro;
     // An answer that broke off never reaches the model as if it were whole.
     if (status === "error" && messages.at(-1)?.role === "assistant") {
       setMessages(messages.slice(0, -1));
     }
     void sendMessage({ text });
+  }
+
+  function draftFirstSection() {
+    setIntroFailed(false);
+    setLeftIntro(true);
+    focusNext.current = "workspace";
+    send(FIRST_SECTION_REQUEST, { fromIntro: true });
+  }
+
+  function askOwnQuestion() {
+    clearError();
+    setIntroFailed(false);
+    setLeftIntro(true);
+    focusNext.current = "messageBox";
+  }
+
+  /**
+   * After every answer. When the intro's request failed before a section was
+   * saved, the intro comes back with a message and its button, and the
+   * conversation stays empty. Once a section is saved, a failure stays in the
+   * chat with "Try again", like any answer that broke off, and the PRD keeps
+   * the section. useChat calls this after it sets the error status, with the
+   * messages from its own state, so a save React hasn't rendered yet counts.
+   */
+  function afterAnswer({
+    messages: all,
+    isError,
+  }: {
+    messages: ChatMessage[];
+    isError: boolean;
+  }) {
+    const fromIntro = introRequest.current;
+    introRequest.current = false;
+    if (!fromIntro || !isError || savedSections(all).size > 0) return;
+    setMessages([]);
+    clearError();
+    setLeftIntro(false);
+    setIntroFailed(true);
+    focusNext.current = "intro";
   }
 
   function confirmSection() {
@@ -69,10 +151,24 @@ export function Workspace({ welcome }: { welcome: ReactNode }) {
   }
 
   function startOver() {
+    introRequest.current = false;
     stop();
     setMessages([]);
     clearError();
     setCheckIn(undefined);
+    setLeftIntro(false);
+    setIntroFailed(false);
+    focusNext.current = "intro";
+  }
+
+  if (onIntro) {
+    return (
+      <Intro
+        failed={introFailed}
+        onDraft={draftFirstSection}
+        onAsk={askOwnQuestion}
+      />
+    );
   }
 
   return (
@@ -80,11 +176,16 @@ export function Workspace({ welcome }: { welcome: ReactNode }) {
       data-workspace
       className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-12 lg:gap-8"
     >
+      <h1 id={WORKSPACE_TITLE_ID} tabIndex={-1} className="sr-only">
+        The chat and your PRD
+      </h1>
       <div className="flex flex-col lg:col-span-5 lg:min-h-0">
         <Chat
-          welcome={welcome}
           messages={messages}
           status={status}
+          suggestion={suggestion}
+          draft={draft}
+          onDraftChange={setDraft}
           onSend={(text) => {
             setCheckIn(undefined);
             send(text);

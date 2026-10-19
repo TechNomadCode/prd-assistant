@@ -47,7 +47,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## User Stories / Use Cases
 
 - As a reviewer, I land on a short screen that tells me my role and my task, click its one button, and get a drafted section with checked quotes within 2 minutes.
-- As a reviewer, I can read the full interviews from a quieter link on that screen *(whether this is a page of its own is open; see Design Considerations)*.
+- As a reviewer, I can read the full interviews on their own page, from a quieter link on that screen.
 - As a reviewer, while the AI works, I see each step as one line, such as the search it ran and whose passages came back, and clicking a line shows the passages.
 - As a reviewer, every statement names its sources, like "Maya, Daan" or "You, in this chat". Only what the check objects to is written out under it: an unverified quote with the reason, a statement that cites nothing, or my own decision. How to read this is explained once, above the first section.
 - As a reviewer, I click a source's name and its passage opens in a pop-over, with the researcher's question above the answer and the quoted words highlighted.
@@ -74,12 +74,12 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - One deliberate gap: nobody mentions using the app in a store with bad signal (offline use).
 - One deliberate contradiction: some interviewees want a notification for every added item, others name that as a reason to uninstall.
 - A load script splits the notes into passages, embeds them and stores them. Each passage keeps the interviewee's name and the researcher's question that its answer replies to. The same script runs locally (with the fake embedder) and on staging and production (with the real one). Self-hosters replace the sample files and run it again to use their own notes.
-- A page lists the transcripts. This was the first feature built end to end. Whether it stays once quotes open their source is decided with the intro screen.
+- A page lists the transcripts. This was the first feature built end to end, and it stays as a plain list now that quotes open their source in a pop-over: the intro's quieter link leads there.
 
 **Intro screen**
-- The home page opens on a short screen with a few sentences and one button.
+- The home page opens on a short screen with a few sentences, one button and two quieter ways on.
 - The sentences say that the visitor is the product manager of a shared grocery list app; that a researcher already interviewed six households, and those transcripts are finished records; that the AI reads and quotes them and never asks their questions again; and that the visitor's job is to turn them into a PRD while the AI proves every line.
-- The button drafts the first section. A quieter link leads to the full interviews.
+- The button drafts the first section. Quieter, a link leads to the full interviews, and a way to ask your own question first opens the empty chat without sending anything.
 - When the visitor's browser already holds a PRD, the home page goes straight to the chat and the PRD.
 
 **Chat**
@@ -206,8 +206,8 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Design Considerations / Mockups
 
 **Screens**
-- Home: first a short intro screen (a few sentences, one button, a quieter link to the transcripts), then the chat with the PRD next to it. On a phone they stack.
-- A page with the interview transcripts, for now. Open: whether it stays once quotes open their source, and if so how it reads. Decided with the intro screen.
+- Home: first a short intro screen (a few sentences, one button that drafts the first section and, quieter, a link to the transcripts and a way to ask your own question first), then the chat with the PRD next to it. On a phone they stack.
+- A page with the interview transcripts, as a plain list, which the intro's quieter link leads to. Nothing a reviewer needs is only there.
 - A statement's source names open its quotes in a pop-over, with the researcher's question above the answer.
 
 **Progressive disclosure**

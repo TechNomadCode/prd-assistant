@@ -10,6 +10,14 @@ import { expectNoAccessibilityViolations } from "./accessibility";
 const QUESTION = "Who wants a notification for every item someone adds?";
 const FAKE_NOTE = "(This is the local fake model";
 
+/** The home page opens on the intro; this opens the empty chat from it. */
+async function openChat(page: Page) {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Or ask your own question first" })
+    .click();
+}
+
 async function ask(page: Page, text: string) {
   await page.getByRole("textbox", { name: "Your message" }).fill(text);
   await page.getByRole("button", { name: "Send" }).click();
@@ -30,7 +38,7 @@ test.describe("chat", () => {
   test("answers with the search it ran as one line, which opens to the passages", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openChat(page);
     await ask(page, QUESTION);
 
     await expect(conversation(page)).toContainText(QUESTION);
@@ -59,7 +67,7 @@ test.describe("chat", () => {
   test("streams the answer from the server as it's written", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openChat(page);
     const answer = page.waitForResponse("**/api/chat");
     await ask(page, QUESTION);
 
@@ -70,7 +78,7 @@ test.describe("chat", () => {
   });
 
   test("keeps the demo notice with the message box", async ({ page }) => {
-    await page.goto("/");
+    await openChat(page);
 
     const box = page.getByRole("textbox", { name: "Your message" });
     await expect(box).toHaveAccessibleDescription(
@@ -84,7 +92,7 @@ test.describe("chat", () => {
   test("marks an answer that breaks off as unfinished, and trying again replaces it", async ({
     page,
   }, testInfo) => {
-    await page.goto("/");
+    await openChat(page);
     await ask(
       page,
       `Who wants a ping for every item? ${FAKE_FAILURES.partway} ${testInfo.testId}`,
@@ -116,7 +124,7 @@ test.describe("chat", () => {
   test("shows a plain message when the provider fails before answering, and trying again works", async ({
     page,
   }, testInfo) => {
-    await page.goto("/");
+    await openChat(page);
     await ask(
       page,
       `Who wants a ping for every item? ${FAKE_FAILURES.beforeAnswering} ${testInfo.testId}`,
@@ -140,7 +148,7 @@ test.describe("chat", () => {
   test("passes the accessibility check with an answer and its passages open", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openChat(page);
     await ask(page, QUESTION);
     await expect(conversation(page)).toContainText(FAKE_NOTE);
     await page

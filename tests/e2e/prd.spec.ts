@@ -9,6 +9,15 @@ import { expectNoAccessibilityViolations } from "./accessibility";
 const INTRODUCTION = "Statements in Introduction / Overview";
 const GOALS = "Statements in Goals / Objectives";
 const FAKE_NOTE = "(This is the local fake model";
+const INTRO_TITLE = "You're the product manager of a shared grocery list app";
+
+/** The home page opens on the intro; this opens the empty chat from it. */
+async function openChat(page: Page) {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Or ask your own question first" })
+    .click();
+}
 
 async function ask(page: Page, text: string) {
   await page.getByRole("textbox", { name: "Your message" }).fill(text);
@@ -29,7 +38,7 @@ function statements(page: Page, list: string) {
 }
 
 async function draftFirstSection(page: Page, extra = "") {
-  await page.goto("/");
+  await openChat(page);
   await ask(page, `Draft the first section.${extra}`);
   await expect(conversation(page)).toContainText(FAKE_NOTE);
 }
@@ -38,7 +47,7 @@ test.describe("the PRD", () => {
   test("shows all nine sections from the start, none drafted yet", async ({
     page,
   }) => {
-    await page.goto("/");
+    await openChat(page);
 
     await expect(prd(page)).toContainText(
       "Product requirements document · Draft · 0 of 9 sections · From six household interviews",
@@ -243,7 +252,7 @@ test.describe("the PRD", () => {
     await expect(heading).toBeFocused();
   });
 
-  test("Start over asks once, then clears the chat and the PRD", async ({
+  test("Start over asks once, then clears the chat and the PRD and brings the intro back", async ({
     page,
   }) => {
     await draftFirstSection(page);
@@ -255,6 +264,15 @@ test.describe("the PRD", () => {
     await page.getByRole("button", { name: "Start over" }).click();
     await page.getByRole("button", { name: "Clear both" }).click();
 
+    await expect(
+      page.getByRole("heading", { level: 1, name: INTRO_TITLE }),
+    ).toBeFocused();
+    await expect(conversation(page)).toHaveCount(0);
+    await expect(prd(page)).toHaveCount(0);
+
+    await page
+      .getByRole("button", { name: "Or ask your own question first" })
+      .click();
     await expect(conversation(page)).toHaveCount(0);
     await expect(prd(page)).toContainText("0 of 9 sections");
     await expect(page.getByRole("list", { name: INTRODUCTION })).toHaveCount(0);

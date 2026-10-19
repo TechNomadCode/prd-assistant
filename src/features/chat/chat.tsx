@@ -1,13 +1,7 @@
 "use client";
 
 import type { ChatStatus } from "ai";
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
 import type { SectionName } from "@/lib/prd";
@@ -16,26 +10,35 @@ import { Conversation } from "./conversation";
 /** Within this many pixels of the bottom, the chat counts as following. */
 const FOLLOW_MARGIN = 48;
 
+/** The message box, which takes focus when the visitor asks their own question. */
+export const MESSAGE_BOX_ID = "chat-message";
+
 /**
- * The chat with the assistant: the welcome and the conversation, which
- * scroll on their own, and the message box under them.
+ * The chat with the assistant: the conversation, which scrolls on its own,
+ * and under it a suggested message, when there is one, and the message box.
  */
 export function Chat({
-  welcome,
   messages,
   status,
+  suggestion,
+  draft,
+  onDraftChange,
   onSend,
   onRetry,
   onSeeSection,
 }: {
-  welcome: ReactNode;
   messages: ChatMessage[];
   status: ChatStatus;
+  /** A message the visitor can send with one click. */
+  suggestion: string | undefined;
+  /** The message box's text, kept by the page so it outlasts the chat. */
+  draft: string;
+  onDraftChange: (draft: string) => void;
   onSend: (text: string) => void;
   onRetry: () => void;
   onSeeSection: (section: SectionName) => void;
 }) {
-  const [draft, setDraft] = useState("");
+  const box = useRef<HTMLTextAreaElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
 
@@ -54,7 +57,16 @@ export function Chat({
     if (!canSend) return;
     following.current = true;
     onSend(draft.trim());
-    setDraft("");
+    onDraftChange("");
+  }
+
+  function sendSuggestion(text: string) {
+    if (working) return;
+    following.current = true;
+    // Once sent, the suggestion is gone with the button that has focus, so
+    // focus moves to the message box first instead of falling to the page.
+    box.current?.focus();
+    onSend(text);
   }
 
   function sendOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -87,8 +99,6 @@ export function Chat({
         }}
         className="relative space-y-8 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
       >
-        {welcome}
-
         <Conversation
           messages={messages}
           status={status}
@@ -111,6 +121,27 @@ export function Chat({
         )}
       </div>
 
+      {suggestion !== undefined && (
+        <div
+          role="group"
+          aria-labelledby="suggestion-title"
+          className="space-y-2"
+        >
+          <p id="suggestion-title" className="text-sm text-muted-foreground">
+            Now try to break it. Send a claim that nobody in the interviews
+            made:
+          </p>
+          <Button
+            variant="outline"
+            disabled={working}
+            onClick={() => sendSuggestion(suggestion)}
+            className="h-auto min-h-10 justify-start py-2 text-left"
+          >
+            {suggestion}
+          </Button>
+        </div>
+      )}
+
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -118,14 +149,15 @@ export function Chat({
         }}
         className="space-y-2"
       >
-        <label htmlFor="chat-message" className="sr-only">
+        <label htmlFor={MESSAGE_BOX_ID} className="sr-only">
           Your message
         </label>
         <div className="relative">
           <textarea
-            id="chat-message"
+            ref={box}
+            id={MESSAGE_BOX_ID}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={sendOnEnter}
             rows={3}
             maxLength={MAX_MESSAGE_LENGTH}

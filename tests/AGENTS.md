@@ -22,6 +22,9 @@ Every feature gets a test in each layer it touches. A bug fix starts with a test
 - **End-to-end selectors:** use roles, labels and stable ids such as `#daan-1` (`passageAnchor`).
 - **Waiting:** wait for a visible condition (`await expect(locator).toBeVisible()`, `toHaveCount`), never a fixed time.
 - **New pages** get an `expectNoAccessibilityViolations(page)` check (`tests/e2e/accessibility.ts`).
+- **The home page opens on the intro.** An end-to-end test that starts in an empty chat clicks "Or ask your own question first", which sends nothing; the intro's button sends the fixed first request. That request can't hold a fake failure phrase, so its failure is tested by holding or aborting `/api/chat` with `page.route(..., { times: 1 })` (`tests/e2e/intro.spec.ts`), and in `tests/unit/workspace.test.tsx` with a stubbed `fetch` that answers with streams built by `createUIMessageStream` and `createUIMessageStreamResponse` from `ai`. The owner decided on 2026-10-20 to keep "Or ask your own question first" (`docs/decisions.md`, Design, the intro as built, 2026-10-19), so it stays the tests' way into an empty chat.
+- **Focus after a click in a unit test:** `fireEvent.click` dispatches the event without focusing the element, as a real click would, so a test that checks where focus goes afterwards calls `element.focus()` first (Testing Library, *Considerations for fireEvent*, read 2026-10-19 through Context7).
+- **Playwright matches accessible names as case-insensitive substrings** unless `exact: true`, so a new heading or region must not contain an existing name the tests look up, such as the PRD's "Shared grocery list app".
 - **Integration tests** need the local stack and `.env.local`: `npm run db:start`, then `npm run env:local`. Files run one after another because they share the database.
 
 ## Running one test
