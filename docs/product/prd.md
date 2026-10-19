@@ -39,7 +39,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - **Reviewer:** a recruiter or engineer, mostly in the Netherlands and the rest of the EU. Opens the live demo with little time and no account, usually on a desktop. In the demo, they play the product manager of the fictional grocery list app.
   - *Recruiter:* non-technical. Needs to see it working fast, through the intro screen's one button or the README's screen recording.
   - *Engineer:* clicks quotes, follows the link to the README's explanation of the search and the check, then reads the code.
-- **Self-hoster:** clones the repository. Locally the app runs on fakes only, because real providers are blocked on development machines. For real answers they deploy their own copy, following the README. To use their own notes, they replace the sample files and run the load script again.
+- **Self-hoster:** clones the repository. Locally the app runs on fakes, because the hosted environments' keys are blocked on development machines; the chat alone can run on the real model with the self-hoster's own Workers AI token (README, "The real chat model on your machine"). For real answers they deploy their own copy, following the README. To use their own notes, they replace the sample files and run the load script again.
 - **Owner:** runs the app. Adds the hosted keys, starts the quality check on staging, and must be able to explain every part.
 
 ---
@@ -147,7 +147,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Providers**
 - The chat model and the embedder each sit behind an interface with a fake and a real implementation.
 - The fake embedder places similar texts close together (for example by word overlap), so the search tests mean something.
-- On development machines only the fakes run.
+- On development machines the fakes run; the chat alone can run on the real model through `npm run dev:real`, with a token of the machine's own, while the search, the tests and the builds keep the fakes.
 
 **README**
 - Explains the RAG design and how citations are checked. The demo's link for engineers leads here.
@@ -168,7 +168,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **Security**
 - Security headers are set.
-- No hosted credentials sit on the development machine.
+- None of the staging or production credentials sit on the development machine; a Workers AI token of its own may, for the real chat model only.
 
 **Privacy**
 - The rate limit recognises visitors by IP address. The address is hashed and kept only for as long as the limit window lasts.
