@@ -4,20 +4,18 @@
 <!-- Overwritten at the end of every session. -->
 - **Stage:** 4 of 5 · Build
 - **Doing:** everything built so far is merged into `main`: slice 6, *The PRD beside the chat* (4a2ca18, with 55b4513 for the plan), the table fix (f8b59c3, with fee74f6, 26bd7e1, b6103fa and 153614a for the records), the real chat model locally (1d16023, with 40f40ed for the decision and the rules), the MIT license (4549f3f), and the records of 2026-10-19 (086a4e6 the table fix's staging check, 629a42a measuring the model's behaviour, 14b6167 the `app-real` entry, 0d91210 the smoke test, 58a3cca `[skip ci]`).
-  - **The measurement tool is estimated (2026-10-19) and waits on the owner's answers:** `docs/records/measurement-estimate-2026-10-19.md` (local), with its questions, criteria for done, costs, the checks still to make and the lines to update once agreed. In short:
-    - Five fixed requests make six answers a round, and five runs each make a baseline of about 17,800 neurons (12,600 to 25,700): about 5 days at 5,000 a day (4 to 6, up to 8 if the first round is redone). Each comparison costs as much again. Five runs show only big changes, from 0 or 1 passes of 5 to 4 or 5.
-    - Paying: settled by the owner's plan. They're on the free plan (2026-10-19), so the measurement draws on a daily share; Workers Paid or prepaid AI Gateway credits would put a payment method on the account that staging and production share.
-    - The search, recommended: the real embedder on this machine, over the measurement's own copy of the passages (about 50 neurons once), ranked in the command itself, so the tests' database and the app's fake search stay as they are, and no staging workflow. Behind it, a free check: the fake search shares no word with "dark mode" or "grocery delivery" and returns five unrelated passages (`src/server/AGENTS.md`, *Judging the model's behaviour*).
-    - The design, recommended: one command that runs the chat code in-process with a recording `fetch` and a model wrapper, with no change to `chat.ts`; three sessions (recorder, runner, scoring and report), all tested without the real model, then the baseline.
+  - **The measurement tool is decided (2026-10-19):** the owner agreed to the estimate's recommendations (`docs/records/measurement-estimate-2026-10-19.md`, local; `docs/decisions.md`, External services): on this machine, as its own command with this machine's token, the real search over its own copy of the passages, five runs per request, no staging workflow. One paid month of Workers Paid for the measurement, with no daily ceiling, switched back to Free at once so it ends by itself; the agent guides the owner through both steps right before the baseline. Then the AI's behaviour is tuned with measured changes, the prompt included, until the grocery delivery request passes reliably. More Cloudflare accounts are ruled out by Cloudflare's terms. It's slices 9a to 9d.
+    - Costs, estimated: a baseline is about 17,800 neurons (12,600 to 25,700), about $0.09 above the free part if it runs in one day, plus the $5 minimum. Five runs show only big changes, from 0 or 1 passes of 5 to 4 or 5.
+    - The free check behind the real search: the fake search shares no word with "dark mode" or "grocery delivery" and returns five unrelated passages (`src/server/AGENTS.md`).
   - **Smoke test of the real model (2026-10-19)**, one run each: "Draft the first section." took 3 calls, 7,890 tokens, about 284 neurons and 20 seconds; the check-in, "Introduction / Overview looks right. Please draft Goals / Objectives.", took 6 calls (three searches and a refused fourth), 28,233 tokens, about 1,014 neurons and 72 seconds, longer than the 60 seconds the chat route allows on Vercel. Never read, print or type the token (`AGENTS.md`, Boundaries; `.claude/settings.json` denies reading it).
   - The owner's staging check (2026-10-19): the table shows one line per row with the header in bold, but `<br>` inside its cells shows as typed and the rows run together (KI-6, fixed later at the owner's choice). What the model did in that check isn't recorded as an issue, under the new method.
   - Checks, all local with the fake model: the table fix and the exception passed `verify` (254 and 257 unit tests, the production build), the table fix also the 23 end-to-end tests with axe, and independent agents reviewed both. The estimate changed documents only: four researchers, a writer and three critics, checked against the code and Cloudflare's pages, with no real-model call.
   - Choices made inside the decided design: the product's name in the title block is "Shared grocery list app"; "Start over" asks inline ("This clears the chat and the PRD.", with "Clear both" and "Keep them"); an unverified quote reads "Unverified quote from Daan: “…” These words aren't in the answer it cites."; a source that names no passage is written out instead; the check-in button is the filled white one; a table's header row is bold and its cells are joined with " · "; the token lives in `.env.development.local`, because `next dev` alone reads it and `env:local` never rewrites it; the browser pane runs the real model through `app-real` in `.claude/launch.json`, and `app` keeps the fakes.
 - **Unverified:** on staging, a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, and the table fix; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
 - **Next:**
-  1. **The owner's answers to the estimate** (its *Questions*): the real search on this machine instead of a staging workflow; a measurement command that uses this machine's token for the chat and the search's questions; five runs per request, scored as proposed; and the daily share for runs on this machine (suggested: 5,000 until launch). Then record them in `docs/decisions.md` and the lines in the estimate's appendix H, write slice 9's criteria from the estimate, make its free checks (appendix G) and build it in three sessions on its own branch. Nothing runs on the real model before the share is set.
-  2. **Slice 7,** *Intro screen and the try-to-break-it suggestion*: interface work, which doesn't wait for the measurement. Its button's request ("Draft the first section.") and the grocery delivery suggestion become the measurement's fixed texts, shared from one place. The legal basis and the rate limit's size are due by slice 8 (*Deferred*). KI-6 when the owner asks for it.
-- **Waiting on the owner:** the answers above; pushing `docs/estimate-the-measurement-tool` and opening its pull request; the GitHub description and topics whenever they like.
+  1. **Slice 9a,** *The measurement's recorder*, on its own branch, then 9b and 9c, one per session. 9a is risky (secrets): an independent review before it's pushed. Before 9c's baseline, guide the owner through the paid month, with the steps from Cloudflare's current docs. Make the estimate's free checks first (its appendix G), including whether a command started from the agent's shell can load `.env.development.local`.
+  2. **Slice 9d** after the baseline. Slices 7, 8 and 10 follow once 9d is done, so they're built on settled AI behaviour (the owner, 2026-10-19). Slice 7's button request ("Draft the first section.") and grocery delivery suggestion are the measurement's fixed texts, shared from one place. The legal basis and the rate limit's size are due by slice 8 (*Deferred*). KI-6 when the owner asks for it.
+- **Waiting on the owner:** pushing `docs/estimate-the-measurement-tool` and opening its pull request; the paid month when 9c's baseline is due; the GitHub description and topics whenever they like.
 
 ## Stages
 1. **Plan:** product documents in `docs/product/`.
@@ -61,23 +59,42 @@
   - The 31st message in a day is refused with a friendly message, and no raw IP address is ever stored.
   - Before starting, the owner decides the legal basis and the limit's size (see *Deferred*).
 
-### 9 · Quality check on staging · risk: normal · status: todo
-- **Goal:** the owner can show how well the free model's PRD sections pass the citation check, and the README reports it. It measures; it doesn't block launch (`docs/decisions.md`, Launch).
-- **Rework (2026-10-19):** this becomes the measurement tool of `src/server/AGENTS.md`, *Judging the model's behaviour*: several runs per request, every run's trace and setup saved, a baseline to compare changes with. Its new acceptance criteria come with the estimate the owner approves.
+### 9a · The measurement's recorder · risk: risky (secrets) · status: todo
+- **Goal:** every real-model call in a measurement is recorded in full, and the token never is. The design and its sources: `docs/records/measurement-estimate-2026-10-19.md` (local).
 - **Acceptance:**
-  - A workflow the owner starts on staging sends the five fixed requests to the real model and applies the pass rules in the product description:
-    - the intro request
-    - the contradiction
-    - the gap, with a fixed visitor answer
-    - the grocery delivery suggestion
-    - the dark mode trap
-  - It prints pass or fail per rule, the total tokens used and the system prompt's version.
-  - It spaces its requests to stay under the per-minute limit, so a limit error never counts as a failed request.
-  - It prints each statement at fault the way the PRD shows it: the statement, its sources by name and what the code objects to, without the confirmed quotes (`docs/decisions.md`, Design, 2026-10-18). A statement is at fault for:
+  - A recording `fetch` and a model wrapper capture each call: request and reply bodies, tokens, reasoning, finish reason, retries, timings and Cloudflare's reply id. Request headers are never kept, and `chat.ts` doesn't change.
+  - A record that contains the token or "Bearer " is refused and never written; tests prove it with a fake token.
+  - Each run saves its setup: the model, the prompt's version and fingerprint, the tools' fingerprint, the code version and any uncommitted change, the search and the passages' fingerprint, the library and Node versions, the time and the run number.
+  - Records go to `docs/records/measurements/`. Tested on the fake model and on recorded replies, with no real-model call.
+
+### 9b · The measurement's runner · risk: normal · status: todo
+- **Goal:** one command runs the fixed requests on the real model and the real search.
+- **Acceptance:**
+  - One npm script runs the five requests (six answers), five runs each, the requests taking turns. "Draft the first section." and the grocery delivery suggestion come from one shared place, which the intro screen uses too.
+  - The search embeds its questions with the real embedder and ranks the tool's own copy of the passages the way `search_passages` does; the copy is made once and again when the notes change. The local database and the app's search keep the fake.
+  - The gap's answer starts from the first gap run in which the model asked, and the two claims from the first first-section run with every quote confirmed. These saved conversations stay fixed for a baseline, are fingerprinted, and pass `readChatRequest` before use.
+  - It says before a run how many answers it sends and roughly what they cost. Quota (429, code 3036), busy (3040) and per-minute errors count as "not run", and requests are spaced under the per-minute limit. The guard lets this command and `dev:real` alone use the token.
+  - **Careful spending** (`src/server/AGENTS.md`, the budget): it prints a run's expected neurons before it starts and stops once the run passes 1.5 times that; a lock lets only one run go at a time on this machine, across sessions; it never repeats a run by itself; after each run it prints the run's neurons and the totals for the day and the month.
+  - Tested on the fake model.
+
+### 9c · Scoring, the report and the baseline · risk: normal · status: todo
+- **Goal:** each run is scored on the product description's rules, and the current setup gets its baseline.
+- **Acceptance:**
+  - The rules of the product description's *Quality check*, scored from this answer's saves only. A reply that saves nothing is its own outcome, never a silent pass. Where code can only approximate a rule (the gap's question, both views of the contradiction, claims made only in words), the report says "read by hand" and shows what to read.
+  - The report gives how many of the runs pass, per request and rule; the tokens and neurons, with "not run" spend apart; each answer's time and how many pass the live site's 60 seconds; the prompt's version; and each statement at fault the way the PRD shows it: the statement, its sources by name and what the code objects to, without the confirmed quotes (`docs/decisions.md`, Design, 2026-10-18):
     - an unverified quote, printed with its words and the reason
     - citing nothing outside Open Questions, printed as "No quote backs this statement."
     - an interviewee among the sources of a statement about grocery delivery or dark mode
-  - The README reports which rules pass. Before launch, the grocery delivery request has to pass; the other rules are reported, not fixed by rewording.
+  - A comparison records the expected effect before it runs, tests the targeted rule (one-sided Fisher's exact test at 5%), flags any other rule that drops by two runs or more, and warns when more than one part of the setup differs.
+  - **Before the baseline,** the owner moves the Cloudflare account to Workers Paid and switches it back to Free straight away, so it returns to Free when the month ends; the agent guides the owner through both steps, from Cloudflare's current docs at that moment, and confirms afterwards that the switch back is scheduled (`docs/decisions.md`, External services, 2026-10-19).
+  - The baseline: the current setup, five runs per request, recorded.
+
+### 9d · Settle the AI's behaviour · risk: normal · status: todo
+- **Goal:** before launch, the grocery delivery request passes reliably and the other rules are as good as measured changes make them, within the paid month.
+- **Acceptance:**
+  - Free checks first (`src/server/AGENTS.md`, *Judging the model's behaviour*). Then one change at a time (the prompt, the tools, the flow, the search budget, how hard the model reasons), each with its expected effect written down first and measured over five runs per request.
+  - A change ships only if it beats the baseline on its rule and no other rule drops by two runs or more; it then becomes the new baseline.
+  - It stops when the grocery delivery request passes reliably (*Deferred*: what that means) or the paid month ends. The README reports the final numbers with their date and setup.
 
 ### 10 · Keep the PRD after a reload, and download it · risk: normal · status: todo
 - **Goal:** the PRD survives a reload and downloads as Markdown. This piece is first to go if time runs short.
