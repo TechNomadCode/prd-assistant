@@ -398,10 +398,39 @@ describe("answering in the chat", () => {
                   answer: DAAN.answer,
                 },
               ],
+              searchesLeft: 2,
             },
           },
         }),
       ],
+    });
+  });
+
+  it("tells the model after each search how many it has left, and after the last to save or write", async () => {
+    const { model, calls } = modelSearchingWhileItCan();
+
+    await answer([visitor("Draft the first section.")], model);
+
+    // The tool result each call sees last: the search before it.
+    const results = calls.slice(1).map((call) => {
+      const content = call.prompt.at(-1)?.content;
+      const part = Array.isArray(content) ? content[0] : undefined;
+      return part?.type === "tool-result" ? part.output : undefined;
+    });
+    expect(results).toEqual([
+      { type: "json", value: expect.objectContaining({ searchesLeft: 2 }) },
+      { type: "json", value: expect.objectContaining({ searchesLeft: 1 }) },
+      {
+        type: "json",
+        value: expect.objectContaining({
+          searchesLeft: 0,
+          note: "That was your last search for this reply. Save the section, or write your reply, from the passages you have.",
+        }),
+      },
+    ]);
+    expect(results.slice(0, 2)).not.toContainEqual({
+      type: "json",
+      value: expect.objectContaining({ note: expect.anything() }),
     });
   });
 

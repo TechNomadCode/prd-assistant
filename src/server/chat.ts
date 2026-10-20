@@ -70,6 +70,10 @@ import {
  */
 const MAX_SEARCHES = 3;
 
+/** What the model reads with the passages of an answer's last search. */
+const LAST_SEARCH =
+  "That was your last search for this reply. Save the section, or write your reply, from the passages you have.";
+
 /**
  * At most this many tries to save the section in one answer: one more when
  * the first wasn't in a form the check reads, or its passages couldn't be
@@ -222,13 +226,21 @@ function createTools(
   { search, findPassages }: Omit<ChatDependencies, "model">,
   visitorMessages: VisitorMessage[],
 ) {
+  // How many searches this answer had left after each one, by tool call, so
+  // each result can say so: in the baseline (2026-10-20) gpt-oss lost count,
+  // asked for a fourth search after the third and ended without words.
+  let searches = 0;
+  const searchesLeft = new Map<string, number>();
   return {
     searchNotes: tool({
       description:
         "Searches the six interviews. Returns the five passages closest in meaning to the query, closest first: each is the researcher's question and one interviewee's whole answer. They are candidates, so some may not be about the query at all.",
       inputSchema: searchNotesInput,
       outputSchema: searchNotesOutput,
-      async execute({ query }) {
+      async execute({ query }, { toolCallId }) {
+        // Counted before the search, as `prepareStep` counts the calls.
+        searches += 1;
+        searchesLeft.set(toolCallId, Math.max(0, MAX_SEARCHES - searches));
         try {
           return { passages: await search(query) };
         } catch (error) {
@@ -238,18 +250,24 @@ function createTools(
           throw new SearchFailedError();
         }
       },
-      // The model gets what it needs to quote, without the browser's details.
-      toModelOutput: ({ output }) => ({
-        type: "json",
-        value: {
-          passages: output.passages.map((passage) => ({
-            passage: passageAnchor(passage.slug, passage.position),
-            interviewee: passage.participant,
-            question: passage.question,
-            answer: passage.answer,
-          })),
-        },
-      }),
+      // The model gets what it needs to quote, without the browser's details,
+      // and how many searches it has left.
+      toModelOutput: ({ toolCallId, output }) => {
+        const left = searchesLeft.get(toolCallId) ?? 0;
+        return {
+          type: "json",
+          value: {
+            passages: output.passages.map((passage) => ({
+              passage: passageAnchor(passage.slug, passage.position),
+              interviewee: passage.participant,
+              question: passage.question,
+              answer: passage.answer,
+            })),
+            searchesLeft: left,
+            ...(left === 0 ? { note: LAST_SEARCH } : {}),
+          },
+        };
+      },
     }),
     saveSection: tool({
       description:
