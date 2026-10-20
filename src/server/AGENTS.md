@@ -42,7 +42,7 @@ Versions: `ai` 7.0.143, `@ai-sdk/openai-compatible` 3.0.71 and `@ai-sdk/react` 4
 - **Trying a change:** `npm run dev:real` runs the chat on the real model here, with this machine's token from `.env.development.local` (the owner's exception, 2026-10-19; `scripts/dev-real.ts` sets `AI_CHAT_PROVIDER=cloudflare` for the dev server, and `env.ts` lets it pick the chat model's adapter apart from `AI_PROVIDER`). The search keeps the fake embedder, so which passages come back differs from staging. Follow *Judging the model's behaviour* below, its budget included. Cloudflare's page for gpt-oss-20b links no playground (checked 2026-10-17), and a playground couldn't run `searchNotes` anyway.
 - **Plain text:** the prompt asks for no Markdown and uses plain labels itself, since a model copies the style it's given. The chat renders bold, inline code and lists anyway and removes every other mark (`src/lib/markdown.ts`), because gpt-oss-120b wrote `**` regardless; statements in the PRD stay plain text.
 - **Searches and saves:** the prompt says the model has three searches a reply, after which the search is switched off, and saves once a reply, after which the tools are off. `MAX_SEARCHES` and `prepareStep` in `chat.ts` enforce both. Change them together.
-- **Tokens:** every model call sends the whole prompt, about 1,775 tokens at four characters a token (version 2: about 1,575; the short prompt before it: about 190), plus the two tools' definitions. A drafted section takes at least three calls: a search, the save and the reply. Keep it tight.
+- **Tokens:** every model call sends the whole prompt, about 1,290 tokens at four characters a token (version 3: about 1,775, about half of each request in the baseline; version 2: about 1,575; the short prompt before it: about 190), plus the two tools' definitions. A drafted section takes at least three calls: a search, the save and the reply. Keep it tight.
 
 ## Judging the model's behaviour
 The owner's decision of 2026-10-19 (`docs/decisions.md`, External services): the model's behaviour is measured, not diagnosed from single runs.
@@ -68,7 +68,7 @@ What shapes the model (2026-10-19):
 | The model | `ai/models.ts` | `@cf/openai/gpt-oss-120b` |
 | How hard it reasons | not set | Cloudflare's default |
 | Randomness between runs | not set | Cloudflare's default `temperature` 0.6, no `seed`: every run differs |
-| The system prompt | `prompts/system-prompt.ts` | version 3, fingerprinted |
+| The system prompt | `prompts/system-prompt.ts` | version 5, fingerprinted (the baseline ran on version 3) |
 | The tools' descriptions and schemas | `chat.ts` | not versioned |
 | Searches and saves per answer | `chat.ts`: `MAX_SEARCHES`, `MAX_SAVE_TRIES`, `MAX_STEPS` | three searches, two tries to save |
 | How earlier answers look to the model | `chat.ts`: `forEarlierAnswers` | searches cut to passage ids and interviewees; saved sections whole; reasoning left out |
