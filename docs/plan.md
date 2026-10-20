@@ -22,7 +22,7 @@
 - **Where:** its own worktree per piece, on a branch from an up-to-date `main`. If the session isn't in a worktree yet (`git worktree list` shows its folder as the main checkout, not under `.claude/worktrees/`), it creates one before touching anything, and never checks out a branch in the main folder, where the measurement lane works. Claude Code's worktree option puts it under `.claude/worktrees/`; run `npm ci` there first. A worktree made with `git worktree add` gets no `.env.local`: run `npm run env:local` there, or the end-to-end tests find no interviews. Its browser check uses `app-build` in `.claude/launch.json` (port 3200), never `app` or `app-real`, which are the measurement lane's on port 3000. It never runs `measure`, `measure:fake` or `dev:real`, never edits the measurement lane's files above, and changes code in `src/server` only where its piece needs it, never what the model receives (listed above); its pull request says which `src/server` files it changed and why.
 - **Doing:** slices 10b to 20, the interface polish (`docs/decisions.md`, Design, 2026-10-20), are planned on `docs/plan-interface-polish` (`.claude/worktrees/build-lane-after-slice-10`), waiting for the owner's push and merge. Slice 10 is merged (826a711).
 - **Next:**
-  1. Slices 10b to 20 in order, each on its own branch from `main` once this plan is merged. They change only the browser's code (`src/features`, `src/components`, `src/app`'s styles and layout), so the measurement lane needn't wait for them, except slice 19 (`src/lib/markdown.ts`, which the model never sees) and slice 20 (`src/server/chat.ts`, what the browser receives, not what the model does); their pull requests say so. Before slice 15, the owner decides its form (*Deferred*).
+  1. Slices 10b to 20 in order, each on its own branch from `main` once this plan is merged. They change only the browser's code (`src/features`, `src/components`, `src/app`'s styles and layout) and its tests, so the measurement lane needn't wait for them, except slice 19 (`src/lib/markdown.ts`, which the model never sees); its pull request says so. None changes `src/server`. Before slice 15, the owner decides its form (*Deferred*).
   2. Slice 8, the rate limit, once 9d is done and the owner has decided its legal basis and size (*Deferred*).
 - **Unverified:** on staging, a reload keeping the PRD and the downloaded file (local Chromium only); the quota message against Cloudflare's real refusal (the tests replay its reply of 2026-10-20) and whether its per-minute 429 carries a retry header; a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, the table fix and the intro screen; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
 - **Waiting on the owner:** pushing `docs/plan-interface-polish`, its pull request and the merge; the GitHub description and topics whenever they like.
@@ -93,7 +93,7 @@
 
 ### 10 · Keep the PRD after a reload, and download it · risk: normal · status: done (826a711)
 
-<!-- Slices 10b to 20, the interface polish (docs/decisions.md, Design, 2026-10-20): ideas from opencode's desktop app (anomalyco/opencode at 50c5fce), not its code or looks, inside the colour and shape rules; CSS and the React the app already has, no animation library; every animation stops under prefers-reduced-motion. -->
+<!-- Slices 10b to 20, the interface polish (docs/decisions.md, Design, 2026-10-20): ideas from opencode's desktop app (anomalyco/opencode at 50c5fce), not its code or looks, inside the colour and shape rules; CSS and the React the app already has, no animation library; every animation stops under prefers-reduced-motion. The chat model gives whole replies (slice 8a; src/server/AGENTS.md, Whole replies for chat): each reply, reasoning and all, reaches the server in one piece, which slices 11, 12, 16 and 20 account for. -->
 
 ### 10b · Spacing and layout · risk: normal · status: todo
 - **Goal:** the workspace uses the screen the way opencode's desktop app does: a chat column of steady width, a PRD that gets its full page, and a chat whose spacing shows which answer belongs to which question.
@@ -109,7 +109,7 @@
 ### 11 · Never look idle while the AI works · risk: normal · status: todo
 - **Goal:** while an answer is on its way, something in the chat always shows that the assistant is working.
 - **Acceptance:**
-  - Exactly one line moves at a time: the step in progress ("Searching the interviews for …", "Checking the quotes in …"), or, whenever no step is in progress and no text is arriving, before the first step and between steps, "Working…" at the end of the answer. A lighter band sweeps across that line's grey text about once a second, in CSS (opencode's `TextShimmer`); with reduced motion the line is still, as today.
+  - Exactly one line moves at a time: the step in progress ("Searching the interviews for …", "Checking the quotes in …"), or, whenever no step is in progress and no text is arriving, before the first step and between steps, "Working…" at the end of the answer (slice 20 changes its words). A lighter band sweeps across that line's grey text about once a second, in CSS (opencode's `TextShimmer`); with reduced motion the line is still, as today.
   - Finished steps and text never move, and "Working…" goes once the answer ends, fails or stops.
   - The screen reader's status line stays as it is; the band is decoration only.
   - The band is one shared style, which slices 13, 15 and 20 reuse.
@@ -119,7 +119,7 @@
 - **Goal:** the visitor can stop an answer without losing the chat or the PRD.
 - **Acceptance:**
   - While the assistant works, the message box's Send button becomes Stop, and a click ends the answer; what the visitor typed meanwhile stays in the box. "Start over" still stops and clears, as today.
-  - Stopping also ends the model's call on the server, so it spends no more of the free daily allocation: the route already hands the browser's cancel to the model call (`request.signal` in `src/app/api/chat/route.ts`), and a test with the fake model shows the stream stops. Unverified on staging until the owner tries it.
+  - Stopping also reaches the server, which makes no further model calls for that answer: the route already hands the browser's cancel to the model call (`request.signal` in `src/app/api/chat/route.ts`), and a test with the fake model shows the stream stops. The call in flight is a whole reply (`src/server/ai/cloudflare.ts`, slice 8a), so Cloudflare may still finish and count it; what a stop saves is the calls after it. Unverified on staging until the owner tries it.
   - A stopped answer keeps what it finished: its text so far, its finished searches and any section it saved, which stays in the PRD. It ends with "You stopped this answer.", and a step that hadn't finished reads as stopped, not as running or failed.
   - The next message and the check-in work after a stop: only the stopped answer's finished parts go back to the server.
   - After a reload, a stopped answer still reads as stopped (`STORED_FORMAT` raised if the kept form changes). Focus never falls to the page.
@@ -151,14 +151,14 @@
   - The time is how long the answer took, measured in the browser and kept with the conversation, so it outlasts a reload; an answer kept from before this piece shows none.
   - Tests that read the "Searched" lines change with it.
 
-### 16 · Words fade in as they arrive · risk: normal · status: todo
-- **Goal:** the assistant's text flows in instead of appearing in jumps.
+### 16 · New text fades in · risk: normal · status: todo
+- **Goal:** the assistant's text fades in instead of appearing in a jump.
 - **Acceptance:**
-  - New words fade in over about 180 ms as they arrive (opencode's `markdown-word-enter`). Only the newest paragraph, list or table animates; words already shown never fade again, move or flicker.
-  - Nothing is held back: the last words show as soon as they arrive.
+  - Words fade in over about 180 ms as they arrive (opencode's `markdown-word-enter`). Only the newest paragraph, list or table animates; words already shown never fade again, move or flicker.
+  - Nothing is held back: the words show as soon as they arrive. On staging a reply's text arrives in one piece (whole replies: `src/server/ai/cloudflare.ts`; `src/server/AGENTS.md`, *Whole replies for chat*), so there the new text fades in as one; the fake model sends it in small pieces, so with `app-build` the words fade in by groups. Both must look right, and the check with `app-build` isn't what staging shows.
   - A finished answer, a conversation brought back after a reload, and everything under reduced motion show without animation.
   - Screen readers hear nothing new: the conversation stays out of any live region, as today.
-  - Unit tests: only new words animate, and none under reduced motion.
+  - Unit tests: only new words animate, text that arrives in one piece animates once, and nothing under reduced motion.
 
 ### 17 · Copy a section, with a "Copied" check · risk: normal · status: todo
 - **Goal:** the visitor can paste one section of the PRD elsewhere.
@@ -185,7 +185,8 @@
 ### 20 · Show when the model is thinking · risk: normal · status: todo
 - **Goal:** the visitor sees when the model is thinking and for how long, never what it thinks.
 - **Acceptance:**
-  - While the model reasons, slice 11's moving line reads "Thinking…". Once it moves on, a quiet grey line such as "Thought for 8s" stays in its place in the answer, also after a reload; with slice 15, these lines fold with the steps.
-  - The reasoning's words never reach the browser: gpt-oss's chain of thought isn't held to the safety standards of its final answers, and OpenAI recommends hiding it from end users (https://github.com/openai/harmony/blob/main/docs/format.md, *Reasoning*, read 2026-10-20 through Context7). The server sends only when reasoning starts and ends.
-  - The model receives exactly what it receives today, in the app and in the measurement's saved conversations: a unit test shows the model's input for a conversation is the same with and without these marks. If that can't hold, it isn't built, and the owner hears why.
-  - It changes `src/server/chat.ts`; its pull request says why the model's input is unchanged, and the measurement lane reads it before its next batch. `STORED_FORMAT` is raised if the kept form changes.
+  - Before it's built, the owner chooses its words (*Deferred*): "Thought for 8s", the recommendation, or "Took 8s".
+  - The chat model gives whole replies (`src/server/ai/cloudflare.ts`; `src/server/AGENTS.md`, *Whole replies for chat*), so the server learns of the model's reasoning only with the reply, together with its text or its step, and can't say live when the reasoning starts or how long it took on its own. What the browser can see is each wait for a reply, and gpt-oss reasons before it replies (Harmony's analysis channel), so that wait is the sign: whenever an answer is on its way and no step is in progress and no text is arriving, slice 11's moving line reads "Thinking…" instead of "Working…", and slice 11's tests change with it. The first wait starts with the request; a later one starts when a step finishes.
+  - Once the reply arrives, a quiet grey line such as "Thought for 8s" stays in the line's place in the answer: the wait, measured in the browser and kept with the conversation as slice 15 keeps the answer's time, so it outlasts a reload; an answer kept from before this piece shows none. With slice 15, these lines fold with the steps. For the answer's last reply the wait also covers the model writing its text, hence the owner's choice of words.
+  - The reasoning's words never reach the browser, as today (`sendReasoning: false` in `src/server/chat.ts`; `src/server/AGENTS.md`, *Reasoning*): gpt-oss's chain of thought isn't held to the safety standards of its final answers, and OpenAI recommends hiding it from end users (https://github.com/openai/harmony/blob/main/docs/format.md, *Reasoning*, read 2026-10-20 through Context7).
+  - Nothing in `src/server` changes: the browser measures and keeps the waits itself, on the assistant's messages (a visitor's message may hold only text: `readChatRequest`). The model receives exactly what it receives today: a unit test runs the chat with the fake model on a conversation with and without the kept waits and shows the model's input is the same (the AI SDK's `convertToModelMessages` leaves out `data-` parts and a message's metadata, and `readChatRequest` accepts both; ai 7.0.143, read 2026-10-20). If that can't hold, it isn't built, and the owner hears why. `STORED_FORMAT` is raised if the kept form changes.
