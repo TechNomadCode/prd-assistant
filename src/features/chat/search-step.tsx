@@ -3,12 +3,19 @@
 import { useId, useState } from "react";
 import { PassageQuote } from "@/features/transcripts/passage-quote";
 import { listNames, whoseWords, type SearchNotesPart } from "@/lib/chat";
+import { cn } from "@/lib/utils";
 
 /** The line shows this much of a query; the search used all of it. */
 const SHOWN_QUERY_LENGTH = 80;
 
 /** One search the assistant ran: one line that opens to its passages. */
-export function SearchStep({ part }: { part: SearchNotesPart }) {
+export function SearchStep({
+  part,
+  className,
+}: {
+  part: SearchNotesPart;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const passagesId = useId();
   const query = shorten(part.input?.query ?? "");
@@ -17,14 +24,14 @@ export function SearchStep({ part }: { part: SearchNotesPart }) {
     case "input-streaming":
     case "input-available":
       return (
-        <p className="text-sm text-muted-foreground">
+        <p className={cn("text-sm text-muted-foreground", className)}>
           Searching the interviews for “{query}”…
         </p>
       );
 
     case "output-error":
       return (
-        <p className="text-sm text-muted-foreground">
+        <p className={cn("text-sm text-muted-foreground", className)}>
           Searching the interviews for “{query}” didn&apos;t work.{" "}
           {part.errorText}
         </p>
@@ -34,13 +41,13 @@ export function SearchStep({ part }: { part: SearchNotesPart }) {
       const { passages } = part.output;
       if (passages.length === 0) {
         return (
-          <p className="text-sm text-muted-foreground">
+          <p className={cn("text-sm text-muted-foreground", className)}>
             Searched the interviews for “{query}”: no passages came back.
           </p>
         );
       }
       return (
-        <div className="text-sm">
+        <div className={cn("text-sm", className)}>
           <button
             type="button"
             aria-expanded={open}

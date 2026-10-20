@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChatStatus } from "ai";
-import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { QuotaNotice } from "@/features/workspace/quota";
 import { DEMO_BUSY, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
@@ -62,6 +62,18 @@ export function Chat({
     }
   }, [messages, status]);
 
+  // It keeps following when it gets shorter: the message box growing with
+  // its text, the suggestion showing, or the window changing size.
+  useEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      if (following.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   function send() {
     if (!canSend) return;
     following.current = true;
@@ -106,7 +118,7 @@ export function Chat({
             element.scrollHeight - element.scrollTop - element.clientHeight <
             FOLLOW_MARGIN;
         }}
-        className="relative space-y-8 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
+        className="relative space-y-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
       >
         <Conversation
           messages={messages}
@@ -165,6 +177,8 @@ export function Chat({
         <label htmlFor={MESSAGE_BOX_ID} className="sr-only">
           Your message
         </label>
+        {/* It grows with its text from three lines to 180px, then scrolls;
+            a browser without field-sizing keeps the three lines. */}
         <div className="relative">
           <textarea
             ref={box}
@@ -176,7 +190,7 @@ export function Chat({
             maxLength={MAX_MESSAGE_LENGTH}
             aria-describedby="chat-notice"
             placeholder="For example: draft the first section, or ask who wants a notification for every new item."
-            className="block min-h-24 w-full resize-none rounded-(--radius-control) border border-border-strong bg-background py-2 pr-20 pl-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground"
+            className="block field-sizing-content max-h-45 min-h-24 w-full resize-none rounded-(--radius-control) border border-border-strong bg-background py-2 pr-20 pl-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground"
           />
           <Button
             type="submit"

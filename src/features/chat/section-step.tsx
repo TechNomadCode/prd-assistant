@@ -2,6 +2,7 @@
 
 import type { SaveSectionPart } from "@/lib/chat";
 import { tally, type CheckedSection, type SectionName } from "@/lib/prd";
+import { cn } from "@/lib/utils";
 
 /**
  * One section the assistant saved: one line saying what the check found,
@@ -10,24 +11,23 @@ import { tally, type CheckedSection, type SectionName } from "@/lib/prd";
 export function SectionStep({
   part,
   onSee,
+  className,
 }: {
   part: SaveSectionPart;
   onSee?: (section: SectionName) => void;
+  className?: string;
 }) {
   const name = part.input?.section ?? "the section";
+  const line = cn("text-sm text-muted-foreground", className);
 
   switch (part.state) {
     case "input-streaming":
     case "input-available":
-      return (
-        <p className="text-sm text-muted-foreground">
-          Checking the quotes in {name}…
-        </p>
-      );
+      return <p className={line}>Checking the quotes in {name}…</p>;
 
     case "output-error":
       return (
-        <p className="text-sm text-muted-foreground">
+        <p className={line}>
           Saving {name} didn&apos;t work. {part.errorText}
         </p>
       );
@@ -35,7 +35,7 @@ export function SectionStep({
     case "output-available": {
       const section = part.output;
       return (
-        <p className="text-sm text-muted-foreground">
+        <p className={line}>
           <span className="text-foreground">Saved</span> {summary(section)}
           {onSee && (
             <>
