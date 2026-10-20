@@ -161,6 +161,40 @@ test.describe("chat", () => {
     });
   }
 
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`fades the answer's words in as they arrive, unless motion is reduced, and not after a reload (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await openChat(page);
+      await ask(page, QUESTION);
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+
+      // The fake model sends a word at a time, so its words fade in by groups.
+      const fading = conversation(page).locator(".word-enter");
+      if (reducedMotion === "reduce") {
+        await expect(fading).toHaveCount(0);
+      } else {
+        expect(await fading.count()).toBeGreaterThan(1);
+        await expect(fading.first()).toHaveCSS("animation-name", "word-enter");
+        await expect(fading.first()).toHaveCSS("animation-duration", "0.18s");
+        await expect(fading.last()).toHaveCSS("opacity", "1");
+      }
+
+      // Kept once the answer has ended.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => localStorage.getItem("prd-assistant:conversation") ?? "",
+          ),
+        )
+        .toContain(FAKE_NOTE);
+      await page.reload();
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+      await expect(fading).toHaveCount(0);
+    });
+  }
+
   test("stops an answer with Stop, keeping what the visitor typed and the focus, and the chat goes on, after a reload too", async ({
     page,
   }) => {

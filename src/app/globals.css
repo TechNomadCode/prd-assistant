@@ -123,6 +123,26 @@ body {
 }
 
 /*
+ * A word of the assistant's text fading in as it arrives (opencode's
+ * `markdown-word-enter`, `packages/session-ui/src/components/markdown.css` at
+ * 50c5fce). With reduced motion the words show at once.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .word-enter {
+    animation: word-enter 180ms ease-out both;
+  }
+}
+
+@keyframes word-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
  * A PRD section just saved, or saved again with different statements: a soft
  * highlight behind it that fades to the page in about two seconds, with no
  * border. A fade isn't motion, so it shows with reduced motion too.

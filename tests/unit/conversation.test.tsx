@@ -620,4 +620,74 @@ describe("Conversation", () => {
       screen.queryByText("This answer stopped before it finished."),
     ).not.toBeInTheDocument();
   });
+
+  describe("new text", () => {
+    const followUp: ChatMessage = {
+      id: "visitor-2",
+      role: "user",
+      parts: [{ type: "text", text: "And Daan?" }],
+    };
+    const reply = (text: string, state: "streaming" | "done"): ChatMessage => ({
+      id: "assistant-2",
+      role: "assistant",
+      parts: [{ type: "text", text, state }],
+    });
+
+    function fading(container: HTMLElement): string[] {
+      return [...container.querySelectorAll(".word-enter")].map(
+        (span) => span.textContent ?? "",
+      );
+    }
+
+    it("fades in only an answer that arrives after the chat shows, even when it ends as it arrives", () => {
+      const shownBefore = [question, answer({ type: "text", text: "Henk." })];
+      const { container, rerender } = show(shownBefore);
+      expect(fading(container)).toEqual([]);
+
+      rerender(
+        <Conversation
+          messages={[...shownBefore, followUp, reply("Daan doesn't.", "done")]}
+          status="ready"
+        />,
+      );
+      expect(fading(container)).toEqual(["Daan doesn't."]);
+    });
+
+    it("fades in an answer's words as they come, and leaves them once it's finished", () => {
+      const { container, rerender } = show([question], "submitted");
+      rerender(
+        <Conversation
+          messages={[question, reply("Daan", "streaming")]}
+          status="streaming"
+        />,
+      );
+      rerender(
+        <Conversation
+          messages={[question, reply("Daan doesn't.", "streaming")]}
+          status="streaming"
+        />,
+      );
+      expect(fading(container)).toEqual(["Daan", " doesn't."]);
+
+      const before = [...container.querySelectorAll(".word-enter")];
+      rerender(
+        <Conversation
+          messages={[question, reply("Daan doesn't.", "done")]}
+          status="ready"
+        />,
+      );
+      expect([...container.querySelectorAll(".word-enter")]).toEqual(before);
+    });
+
+    it("shows a conversation brought back after a reload at once", () => {
+      const { container } = show([
+        question,
+        answer({ type: "text", text: "Henk." }),
+        followUp,
+        reply("Daan doesn't.", "done"),
+      ]);
+      expect(fading(container)).toEqual([]);
+      expect(container.querySelector("li span:not(.sr-only)")).toBeNull();
+    });
+  });
 });

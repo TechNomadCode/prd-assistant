@@ -1,5 +1,5 @@
 import { render, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RichText } from "@/features/chat/rich-text";
 
 // The model's formatting as the chat shows it: the reader's blocks
@@ -211,5 +211,140 @@ describe("RichText", () => {
     ]);
     expect(lines(container.querySelector("li")!)).toEqual(["Maya", "Sofia"]);
     expect(container).not.toHaveTextContent("<br");
+  });
+});
+
+// New text fades in as it arrives (slice 16): each update's words in a span
+// of `.word-enter`, whose CSS animation runs once, when the span mounts.
+describe("RichText as it arrives", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function spans(container: HTMLElement): Element[] {
+    return [...container.querySelectorAll(".word-enter")];
+  }
+
+  /** The text of each span that fades, in order. */
+  function fading(container: HTMLElement): string[] {
+    return spans(container).map((span) => span.textContent ?? "");
+  }
+
+  /** The fading spans that weren't there before: the ones fading now. */
+  function fadingSince(container: HTMLElement, before: Element[]): string[] {
+    return spans(container)
+      .filter((span) => !before.includes(span))
+      .map((span) => span.textContent ?? "");
+  }
+
+  it("fades in a text that arrives in one piece as one, once", () => {
+    const text = "Henk wants pings. Daan doesn't.";
+    const { container, rerender } = render(<RichText text={text} arriving />);
+    expect(fading(container)).toEqual([text]);
+
+    const before = spans(container);
+    rerender(<RichText text={text} arriving className="mt-4" />);
+    expect(spans(container)).toEqual(before);
+  });
+
+  it("fades in only the words each update adds, leaving those shown before", () => {
+    const { container, rerender } = render(
+      <RichText text="Henk wants pings" arriving />,
+    );
+
+    let before = spans(container);
+    rerender(<RichText text="Henk wants pings for every item." arriving />);
+    expect(fadingSince(container, before)).toEqual([" for every item."]);
+    expect(spans(container)[0]).toBe(before[0]);
+    expect(container.querySelector("p")).toHaveTextContent(
+      "Henk wants pings for every item.",
+    );
+
+    before = spans(container);
+    rerender(
+      <RichText
+        text={"Henk wants pings for every item.\n\n- Maya **plans** ahead"}
+        arriving
+      />,
+    );
+    expect(fadingSince(container, before)).toEqual([
+      "Maya ",
+      "plans",
+      " ahead",
+    ]);
+    expect(spans(container).slice(0, before.length)).toEqual(before);
+  });
+
+  it("fades in the rest of a word that came before with the update's words", () => {
+    const { container, rerender } = render(<RichText text="Hen" arriving />);
+    const before = spans(container);
+    rerender(<RichText text="Henk wants" arriving />);
+    expect(fadingSince(container, before)).toEqual(["k wants"]);
+    expect(container.querySelector("p")).toHaveTextContent("Henk wants");
+  });
+
+  it("doesn't fade again the words a table taking shape mounts anew", () => {
+    const { container, rerender } = render(
+      <RichText text={"Who needs what:\n\n| Persona | Needs |"} arriving />,
+    );
+
+    const before = spans(container);
+    rerender(
+      <RichText
+        text={
+          "Who needs what:\n\n| Persona | Needs |\n|---|---|\n| Maya | Lists |"
+        }
+        arriving
+      />,
+    );
+    const now = fadingSince(container, before).join("");
+    expect(now).toContain("Maya");
+    expect(now).not.toContain("Persona");
+    expect(now).not.toContain("Who needs");
+  });
+
+  it("fades in inline code as one", () => {
+    const { container, rerender } = render(<RichText text="Run it" arriving />);
+    const before = spans(container);
+    rerender(<RichText text="Run it with `npm test` now" arriving />);
+    expect(fadingSince(container, before)).toEqual([
+      " with ",
+      "npm test",
+      " now",
+    ]);
+    expect(container.querySelector(".word-enter > code")).toHaveTextContent(
+      "npm test",
+    );
+  });
+
+  it("shows a text that was there before at once", () => {
+    const { container, rerender } = render(
+      <RichText text="Henk wants pings." />,
+    );
+    rerender(<RichText text="Henk wants pings. Daan doesn't." />);
+    expect(container.querySelector("span")).toBeNull();
+    expect(container.querySelector("p")).toHaveTextContent(
+      "Henk wants pings. Daan doesn't.",
+    );
+  });
+
+  it("shows everything at once under reduced motion", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query === "(prefers-reduced-motion: reduce)",
+          addEventListener() {},
+          removeEventListener() {},
+        }) as unknown as MediaQueryList,
+    );
+    const { container, rerender } = render(
+      <RichText text="Henk wants pings." arriving />,
+    );
+    rerender(<RichText text="Henk wants pings. Daan doesn't." arriving />);
+    expect(container.querySelector(".word-enter")).toBeNull();
+    expect(container.querySelector("p")).toHaveTextContent(
+      "Henk wants pings. Daan doesn't.",
+    );
   });
 });

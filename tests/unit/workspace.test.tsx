@@ -713,7 +713,9 @@ describe("Jump to latest", () => {
       (query: string) =>
         ({
           matches: reduce && query === "(prefers-reduced-motion: reduce)",
-        }) as MediaQueryList,
+          addEventListener() {},
+          removeEventListener() {},
+        }) as unknown as MediaQueryList,
     );
   }
 
