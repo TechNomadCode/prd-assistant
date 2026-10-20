@@ -61,7 +61,7 @@ export function RichText({
           <List
             key={index}
             className={cn(
-              "space-y-1 pl-5",
+              "space-y-2 pl-5",
               block.ordered ? "list-decimal" : "list-disc",
             )}
           >

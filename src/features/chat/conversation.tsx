@@ -55,12 +55,20 @@ export function Conversation({
 
   if (messages.length === 0 && !waiting) return null;
 
+  // A question sits closer to its own answer than to the turn before it:
+  // 16px to its answer, or to "Working…" while that's on its way, and 32px
+  // between turns, a question that got no answer included (docs/
+  // decisions.md, Design, 2026-10-20).
   return (
-    <ol aria-label="Conversation" className="space-y-8">
+    <ol
+      aria-label="Conversation"
+      className="[&>[data-role=user]+[data-role=assistant]]:mt-4 [&>li+li]:mt-8"
+    >
       {messages.map((message) =>
         message.role === "user" ? (
           <li
             key={message.id}
+            data-role="user"
             className="ml-auto w-fit max-w-[85%] rounded-(--radius-control) bg-bubble px-3 py-2"
           >
             <p className="sr-only">You</p>
@@ -78,7 +86,7 @@ export function Conversation({
         ),
       )}
       {waiting && (
-        <li>
+        <li data-role="assistant">
           <p className="sr-only">Assistant</p>
           <p className="text-muted-foreground">Working…</p>
         </li>
@@ -99,6 +107,19 @@ function failedStep(toolName: string): string {
   }
 }
 
+/**
+ * The space above a part of an answer: 8px between steps in a row, 16px
+ * between a step and text either way (opencode's desktop app; docs/
+ * decisions.md, Design, 2026-10-20). The first part needs none.
+ */
+function spaceAbove(
+  previous: ShownPart | undefined,
+  part: ShownPart,
+): string | undefined {
+  if (previous === undefined) return undefined;
+  return previous.type !== "text" && part.type !== "text" ? "mt-2" : "mt-4";
+}
+
 function AssistantMessage({
   parts,
   unfinished,
@@ -110,33 +131,37 @@ function AssistantMessage({
 }) {
   if (parts.length === 0) return null;
   return (
-    <li className="space-y-3">
+    <li data-role="assistant">
       <p className="sr-only">Assistant</p>
       {parts.map((part, index) => {
+        const space = spaceAbove(parts[index - 1], part);
         switch (part.type) {
           case "text":
             return (
               <RichText
                 key={index}
                 text={part.text}
-                className={cn(unfinished && "text-muted-foreground")}
+                className={cn(space, unfinished && "text-muted-foreground")}
               />
             );
           case "tool-searchNotes":
-            return <SearchStep key={part.toolCallId} part={part} />;
+            return (
+              <SearchStep key={part.toolCallId} part={part} className={space} />
+            );
           case "tool-saveSection":
             return (
               <SectionStep
                 key={part.toolCallId}
                 part={part}
                 onSee={onSeeSection}
+                className={space}
               />
             );
           case "dynamic-tool":
             return (
               <p
                 key={part.toolCallId}
-                className="text-sm text-muted-foreground"
+                className={cn("text-sm text-muted-foreground", space)}
               >
                 {failedStep(part.toolName)} didn&apos;t work. {part.errorText}
               </p>
@@ -144,7 +169,7 @@ function AssistantMessage({
         }
       })}
       {unfinished && (
-        <p className="text-sm font-medium">
+        <p className="mt-6 text-sm font-medium">
           This answer stopped before it finished.
         </p>
       )}

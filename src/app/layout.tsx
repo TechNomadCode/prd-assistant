@@ -17,12 +17,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="group/body flex min-h-full flex-col lg:has-[[data-workspace]]:h-dvh">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:bg-foreground focus:px-3 focus:py-2 focus:text-background"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-1 focus:left-3 focus:bg-foreground focus:px-3 focus:py-1.5 focus:text-background"
         >
           Skip to content
         </a>
         <header className="border-b border-border">
-          <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-4 group-has-[[data-workspace]]/body:max-w-7xl sm:px-6">
+          <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-2.5 group-has-[[data-workspace]]/body:max-w-workspace sm:px-6">
             <Link href="/" className="text-base font-semibold tracking-tight">
               {site.name}
             </Link>
@@ -38,12 +38,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </header>
         <main
           id="main"
-          className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 has-[[data-workspace]]:max-w-7xl sm:px-6 lg:has-[[data-workspace]]:min-h-0 lg:has-[[data-workspace]]:py-6"
+          className="mx-auto w-full max-w-5xl flex-1 px-4 py-10 has-[[data-workspace]]:max-w-workspace sm:px-6 lg:has-[[data-workspace]]:min-h-0 lg:has-[[data-workspace]]:py-4"
         >
           {children}
         </main>
         <footer className="border-t border-border">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground group-has-[[data-workspace]]/body:max-w-7xl sm:px-6 lg:group-has-[[data-workspace]]/body:py-3">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm text-muted-foreground group-has-[[data-workspace]]/body:max-w-workspace sm:px-6 lg:group-has-[[data-workspace]]/body:py-2">
             <p>A portfolio demo. The interviews are fictional.</p>
             {/* For engineers: the README's explanation, then the code. */}
             <div className="flex flex-wrap gap-x-6 gap-y-2">

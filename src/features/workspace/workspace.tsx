@@ -238,15 +238,17 @@ function RestoredWorkspace() {
     );
   }
 
+  // On a laptop the chat keeps a steady width, 400 to 520px, and the PRD
+  // takes the rest of the page (docs/decisions.md, Design, 2026-10-20).
   return (
     <div
       data-workspace
-      className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-12 lg:gap-8"
+      className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[clamp(25rem,38%,32.5rem)_minmax(0,1fr)] lg:gap-8"
     >
       <h1 id={WORKSPACE_TITLE_ID} tabIndex={-1} className="sr-only">
         The chat and your PRD
       </h1>
-      <div className="flex flex-col lg:col-span-5 lg:min-h-0">
+      <div className="flex flex-col lg:min-h-0">
         <Chat
           messages={messages}
           status={failed ? "error" : status}
@@ -263,7 +265,7 @@ function RestoredWorkspace() {
           onSeeSection={seeSection}
         />
       </div>
-      <div className="flex flex-col lg:col-span-7 lg:min-h-0">
+      <div className="flex flex-col lg:min-h-0">
         <PrdDocument
           sections={sections}
           latest={latest}
