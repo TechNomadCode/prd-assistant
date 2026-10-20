@@ -146,10 +146,122 @@ describe("Conversation", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows that the assistant is working before its first words arrive", () => {
-    show([question], "submitted");
+  describe("while an answer is on its way, exactly one line moves", () => {
+    /** The lines with the moving band (`.shimmer` in `globals.css`). */
+    function moving(container: HTMLElement) {
+      return container.querySelectorAll(".shimmer");
+    }
 
-    expect(screen.getByText("Working…")).toBeInTheDocument();
+    it("shows Working… before the first step", () => {
+      const { container } = show([question], "submitted");
+
+      expect(moving(container)).toHaveLength(1);
+      expect(moving(container)[0]).toHaveTextContent(/^Working…$/);
+    });
+
+    it("moves the step in progress, with no Working…", () => {
+      const { container } = show(
+        [
+          question,
+          answer(
+            search("output-available", { output: { passages: [HENK] } }),
+            search("input-available", { toolCallId: "call-2" }),
+          ),
+        ],
+        "streaming",
+      );
+
+      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(moving(container)).toHaveLength(1);
+      expect(moving(container)[0]).toHaveTextContent(
+        "Searching the interviews for “notifications for new items”…",
+      );
+    });
+
+    it("moves only the latest of two steps in progress", () => {
+      const { container } = show(
+        [
+          question,
+          answer(
+            search("input-available"),
+            search("input-streaming", {
+              toolCallId: "call-2",
+              input: { query: "pings" },
+            }),
+          ),
+        ],
+        "streaming",
+      );
+
+      expect(moving(container)).toHaveLength(1);
+      expect(moving(container)[0]).toHaveTextContent(
+        "Searching the interviews for “pings”…",
+      );
+    });
+
+    it("shows Working… at the end of the answer between steps, and the finished step stays still", () => {
+      const { container } = show(
+        [
+          question,
+          answer(search("output-available", { output: { passages: [HENK] } })),
+        ],
+        "streaming",
+      );
+
+      const [, assistant] = within(
+        screen.getByRole("list", { name: "Conversation" }),
+      ).getAllByRole("listitem");
+      expect(assistant).toHaveTextContent(/Working…$/);
+      expect(moving(container)).toHaveLength(1);
+      expect(moving(container)[0]).toHaveTextContent(/^Working…$/);
+    });
+
+    it("doesn't flash Working… after the answer's last words while it finishes", () => {
+      const { container } = show(
+        [question, answer({ type: "text", text: "Henk does.", state: "done" })],
+        "streaming",
+      );
+
+      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(moving(container)).toHaveLength(0);
+    });
+
+    it("moves nothing while text arrives", () => {
+      const { container } = show(
+        [
+          question,
+          answer(search("output-available", { output: { passages: [HENK] } }), {
+            type: "text",
+            text: "Henk",
+            state: "streaming",
+          }),
+        ],
+        "streaming",
+      );
+
+      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(moving(container)).toHaveLength(0);
+    });
+
+    it.each(["ready", "error"] as const)(
+      "moves nothing once the answer ends (%s)",
+      (status) => {
+        const { container } = show(
+          [
+            question,
+            answer(search("input-available"), {
+              type: "text",
+              text: "Henk",
+              state: "done",
+            }),
+          ],
+          status,
+        );
+
+        expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+        expect(moving(container)).toHaveLength(0);
+      },
+    );
   });
 
   it("marks an answer that broke off as unfinished", () => {
