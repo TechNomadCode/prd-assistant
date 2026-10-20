@@ -240,7 +240,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 **Open questions**
 - **AI provider:** Cloudflare Workers AI on the free plan, for chat and embeddings, after Mistral's free plan refused API keys (see `docs/decisions.md` and `docs/records/ai-provider-research-2026-10-17.md`).
   - Google Gemini's free tier is ruled out. Its terms allow only paid use for apps available to users in the EEA, Switzerland or the UK (https://ai.google.dev/gemini-api/terms).
-  - Cloudflare's free plan: 10,000 neurons a day, reset at 00:00 UTC; at the limit requests fail with 429 (code 3036) and nothing is charged (https://developers.cloudflare.com/workers-ai/platform/pricing/). Zero data retention for standard inference, and customer content isn't used for training. No EU-only processing is promised.
+  - Cloudflare's free plan: 10,000 neurons a day, reset at 00:00 UTC; at the limit requests fail with 429 (code 3036 on Cloudflare's errors page; the `/ai/v1` endpoint sent 4006 on 2026-10-20) and nothing is charged (https://developers.cloudflare.com/workers-ai/platform/pricing/). Zero data retention for standard inference, and customer content isn't used for training. No EU-only processing is promised.
   - Tested by the owner on the free plan: `gpt-oss-20b` called the search tool, and `bge-large-en-v1.5` returned 1,024 numbers.
 - **Legal basis for the IP-based rate limit:** the owner decides, with the official sources listed in `docs/decisions.md`. This isn't legal advice.
 
