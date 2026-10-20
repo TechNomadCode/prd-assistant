@@ -1,4 +1,5 @@
 import type { ChatStatus } from "ai";
+import { Fragment } from "react";
 import type { SectionName } from "@/lib/prd";
 import {
   textOf,
@@ -61,15 +62,19 @@ function activityOf(parts: ShownPart[]): Activity {
  * appear as they stream in, and exactly one line moves: the step in
  * progress, or "Working…" whenever no step runs and no text arrives. An
  * answer that broke off stays visible, marked as unfinished, until it's
- * retried or replaced.
+ * retried or replaced. An answer the visitor stopped keeps what it finished
+ * and says so.
  */
 export function Conversation({
   messages,
   status,
+  stopped = new Set(),
   onSeeSection,
 }: {
   messages: ChatMessage[];
   status: ChatStatus;
+  /** The questions whose answers the visitor stopped, by message id. */
+  stopped?: ReadonlySet<string>;
   /** Brings a saved section into view in the PRD. */
   onSeeSection?: (section: SectionName) => void;
 }) {
@@ -90,28 +95,41 @@ export function Conversation({
       aria-label="Conversation"
       className="[&>[data-role=user]+[data-role=assistant]]:mt-4 [&>li+li]:mt-8"
     >
-      {messages.map((message) =>
-        message.role === "user" ? (
-          <li
-            key={message.id}
-            data-role="user"
-            className="ml-auto w-fit max-w-[85%] rounded-(--radius-control) bg-bubble px-3 py-2"
-          >
-            <p className="sr-only">You</p>
-            <p className="leading-relaxed whitespace-pre-wrap">
-              {textOf(message)}
-            </p>
-          </li>
-        ) : (
+      {messages.map((message, index) => {
+        if (message.role === "user") {
+          // Stopped before its answer's first part arrived.
+          const stoppedEarly =
+            stopped.has(message.id) &&
+            messages[index + 1]?.role !== "assistant";
+          return (
+            <Fragment key={message.id}>
+              <li
+                data-role="user"
+                className="ml-auto w-fit max-w-[85%] rounded-(--radius-control) bg-bubble px-3 py-2"
+              >
+                <p className="sr-only">You</p>
+                <p className="leading-relaxed whitespace-pre-wrap">
+                  {textOf(message)}
+                </p>
+              </li>
+              {stoppedEarly && (
+                <AssistantMessage parts={[]} unfinished={false} stopped />
+              )}
+            </Fragment>
+          );
+        }
+        const question = messages[index - 1];
+        return (
           <AssistantMessage
             key={message.id}
             parts={shownParts(message)}
             unfinished={status === "error" && message === last}
+            stopped={question?.role === "user" && stopped.has(question.id)}
             activity={message === last ? activity : undefined}
             onSeeSection={onSeeSection}
           />
-        ),
-      )}
+        );
+      })}
       {waiting && (
         <li data-role="assistant">
           <p className="sr-only">Assistant</p>
@@ -159,16 +177,19 @@ function spaceAbove(
 function AssistantMessage({
   parts,
   unfinished,
+  stopped = false,
   activity,
   onSeeSection,
 }: {
   parts: ShownPart[];
   unfinished: boolean;
+  /** The visitor stopped this answer. */
+  stopped?: boolean;
   /** Set while this answer is on its way. */
   activity?: Activity;
   onSeeSection?: (section: SectionName) => void;
 }) {
-  if (parts.length === 0) return null;
+  if (parts.length === 0 && !stopped) return null;
   const movingStep = typeof activity === "object" ? activity.step : undefined;
   const lastPart = parts.at(-1);
   return (
@@ -188,13 +209,19 @@ function AssistantMessage({
             );
           case "tool-searchNotes":
             return (
-              <SearchStep key={part.toolCallId} part={part} className={step} />
+              <SearchStep
+                key={part.toolCallId}
+                part={part}
+                stopped={stopped}
+                className={step}
+              />
             );
           case "tool-saveSection":
             return (
               <SectionStep
                 key={part.toolCallId}
                 part={part}
+                stopped={stopped}
                 onSee={onSeeSection}
                 className={step}
               />
@@ -216,6 +243,11 @@ function AssistantMessage({
       {unfinished && (
         <p className="mt-6 text-sm font-medium">
           This answer stopped before it finished.
+        </p>
+      )}
+      {stopped && (
+        <p className={cn("text-sm font-medium", parts.length > 0 && "mt-6")}>
+          You stopped this answer.
         </p>
       )}
     </li>

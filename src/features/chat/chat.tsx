@@ -29,6 +29,8 @@ export function Chat({
   draft,
   onDraftChange,
   onSend,
+  onStop,
+  stopped,
   onRetry,
   onSeeSection,
 }: {
@@ -44,6 +46,10 @@ export function Chat({
   draft: string;
   onDraftChange: (draft: string) => void;
   onSend: (text: string) => void;
+  /** Ends the answer on its way. */
+  onStop: () => void;
+  /** The questions whose answers the visitor stopped, by message id. */
+  stopped: ReadonlySet<string>;
   onRetry: () => void;
   onSeeSection: (section: SectionName) => void;
 }) {
@@ -123,6 +129,7 @@ export function Chat({
         <Conversation
           messages={messages}
           status={status}
+          stopped={stopped}
           onSeeSection={onSeeSection}
         />
 
@@ -192,12 +199,26 @@ export function Chat({
             placeholder="For example: draft the first section, or ask who wants a notification for every new item."
             className="block field-sizing-content max-h-45 min-h-24 w-full resize-none rounded-(--radius-control) border border-border-strong bg-background py-2 pr-20 pl-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground"
           />
+          {/* One button, Send or Stop, so focus stays on it when it turns
+              from one into the other; an empty Send is aria-disabled, not
+              disabled, which would drop focus to the page. A Stop click
+              cancels its default action: the answer can end, and the button
+              turn back into Send, before the browser acts on the click,
+              which would then send what the visitor typed. */}
           <Button
-            type="submit"
-            disabled={!canSend}
-            className="absolute right-2 bottom-2 h-8 px-3"
+            type={working ? "button" : "submit"}
+            aria-disabled={!working && !canSend}
+            onClick={
+              working
+                ? (event) => {
+                    event.preventDefault();
+                    onStop();
+                  }
+                : undefined
+            }
+            className="absolute right-2 bottom-2 h-8 px-3 aria-disabled:cursor-default aria-disabled:opacity-50"
           >
-            Send
+            {working ? "Stop" : "Send"}
           </Button>
         </div>
         <p id="chat-notice" className="text-sm text-muted-foreground">

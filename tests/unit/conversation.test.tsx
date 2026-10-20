@@ -413,6 +413,100 @@ describe("Conversation", () => {
     });
   });
 
+  describe("an answer the visitor stopped", () => {
+    function stoppedShow(messages: ChatMessage[]) {
+      return render(
+        <Conversation
+          messages={messages}
+          status="ready"
+          stopped={new Set([question.id])}
+        />,
+      );
+    }
+
+    it("keeps what it finished, reads its unfinished search as stopped, and says so", () => {
+      stoppedShow([
+        question,
+        answer(
+          search("output-available", { output: { passages: [HENK] } }),
+          { type: "text", text: "Henk wants", state: "streaming" },
+          search("input-available", { toolCallId: "call-2" }),
+        ),
+      ]);
+
+      const [, assistant] = within(
+        screen.getByRole("list", { name: "Conversation" }),
+      ).getAllByRole("listitem");
+      expect(assistant).toHaveTextContent(
+        /Searched the interviews for “notifications for new items”: closest passages from Henk.*Henk wants\s*Stopped searching the interviews for “notifications for new items”\s*You stopped this answer\.$/,
+      );
+      expect(screen.queryByText(/Searching/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/didn't work/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("This answer stopped before it finished."),
+      ).not.toBeInTheDocument();
+    });
+
+    it("reads a check of quotes that hadn't finished as stopped", () => {
+      stoppedShow([
+        question,
+        answer({
+          type: "tool-saveSection",
+          toolCallId: "save-1",
+          state: "input-available",
+          input: { section: "Goals / Objectives", statements: [] },
+        } as SaveSectionPart),
+      ]);
+
+      expect(
+        screen.getByText("Stopped checking the quotes in Goals / Objectives"),
+      ).toBeInTheDocument();
+    });
+
+    it("says so under the question when it was stopped before anything arrived", () => {
+      stoppedShow([question]);
+
+      const [visitor, assistant] = within(
+        screen.getByRole("list", { name: "Conversation" }),
+      ).getAllByRole("listitem");
+      expect(visitor).toHaveTextContent("Who wants pings?");
+      expect(assistant).toHaveTextContent(
+        /^Assistant\s*You stopped this answer\.$/,
+      );
+    });
+
+    it("says so only under the answers that were stopped", () => {
+      const later: ChatMessage = {
+        id: "visitor-2",
+        role: "user",
+        parts: [{ type: "text", text: "And Daan?" }],
+      };
+      render(
+        <Conversation
+          messages={[
+            question,
+            answer({ type: "text", text: "Henk wants", state: "streaming" }),
+            later,
+            {
+              id: "assistant-2",
+              role: "assistant",
+              parts: [{ type: "text", text: "Daan doesn't.", state: "done" }],
+            },
+          ]}
+          status="ready"
+          stopped={new Set([question.id])}
+        />,
+      );
+
+      expect(screen.getAllByText("You stopped this answer.")).toHaveLength(1);
+      const items = within(
+        screen.getByRole("list", { name: "Conversation" }),
+      ).getAllByRole("listitem");
+      expect(items[1]).toHaveTextContent(/You stopped this answer\.$/);
+      expect(items[3]).toHaveTextContent(/Daan doesn't\.$/);
+    });
+  });
+
   it("shows nothing for an answer that failed before its first words", () => {
     show([question, answer()], "error");
 

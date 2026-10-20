@@ -12,6 +12,7 @@ import {
 } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localTime, nextReset } from "@/features/workspace/quota";
+import { STORAGE_KEY } from "@/features/workspace/stored-conversation";
 import { Workspace } from "@/features/workspace/workspace";
 import { DEMO_BUSY, QUOTA_USED_UP, textOf, type ChatMessage } from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
@@ -90,6 +91,41 @@ function answer(chunks: Chunk[]): Response {
     }),
   });
 }
+
+/**
+ * An answer on its way: these chunks, then nothing more until the browser
+ * cancels the request, as the Stop button does.
+ */
+function answerOnItsWay(
+  chunks: Chunk[],
+  signal: AbortSignal | null | undefined,
+): Response {
+  return createUIMessageStreamResponse({
+    stream: createUIMessageStream<ChatMessage>({
+      execute: async ({ writer }) => {
+        writer.write({ type: "start" });
+        for (const chunk of chunks) writer.write(chunk);
+        await new Promise<void>((resolve) =>
+          signal?.addEventListener("abort", () => resolve()),
+        );
+      },
+    }),
+  });
+}
+
+/** The first section saved, the reply begun, and a search still running. */
+const SAVED_THEN_SEARCHING: Chunk[] = [
+  ...SAVES_INTRODUCTION.slice(0, 2),
+  { type: "text-start", id: "reply-1" },
+  { type: "text-delta", id: "reply-1", delta: "I saved Introduction" },
+  { type: "text-end", id: "reply-1" },
+  {
+    type: "tool-input-available",
+    toolCallId: "search-2",
+    toolName: "searchNotes",
+    input: { query: "pings" },
+  },
+];
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -401,6 +437,151 @@ describe("the home page", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(draftButton()).toBeEnabled();
+  });
+});
+
+describe("the Stop button", () => {
+  /** Asks a question whose answer saves the first section, then keeps working. */
+  async function askAndWait() {
+    fetchMock.mockImplementationOnce(async (_, init) =>
+      answerOnItsWay(SAVED_THEN_SEARCHING, init?.signal),
+    );
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    fireEvent.change(messageBox(), {
+      target: { value: "Draft the first section." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText(
+      "Searching the interviews for “pings”…",
+      {},
+      { timeout: 3000 },
+    );
+  }
+
+  function messageBox() {
+    return screen.getByRole("textbox", { name: "Your message" });
+  }
+
+  it("takes Send's place while the assistant works, and ends the answer, keeping what it finished, what the visitor typed and the focus", async () => {
+    await askAndWait();
+    expect(
+      screen.queryByRole("button", { name: "Send" }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(messageBox(), { target: { value: "Who wants pings?" } });
+
+    const stop = screen.getByRole("button", { name: "Stop" });
+    stop.focus();
+    fireEvent.click(stop);
+
+    expect(
+      await screen.findByText("You stopped this answer."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Stopped searching the interviews for “pings”"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("I saved Introduction")).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", {
+        name: "Statements in Introduction / Overview",
+      }),
+    ).toHaveTextContent("Henk wants a ping for every item.");
+    expect(messageBox()).toHaveValue("Who wants pings?");
+    expect(screen.getByRole("button", { name: "Send" })).toHaveFocus();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const kept = JSON.parse(
+      window.localStorage.getItem(STORAGE_KEY) ?? "null",
+    ) as { messages: ChatMessage[]; stopped: string[] };
+    expect(kept.stopped).toEqual([kept.messages[0]?.id]);
+  });
+
+  it("keeps focus on the button when an empty message box leaves nothing to send", async () => {
+    await askAndWait();
+    const stop = screen.getByRole("button", { name: "Stop" });
+    stop.focus();
+    fireEvent.click(stop);
+
+    await screen.findByText("You stopped this answer.");
+    const send = screen.getByRole("button", { name: "Send" });
+    expect(send).toHaveFocus();
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(send);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("sends only the stopped answer's finished parts with the next message", async () => {
+    await askAndWait();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await screen.findByText("You stopped this answer.");
+    fetchMock.mockResolvedValueOnce(answer(text("reply-2", "Noted.")));
+
+    fireEvent.change(messageBox(), { target: { value: "Who wants pings?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Noted.")).toBeInTheDocument();
+    const body = JSON.parse(String(fetchMock.mock.lastCall?.[1]?.body)) as {
+      messages: ChatMessage[];
+    };
+    expect(body.messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+    ]);
+    const parts = body.messages[1]?.parts ?? [];
+    expect(
+      parts
+        .filter((part) => part.type !== "step-start")
+        .map((part) =>
+          part.type === "text"
+            ? part.text
+            : `${part.type} ${"state" in part ? part.state : ""}`,
+        ),
+    ).toEqual(["tool-saveSection output-available", "I saved Introduction"]);
+    // The stopped answer still reads as stopped.
+    expect(screen.getByText("You stopped this answer.")).toBeInTheDocument();
+  });
+
+  it("drops an answer stopped before it finished anything from what goes back", async () => {
+    fetchMock.mockImplementationOnce(async (_, init) =>
+      answerOnItsWay([], init?.signal),
+    );
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    fireEvent.change(messageBox(), { target: { value: "Who wants pings?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
+    await screen.findByText("You stopped this answer.");
+    fetchMock.mockResolvedValueOnce(answer(text("reply-2", "Henk does.")));
+
+    fireEvent.change(messageBox(), { target: { value: "And Daan?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Henk does.")).toBeInTheDocument();
+    expect(sentByVisitor()).toEqual(["Who wants pings?", "And Daan?"]);
+    const body = JSON.parse(String(fetchMock.mock.lastCall?.[1]?.body)) as {
+      messages: ChatMessage[];
+    };
+    expect(body.messages.map((message) => message.role)).toEqual([
+      "user",
+      "user",
+    ]);
+  });
+
+  it("isn't needed by Start over, which still stops and clears without marking anything stopped", async () => {
+    await askAndWait();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear both" }));
+
+    expect(introHeading()).toHaveFocus();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByText("You stopped this answer.")).toBeNull(),
+    );
   });
 });
 

@@ -10,10 +10,13 @@ import { cn } from "@/lib/utils";
  */
 export function SectionStep({
   part,
+  stopped = false,
   onSee,
   className,
 }: {
   part: SaveSectionPart;
+  /** Its answer was stopped, so a check still running never finished. */
+  stopped?: boolean;
   onSee?: (section: SectionName) => void;
   className?: string;
 }) {
@@ -23,7 +26,13 @@ export function SectionStep({
   switch (part.state) {
     case "input-streaming":
     case "input-available":
-      return <p className={line}>Checking the quotes in {name}…</p>;
+      return (
+        <p className={line}>
+          {stopped
+            ? `Stopped checking the quotes in ${name}`
+            : `Checking the quotes in ${name}…`}
+        </p>
+      );
 
     case "output-error":
       return (

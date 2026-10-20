@@ -139,22 +139,23 @@ const DISCARDED =
 
 describe("the kept conversation", () => {
   it("comes back as it was kept", () => {
-    keepConversation({ messages: DRAFTED, interrupted: true });
+    keepConversation({ messages: DRAFTED, interrupted: true, stopped: [] });
 
     expect(kept()).toEqual({
       format: STORED_FORMAT,
       messages: DRAFTED,
       interrupted: true,
+      stopped: [],
     });
     expect(restoreConversation()).toEqual({
       status: "restored",
-      conversation: { messages: DRAFTED, interrupted: true },
+      conversation: { messages: DRAFTED, interrupted: true, stopped: [] },
     });
   });
 
   it("is forgotten once the conversation is empty", () => {
-    keepConversation({ messages: DRAFTED, interrupted: false });
-    keepConversation({ messages: [], interrupted: false });
+    keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
+    keepConversation({ messages: [], interrupted: false, stopped: [] });
 
     expect(kept()).toBeNull();
     expect(restoreConversation()).toEqual({ status: "none" });
@@ -163,6 +164,10 @@ describe("the kept conversation", () => {
   it.each([
     ["an earlier format", { format: 0, messages: DRAFTED, interrupted: false }],
     ["no format", { messages: DRAFTED, interrupted: false }],
+    [
+      "no list of stopped answers",
+      { format: STORED_FORMAT, messages: DRAFTED, interrupted: false },
+    ],
     [
       "a saved section in another form",
       {
@@ -183,6 +188,7 @@ describe("the kept conversation", () => {
           },
         ],
         interrupted: false,
+        stopped: [],
       },
     ],
     [
@@ -205,6 +211,7 @@ describe("the kept conversation", () => {
           },
         ],
         interrupted: false,
+        stopped: [],
       },
     ],
     [
@@ -213,6 +220,7 @@ describe("the kept conversation", () => {
         format: STORED_FORMAT,
         messages: [{ ...DRAFTED[0], parts: [{ type: "file", url: "data:," }] }],
         interrupted: false,
+        stopped: [],
       },
     ],
     [
@@ -221,11 +229,12 @@ describe("the kept conversation", () => {
         format: STORED_FORMAT,
         messages: [{ ...DRAFTED[0], role: "system" }],
         interrupted: false,
+        stopped: [],
       },
     ],
     [
       "no messages",
-      { format: STORED_FORMAT, messages: [], interrupted: false },
+      { format: STORED_FORMAT, messages: [], interrupted: false, stopped: [] },
     ],
   ])("is discarded and removed when it holds %s", (_, value) => {
     stored(value);
@@ -250,7 +259,11 @@ describe("the kept conversation", () => {
     try {
       expect(restoreConversation()).toEqual({ status: "none" });
       expect(() =>
-        keepConversation({ messages: DRAFTED, interrupted: false }),
+        keepConversation({
+          messages: DRAFTED,
+          interrupted: false,
+          stopped: [],
+        }),
       ).not.toThrow();
     } finally {
       vi.restoreAllMocks();
@@ -260,7 +273,7 @@ describe("the kept conversation", () => {
 
 describe("the home page after a reload", () => {
   it("opens on the chat and the PRD when a conversation is kept, without sending anything", () => {
-    keepConversation({ messages: DRAFTED, interrupted: false });
+    keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
     render(<Workspace />);
 
     expect(introHeading()).not.toBeInTheDocument();
@@ -277,7 +290,7 @@ describe("the home page after a reload", () => {
   });
 
   it("shows the visitor's own message in a chat quote's pop-over, from the kept conversation", () => {
-    keepConversation({ messages: DRAFTED, interrupted: false });
+    keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
     render(<Workspace />);
 
     fireEvent.click(screen.getByRole("button", { name: "You, in this chat" }));
@@ -289,7 +302,7 @@ describe("the home page after a reload", () => {
   });
 
   it("offers Try again when the kept answer broke off, and retrying replaces it", async () => {
-    keepConversation({ messages: DRAFTED, interrupted: true });
+    keepConversation({ messages: DRAFTED, interrupted: true, stopped: [] });
     fetchMock.mockResolvedValueOnce(
       answer(text("reply-2", "Here it is again.")),
     );
@@ -309,7 +322,7 @@ describe("the home page after a reload", () => {
   });
 
   it("drops the kept answer that broke off when the visitor sends a new message instead", async () => {
-    keepConversation({ messages: DRAFTED, interrupted: true });
+    keepConversation({ messages: DRAFTED, interrupted: true, stopped: [] });
     fetchMock.mockResolvedValueOnce(answer(text("reply-2", "Noted.")));
     render(<Workspace />);
 
@@ -352,8 +365,45 @@ describe("the home page after a reload", () => {
     ]);
   });
 
+  it("still reads a stopped answer as stopped, with no Try again", () => {
+    // The drafted answer, stopped while a second search ran.
+    const messages = DRAFTED.map((message) =>
+      message.role === "assistant"
+        ? {
+            ...message,
+            parts: [
+              ...message.parts,
+              {
+                type: "tool-searchNotes" as const,
+                toolCallId: "search-2",
+                state: "input-available" as const,
+                input: { query: "pings" },
+              },
+            ],
+          }
+        : message,
+    );
+    keepConversation({
+      messages,
+      interrupted: false,
+      stopped: ["visitor-1"],
+    });
+    render(<Workspace />);
+
+    expect(screen.getByText("You stopped this answer.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Stopped searching the interviews for “pings”"),
+    ).toBeInTheDocument();
+    expect(introStatements()).toHaveTextContent(
+      "Henk wants a ping for every item.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("forgets the kept conversation on Start over", () => {
-    keepConversation({ messages: DRAFTED, interrupted: false });
+    keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
     render(<Workspace />);
 
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
@@ -400,7 +450,7 @@ describe("the download", () => {
         expect(this.href).toBe("blob:prd");
       });
     try {
-      keepConversation({ messages: DRAFTED, interrupted: false });
+      keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
       render(<Workspace />);
       const prd = screen.getByRole("region", {
         name: "Shared grocery list app",

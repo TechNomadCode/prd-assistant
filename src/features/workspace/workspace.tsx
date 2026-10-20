@@ -26,8 +26,15 @@ import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
 import { breakItSuggestion, conversationStarted } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
 import { keepConversation, restoreConversation } from "./stored-conversation";
+import { finishedOnly } from "./stopped-answer";
 
-const transport = new DefaultChatTransport<ChatMessage>({ api: "/api/chat" });
+const transport = new DefaultChatTransport<ChatMessage>({
+  api: "/api/chat",
+  // A stopped answer goes back with only the parts it finished.
+  prepareSendMessagesRequest: ({ body, id, messages, trigger, messageId }) => ({
+    body: { ...body, id, messages: finishedOnly(messages), trigger, messageId },
+  }),
+});
 
 /** The chat and the PRD's heading, for screen readers. */
 const WORKSPACE_TITLE_ID = "workspace-title";
@@ -72,6 +79,8 @@ function RestoredWorkspace() {
   const introRequest = useRef(false);
   // Where focus goes once the intro has given way to the chat, or come back.
   const focusNext = useRef<FocusTarget>(undefined);
+  // The visitor pressed Stop, as opposed to "Start over", which stops too.
+  const stopRequested = useRef(false);
   const {
     messages,
     sendMessage,
@@ -90,6 +99,11 @@ function RestoredWorkspace() {
   // The kept conversation's last answer broke off before the reload, so the
   // chat shows it as failed, with "Try again", until the next request.
   const [interrupted, setInterrupted] = useState(kept?.interrupted ?? false);
+  // The questions whose answers the visitor stopped: each reads as stopped,
+  // after a reload too.
+  const [stopped, setStopped] = useState<ReadonlySet<string>>(
+    () => new Set(kept?.stopped),
+  );
   // A kept conversation that no longer fit was discarded: the intro says so.
   const [discarded, setDiscarded] = useState(restored.status === "discarded");
   // The day's free AI allocation is used up. It stays so until the page
@@ -136,8 +150,13 @@ function RestoredWorkspace() {
   // Kept after every answer, finished or failed, never halfway: a reload
   // during an answer brings back the conversation from before it.
   useEffect(() => {
-    if (!working) keepConversation({ messages, interrupted: failed });
-  }, [messages, working, failed]);
+    if (working) return;
+    keepConversation({
+      messages,
+      interrupted: failed,
+      stopped: messages.flatMap(({ id }) => (stopped.has(id) ? [id] : [])),
+    });
+  }, [messages, working, failed, stopped]);
 
   const checkInArrived =
     checkIn !== undefined &&
@@ -146,12 +165,19 @@ function RestoredWorkspace() {
 
   function send(text: string, { fromIntro = false } = {}) {
     introRequest.current = fromIntro;
+    stopRequested.current = false;
     // An answer that broke off never reaches the model as if it were whole.
     if (failed && messages.at(-1)?.role === "assistant") {
       setMessages(messages.slice(0, -1));
     }
     setInterrupted(false);
     void sendMessage({ text });
+  }
+
+  /** Ends the answer on its way; what it finished stays. */
+  function stopAnswer() {
+    stopRequested.current = true;
+    void stop();
   }
 
   function retry() {
@@ -193,11 +219,18 @@ function RestoredWorkspace() {
    */
   function afterAnswer({
     messages: all,
+    isAbort,
     isError,
   }: {
     messages: ChatMessage[];
+    isAbort: boolean;
     isError: boolean;
   }) {
+    if (isAbort && stopRequested.current) {
+      const question = all.findLast((message) => message.role === "user");
+      if (question) setStopped((ids) => new Set(ids).add(question.id));
+    }
+    stopRequested.current = false;
     const fromIntro = introRequest.current;
     introRequest.current = false;
     if (!fromIntro || !isError || savedSections(all).size > 0) return;
@@ -216,10 +249,12 @@ function RestoredWorkspace() {
 
   function startOver() {
     introRequest.current = false;
-    stop();
+    stopRequested.current = false;
+    void stop();
     setMessages([]);
     clearError();
     setInterrupted(false);
+    setStopped(new Set());
     setCheckIn(undefined);
     setLeftIntro(false);
     setIntroFailed(false);
@@ -261,6 +296,8 @@ function RestoredWorkspace() {
             setCheckIn(undefined);
             send(text);
           }}
+          onStop={stopAnswer}
+          stopped={stopped}
           onRetry={retry}
           onSeeSection={seeSection}
         />
