@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SavedSection } from "@/lib/chat";
 import {
@@ -23,7 +23,8 @@ import { SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
 export type CheckIn = {
   /** The section it asks for next. */
   next: SectionName;
-  /** Sent, and its section not saved yet. */
+  /** Sent, and its section not saved yet: the button gives way to the
+   * section's own "Drafting…". */
   drafting: boolean;
   /** Sent, and the answer failed before the section was saved. */
   failed: boolean;
@@ -35,22 +36,28 @@ export type CheckIn = {
 /**
  * The PRD as a document: a title block, the explanation, then all nine
  * sections as an outline. A drafted section shows its latest save; one not
- * drafted yet is a grey heading. Sections change only through the chat.
+ * drafted yet is a grey heading. Sections change only through the chat. A
+ * section being drafted says so beside its heading, and one that just changed
+ * lights up briefly; the PRD never scrolls by itself.
  */
 export function PrdDocument({
   sections,
   latest,
+  drafting = NONE,
   checkIn,
   visitorMessages,
   onStartOver,
 }: {
   sections: ReadonlyMap<SectionName, SavedSection>;
   latest: SectionName | undefined;
+  /** The sections the assistant is drafting right now. */
+  drafting?: ReadonlySet<SectionName>;
   checkIn: CheckIn | undefined;
   visitorMessages: ReadonlyMap<string, string>;
   onStartOver: () => void;
 }) {
   const [source, setSource] = useState<StatementSource>();
+  const changes = useChanges(sections);
 
   return (
     <section
@@ -80,8 +87,9 @@ export function PrdDocument({
               {PRODUCT}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Product requirements document · Draft · {sections.size} of{" "}
-              {PRD_SECTIONS.length} sections · From six household interviews
+              Product requirements document · Draft ·{" "}
+              <RollingNumber value={sections.size} /> of {PRD_SECTIONS.length}{" "}
+              sections · From six household interviews
             </p>
             <hr className="border-border" />
             <p className="text-sm leading-relaxed text-muted-foreground">
@@ -95,24 +103,36 @@ export function PrdDocument({
 
           {PRD_SECTIONS.map((name) => {
             const saved = sections.get(name);
+            const changed = changes.get(name);
             return (
               <section
                 key={name}
                 aria-labelledby={sectionAnchor(name)}
-                className="mt-8"
+                className="relative isolate mt-8"
               >
+                {changed !== undefined && (
+                  // Remounted on every change, so its fade starts again.
+                  <span
+                    key={changed}
+                    aria-hidden
+                    className="just-changed absolute -inset-x-3 -inset-y-2 -z-10 rounded-(--radius-control)"
+                  />
+                )}
                 {saved ? (
                   <>
-                    <h3
-                      id={sectionAnchor(name)}
-                      tabIndex={-1}
-                      className="mb-2.5 scroll-mt-6 text-lg font-semibold"
-                    >
-                      {name}{" "}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        {quoteCount(saved)}
-                      </span>
-                    </h3>
+                    <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3">
+                      <h3
+                        id={sectionAnchor(name)}
+                        tabIndex={-1}
+                        className="scroll-mt-6 text-lg font-semibold"
+                      >
+                        {name}{" "}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {quoteCount(saved)}
+                        </span>
+                      </h3>
+                      {drafting.has(name) && <Drafting />}
+                    </div>
                     <ul
                       aria-label={`Statements in ${name}`}
                       className="list-disc space-y-2.5 pl-5 marker:text-muted-foreground"
@@ -131,13 +151,16 @@ export function PrdDocument({
                     )}
                   </>
                 ) : (
-                  <h3
-                    id={sectionAnchor(name)}
-                    className="text-lg font-semibold text-muted-foreground"
-                  >
-                    {name}
-                    <span className="sr-only"> (not drafted yet)</span>
-                  </h3>
+                  <div className="flex flex-wrap items-baseline gap-x-3">
+                    <h3
+                      id={sectionAnchor(name)}
+                      className="text-lg font-semibold text-muted-foreground"
+                    >
+                      {name}
+                      <span className="sr-only"> (not drafted yet)</span>
+                    </h3>
+                    {drafting.has(name) && <Drafting />}
+                  </div>
                 )}
               </section>
             );
@@ -147,6 +170,89 @@ export function PrdDocument({
 
       <SourcePopover source={source} visitorMessages={visitorMessages} />
     </section>
+  );
+}
+
+const NONE: ReadonlySet<SectionName> = new Set();
+
+/** Beside the heading of a section being drafted, with the chat's band. */
+function Drafting() {
+  return <p className="shimmer text-sm text-muted-foreground">Drafting…</p>;
+}
+
+/**
+ * How many times each section changed since the PRD first showed: saved, or
+ * saved again with different statements. The sections it opened with, such
+ * as those brought back after a reload, and a save that changes nothing,
+ * don't count.
+ */
+function useChanges(
+  sections: ReadonlyMap<SectionName, SavedSection>,
+): ReadonlyMap<SectionName, number> {
+  const current = useMemo(
+    () =>
+      new Map(
+        [...sections].map(([name, { section }]) => [
+          name,
+          JSON.stringify(section.statements),
+        ]),
+      ),
+    [sections],
+  );
+  const [shown, setShown] = useState(current);
+  const [changes, setChanges] = useState<ReadonlyMap<SectionName, number>>(
+    () => new Map(),
+  );
+  // Adjusted while rendering, React's pattern for state that follows a prop
+  // (https://react.dev/reference/react/useState, "Storing information from
+  // previous renders"). A section that "Start over" removed lights up again
+  // when it's saved again.
+  const names = new Set([...current.keys(), ...shown.keys()]);
+  if ([...names].some((name) => current.get(name) !== shown.get(name))) {
+    const changed = [...current.keys()].filter(
+      (name) => current.get(name) !== shown.get(name),
+    );
+    setShown(current);
+    if (changed.length > 0) {
+      setChanges((counts) => {
+        const next = new Map(counts);
+        for (const name of changed) next.set(name, (counts.get(name) ?? 0) + 1);
+        return next;
+      });
+    }
+  }
+  return changes;
+}
+
+/**
+ * A number that rolls to its new value: the old one leaves as the new one
+ * comes in, upwards when it grows. Plain text at rest; with reduced motion
+ * the CSS changes it at once (`.roll` in `src/app/globals.css`).
+ */
+function RollingNumber({ value }: { value: number }) {
+  const [shown, setShown] = useState(value);
+  const [from, setFrom] = useState<number>();
+  if (value !== shown) {
+    setShown(value);
+    setFrom(shown);
+  }
+  if (from === undefined) return value;
+  return (
+    <span
+      className="roll tabular-nums"
+      data-direction={value > from ? "up" : "down"}
+    >
+      <span key={`${from}-${value}`} aria-hidden className="roll-out">
+        {from}
+      </span>
+      <span
+        key={value}
+        className="roll-in"
+        onAnimationEnd={() => setFrom(undefined)}
+      >
+        {value}
+      </span>
+    </span>
   );
 }
 
@@ -221,11 +327,8 @@ function CheckInButton({
   disabled,
   onConfirm,
 }: CheckIn) {
-  if (drafting) {
-    return (
-      <p className="mt-4 text-sm text-muted-foreground">Drafting {next}…</p>
-    );
-  }
+  // The section asked for says "Drafting…" beside its own heading.
+  if (drafting) return null;
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
       <Button disabled={disabled} onClick={onConfirm}>

@@ -295,6 +295,16 @@ describe("the home page after a reload", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("doesn't light up the sections it brings back, nor roll the count", () => {
+    keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
+    render(<Workspace />);
+
+    const prd = screen.getByRole("region", { name: "Shared grocery list app" });
+    expect(prd.querySelector(".just-changed")).toBeNull();
+    expect(prd.querySelector(".roll")).toBeNull();
+    expect(prd).toHaveTextContent("1 of 9 sections");
+  });
+
   it("shows the visitor's own message in a chat quote's pop-over, from the kept conversation", () => {
     keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
     render(<Workspace />);

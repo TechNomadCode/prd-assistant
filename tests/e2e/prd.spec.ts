@@ -193,7 +193,7 @@ test.describe("the PRD", () => {
       await expect(prd(page)).toContainText("2 of 9 sections");
     });
 
-    test("reads Drafting while it works, and comes back with a line beside it when the answer fails", async ({
+    test("says Drafting beside the next section while it works, and comes back with a line beside it when the answer fails", async ({
       page,
     }) => {
       await draftFirstSection(page);
@@ -208,7 +208,14 @@ test.describe("the PRD", () => {
         .getByRole("button", { name: "Looks right: draft Goals / Objectives" })
         .click();
 
-      await expect(prd(page)).toContainText("Drafting Goals / Objectives…");
+      const drafting = page
+        .getByRole("region", { name: /^Goals \/ Objectives/ })
+        .getByText("Drafting…");
+      await expect(drafting).toBeVisible();
+      await expect(drafting).toHaveCSS("animation-name", "shimmer");
+      await expect(
+        page.getByRole("region", { name: /^Introduction \/ Overview/ }),
+      ).not.toContainText("Drafting");
       await expect(
         page.getByRole("button", { name: /^Looks right/ }),
       ).toHaveCount(0);
@@ -228,6 +235,72 @@ test.describe("the PRD", () => {
       await expect(prd(page)).not.toContainText("That answer didn't finish.");
     });
   });
+
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`lights up a section as it's saved and rolls the count, without scrolling, and not after a reload (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await draftFirstSection(page);
+      const pane = page.locator(".bg-page");
+      // Each number the count rolls in, as it appears: it's gone 0.3s later,
+      // or stays still with reduced motion, as the first section's 1 does.
+      await page.evaluate(() => {
+        const seen: { text: string; animation: string }[] = [];
+        const before = document.querySelector(".roll-in")?.textContent;
+        Object.assign(window, { rolledIn: seen });
+        new MutationObserver(() => {
+          const incoming = document.querySelector(".roll-in");
+          const last = seen.at(-1)?.text ?? before;
+          if (incoming && last !== incoming.textContent) {
+            seen.push({
+              text: incoming.textContent ?? "",
+              animation: getComputedStyle(incoming).animationName,
+            });
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+
+      // Enabled once the answer has finished: Playwright retries a click on a
+      // disabled button, and its retries scroll the button into view, which
+      // would look like the PRD scrolling by itself.
+      const checkIn = page.getByRole("button", { name: /^Looks right/ });
+      await expect(checkIn).toBeEnabled();
+      await checkIn.click();
+      await expect(statements(page, GOALS)).not.toHaveCount(0);
+      await expect(checkIn).toHaveAccessibleName(
+        "Looks right: draft Target Audience / User Personas",
+      );
+      await expect(checkIn).toBeEnabled();
+
+      const goals = page.getByRole("region", { name: /^Goals \/ Objectives/ });
+      const highlight = goals.locator(".just-changed");
+      // The fade runs with reduced motion too: it doesn't move.
+      await expect(highlight).toHaveCSS("animation-name", "just-changed");
+      await expect(highlight).toHaveCSS("animation-duration", "2s");
+      await expect(highlight).toHaveCSS("border-top-width", "0px");
+      await expect(prd(page)).toContainText("2 of 9 sections");
+      expect(
+        await page.evaluate(
+          () => (window as unknown as { rolledIn: unknown[] }).rolledIn,
+        ),
+      ).toEqual([
+        {
+          text: "2",
+          animation: reducedMotion === "reduce" ? "none" : "roll-in-up",
+        },
+      ]);
+      if (reducedMotion === "reduce") {
+        await expect(prd(page).locator(".roll-out")).toBeHidden();
+      }
+      await expect(pane).toHaveJSProperty("scrollTop", 0);
+
+      await page.reload();
+      await expect(statements(page, GOALS)).not.toHaveCount(0);
+      await expect(prd(page).locator(".just-changed")).toHaveCount(0);
+      await expect(prd(page).locator(".roll")).toHaveCount(0);
+    });
+  }
 
   test("See it brings the section into view; nothing else scrolls the PRD", async ({
     page,

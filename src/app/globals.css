@@ -87,6 +87,85 @@ body {
 }
 
 /*
+ * A PRD section just saved, or saved again with different statements: a soft
+ * highlight behind it that fades to the page in about two seconds, with no
+ * border. A fade isn't motion, so it shows with reduced motion too.
+ */
+.just-changed {
+  animation: just-changed 2s ease-in both;
+}
+
+@keyframes just-changed {
+  from {
+    background-color: rgb(255 255 255 / 0.1);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+/*
+ * The PRD's section count rolls to its new number: the old one leaves upwards
+ * as the new one comes in from below, the other way when it drops. With
+ * reduced motion the number changes at once.
+ */
+.roll {
+  position: relative;
+  display: inline-block;
+  clip-path: inset(0);
+}
+
+.roll-out {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .roll-out {
+    display: block;
+    position: absolute;
+    inset: 0;
+    animation: roll-out-up 0.3s ease-out both;
+  }
+
+  .roll-in {
+    display: inline-block;
+    animation: roll-in-up 0.3s ease-out both;
+  }
+
+  .roll[data-direction="down"] .roll-out {
+    animation-name: roll-out-down;
+  }
+
+  .roll[data-direction="down"] .roll-in {
+    animation-name: roll-in-down;
+  }
+}
+
+@keyframes roll-in-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes roll-out-up {
+  to {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes roll-in-down {
+  from {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes roll-out-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/*
  * The pop-over a source's name opens. On a phone it isn't anchored: nearly
  * full width, scrolling inside, closed by a tap outside. On a laptop it sits
  * by the name that opened it where the browser has anchor positioning, and is
