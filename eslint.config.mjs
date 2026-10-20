@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     ".kit/**",
+    // Claude Code's worktrees for parallel sessions, each its own checkout:
+    ".claude/**",
   ]),
 ]);
 
