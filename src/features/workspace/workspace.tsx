@@ -7,6 +7,7 @@ import { Chat, MESSAGE_BOX_ID } from "@/features/chat/chat";
 import { PrdDocument } from "@/features/prd/prd-document";
 import {
   latestSave,
+  QUOTA_USED_UP,
   savedSections,
   textOf,
   type ChatMessage,
@@ -53,7 +54,15 @@ export function Workspace() {
     stop,
     clearError,
     status,
-  } = useChat<ChatMessage>({ transport, onFinish: afterAnswer });
+    error,
+  } = useChat<ChatMessage>({
+    transport,
+    onError: noteQuota,
+    onFinish: afterAnswer,
+  });
+  // The day's free AI allocation is used up. It stays so until the page
+  // reloads, through "Start over" too: nothing can be sent before 00:00 UTC.
+  const [quotaUsedUp, setQuotaUsedUp] = useState(false);
   // The message box's text lives here, not in the chat, so it outlasts the
   // intro coming back after a failed first request.
   const [draft, setDraft] = useState("");
@@ -120,6 +129,14 @@ export function Workspace() {
   }
 
   /**
+   * Every failed answer, before `afterAnswer`. The server words the used-up
+   * allocation as `QUOTA_USED_UP`; once seen, it lasts until a reload.
+   */
+  function noteQuota(failure: Error) {
+    if (failure.message === QUOTA_USED_UP) setQuotaUsedUp(true);
+  }
+
+  /**
    * After every answer. When the intro's request failed before a section was
    * saved, the intro comes back with a message and its button, and the
    * conversation stays empty. Once a section is saved, a failure stays in the
@@ -165,6 +182,7 @@ export function Workspace() {
     return (
       <Intro
         failed={introFailed}
+        quotaUsedUp={quotaUsedUp}
         onDraft={draftFirstSection}
         onAsk={askOwnQuestion}
       />
@@ -183,6 +201,8 @@ export function Workspace() {
         <Chat
           messages={messages}
           status={status}
+          error={error}
+          quotaUsedUp={quotaUsedUp}
           suggestion={suggestion}
           draft={draft}
           onDraftChange={setDraft}
@@ -201,7 +221,8 @@ export function Workspace() {
           visitorMessages={visitorMessages}
           onStartOver={startOver}
           checkIn={
-            next === undefined
+            // The check-in sends a message too, so it goes with the message box.
+            next === undefined || quotaUsedUp
               ? undefined
               : {
                   next: checkInOpen ? checkIn.section : next,

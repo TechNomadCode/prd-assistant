@@ -20,13 +20,12 @@
 
 ### Build lane
 - **Where:** its own worktree per piece, on a branch from an up-to-date `main`. If the session isn't in a worktree yet (`git worktree list` shows its folder as the main checkout, not under `.claude/worktrees/`), it creates one before touching anything, and never checks out a branch in the main folder, where the measurement lane works. Claude Code's worktree option puts it under `.claude/worktrees/`; run `npm ci` there first. Its browser check uses `app-build` in `.claude/launch.json` (port 3200), never `app` or `app-real`, which are the measurement lane's on port 3000. It never runs `measure`, `measure:fake` or `dev:real`, never edits the measurement lane's files above, and changes code in `src/server` only where its piece needs it, never what the model receives (listed above); its pull request says which `src/server` files it changed and why.
-- **Doing:** nothing yet; slice 7 (eebbacf) and KI-6 (4c9061c) are merged.
+- **Doing:** slice 8a is done on `feat/quota-message` (`.claude/worktrees/quota-message`), waiting for the owner's push and merge. Local checks on 2026-10-20: `verify` (390 unit tests) and `test:e2e` (33), all passed. Its pull request names the `src/server` changes for the measurement lane: the transport no longer retries a quota 429 and drops retry waits over 5 seconds; the requests are unchanged; `tests/unit/measurement-runner.test.ts` now counts one quota request instead of three.
 - **Next:**
-  1. Slice 8a, the quota message (below): it needs nothing from *Deferred*. It touches the chat's error handling in `src/server` and may change the transport in `src/server/ai/cloudflare.ts` (below), as long as the requests to the model stay the same.
-  2. Slice 10, keeping the PRD after a reload and the download: it waited only for slice 7 and 9c's code, both merged.
-  3. Slice 8, the rate limit, once 9d is done and the owner has decided its legal basis and size (*Deferred*).
-- **Unverified:** on staging, a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, the table fix and the intro screen; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
-- **Waiting on the owner:** when the build lane starts slice 8a; removing the merged worktrees of slice 7 and KI-6 (`.claude/worktrees/wf_d381d3ee-548-1` and `-2`), which no lane removes by itself; the GitHub description and topics whenever they like.
+  1. Slice 10, keeping the PRD after a reload and the download, from `main` once slice 8a is merged and pulled: it waited only for slice 7 and 9c's code, both merged.
+  2. Slice 8, the rate limit, once 9d is done and the owner has decided its legal basis and size (*Deferred*).
+- **Unverified:** on staging, the quota message against Cloudflare's real refusal (the tests replay its reply of 2026-10-20) and whether its per-minute 429 carries a retry header; a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, the table fix and the intro screen; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
+- **Waiting on the owner:** pushing `feat/quota-message`, its pull request and the merge; removing the merged worktrees of slice 7 and KI-6 (`.claude/worktrees/wf_d381d3ee-548-1` and `-2`), which no lane removes by itself; the GitHub description and topics whenever they like.
 
 ### Shared rules
 - One branch per piece, from an up-to-date `main`; the owner pushes it, opens the pull request and merges it (`AGENTS.md`, Branches). After the other lane's merge, rebase an unpushed branch onto `main`, and merge `main` into a pushed one; never rewrite a pushed branch.
@@ -61,15 +60,7 @@
 
 ### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: done (eebbacf)
 
-### 8a · The quota message · risk: normal · status: todo
-- **Goal:** when Cloudflare's daily allocation is used up, or Cloudflare is busy, a visitor sees why and when to come back, never a generic error and a "Try again" that can't work.
-- **Acceptance:**
-  - When Cloudflare answers 429 with code 3036 or 4006 (3036 on its errors page, 4006 from the `/ai/v1` endpoint on 2026-10-20, with the same message; the day's free allocation is used up), the app doesn't retry. The chat input and the intro's button are hidden, and a message says the demo's free AI allocation for today is used up, when it resets (00:00 UTC, also in the visitor's own time), and links to the README and the repository. The chat and the PRD so far stay readable.
-  - When Cloudflare answers any other 429 (the per-minute limit, 300 requests for text generation, or code 3040, out of capacity), the app retries briefly, then tells the visitor the demo is busy and to try again in a minute. This is never shown as the quota being used up.
-  - Every other failure keeps today's error and "Try again".
-  - Unit tests replay Cloudflare's own replies through the chat's code: the 4006 reply of 2026-10-20 (the fixture in `tests/unit/measurement-runner.test.ts` is a copy; the measurement's records are git-ignored and absent from a worktree), a 3036 one and a per-minute one. An end-to-end test checks what the visitor sees from the app's own quota error, with `/api/chat` answered by `page.route`, since the intro's fixed request can't carry a fake failure (`tests/AGENTS.md`).
-  - How to stop the retries (found by the review of 2026-10-20): the AI SDK retries every 429 and `maxRetries` takes only a number, so a `fetch` wrapper in `src/server/ai/cloudflare.ts` turns a quota 429 into an error the SDK doesn't retry, as the measurement's `BudgetExceededError` does (`src/server/AGENTS.md`). The request bodies stay as they are. The measurement uses the same adapter, so `tests/unit/measurement-runner.test.ts` may see one refused request where it counted three: update those expectations in the same branch and say so in the pull request; the measurement lane reads that merge before its next batch.
-  - Split from slice 8 (the owner, 2026-10-20; `docs/decisions.md`): it needs no decision from *Deferred*, and on 2026-10-20 the account was refused all morning while staging showed only the generic error.
+### 8a · The quota message · risk: normal · status: done (on `feat/quota-message`; its id on `main` goes here after the merge)
 
 ### 8 · Rate limit · risk: risky (personal data, permissions) · status: todo
 - **Goal:** one visitor can't use up the free quota.

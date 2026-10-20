@@ -836,8 +836,9 @@ describe("a batch", () => {
         },
       },
     ]);
-    // The AI SDK's own two retries, then nothing more.
-    expect(env.sent).toHaveLength(3);
+    // The Cloudflare adapter stops the AI SDK's retries at the quota, since
+    // none can work before 00:00 UTC (docs/plan.md, slice 8a).
+    expect(env.sent).toHaveLength(1);
     expect(existsSync(join(folder, "baseline", today(), "A-1.json"))).toBe(
       false,
     );
