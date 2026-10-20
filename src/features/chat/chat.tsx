@@ -1,7 +1,13 @@
 "use client";
 
 import type { ChatStatus } from "ai";
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { QuotaNotice } from "@/features/workspace/quota";
 import { DEMO_BUSY, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
@@ -54,8 +60,15 @@ export function Chat({
   onSeeSection: (section: SectionName) => void;
 }) {
   const box = useRef<HTMLTextAreaElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  // Shown as "Jump to latest" while the visitor reads further up.
+  const [awayFromEnd, setAwayFromEnd] = useState(false);
+  // A smooth jump on its way, and where its last step left the chat: its
+  // steps scroll down, so they don't count as the visitor scrolling up.
+  const jumping = useRef(false);
+  const lastScrollTop = useRef(0);
 
   const working = status === "submitted" || status === "streaming";
   const canSend = !working && draft.trim() !== "";
@@ -79,6 +92,60 @@ export function Chat({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  // The conversation can grow without a scroll, as when the visitor opens a
+  // search's passages: that leaves the chat away from its end too. Only the
+  // button changes; whether the chat follows stays as it was. The list
+  // exists once the conversation has a message.
+  const empty = messages.length === 0;
+  useEffect(() => {
+    const element = scroller.current;
+    const list = element?.querySelector(":scope > ol");
+    if (!element || !list) return;
+    const observer = new ResizeObserver(() => {
+      if (jumping.current) return;
+      setAwayFromEnd(
+        element.scrollHeight - element.scrollTop - element.clientHeight >=
+          FOLLOW_MARGIN,
+      );
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [empty]);
+
+  function noteScroll() {
+    const element = scroller.current;
+    if (!element) return;
+    const atEnd =
+      element.scrollHeight - element.scrollTop - element.clientHeight <
+      FOLLOW_MARGIN;
+    const scrolledUp = element.scrollTop < lastScrollTop.current;
+    lastScrollTop.current = element.scrollTop;
+    if (jumping.current && !atEnd && !scrolledUp) return;
+    jumping.current = false;
+    following.current = atEnd;
+    setAwayFromEnd(!atEnd);
+  }
+
+  function jumpToLatest() {
+    const element = scroller.current;
+    if (!element) return;
+    following.current = true;
+    jumping.current = true;
+    setAwayFromEnd(false);
+    // The button goes with the click, so focus moves on first, to where the
+    // visitor goes on: the message box, or the chat's heading once the day's
+    // allocation is used up and the box is gone.
+    if (quotaUsedUp) heading.current?.focus();
+    else box.current?.focus();
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: reduced ? "instant" : "smooth",
+    });
+  }
 
   function send() {
     if (!canSend) return;
@@ -112,18 +179,13 @@ export function Chat({
       aria-labelledby="chat-title"
       className="flex flex-col gap-4 lg:min-h-0 lg:flex-1"
     >
-      <h2 id="chat-title" className="sr-only">
+      <h2 id="chat-title" ref={heading} tabIndex={-1} className="sr-only">
         Chat with the assistant
       </h2>
 
       <div
         ref={scroller}
-        onScroll={(event) => {
-          const element = event.currentTarget;
-          following.current =
-            element.scrollHeight - element.scrollTop - element.clientHeight <
-            FOLLOW_MARGIN;
-        }}
+        onScroll={noteScroll}
         className="relative space-y-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
       >
         <Conversation
@@ -145,6 +207,23 @@ export function Chat({
             </p>
             <Button variant="outline" onClick={onRetry}>
               Try again
+            </Button>
+          </div>
+        )}
+
+        {/* Pinned to the bottom of the pane, over the conversation, and last
+            in it, so it comes after the newest message in the tab order. It
+            takes no room: no height, and its -24px cancels the space-y gap
+            it gives the item before it. A phone's chat doesn't scroll on its
+            own, so it never shows there. */}
+        {awayFromEnd && (
+          <div className="sticky bottom-0 -mt-6 hidden h-0 lg:block">
+            <Button
+              variant="outline"
+              onClick={jumpToLatest}
+              className="absolute bottom-3 left-1/2 h-8 -translate-x-1/2 bg-background px-3 hover:bg-bubble"
+            >
+              Jump to latest
             </Button>
           </div>
         )}

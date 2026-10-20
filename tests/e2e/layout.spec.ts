@@ -248,6 +248,82 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     await expect.poll(distanceFromEnd).toBeLessThan(2);
   });
 
+  test("offers Jump to latest while the visitor reads further up during an answer, and the chat follows again after it", async ({
+    page,
+  }) => {
+    // Short enough that one answer fills the chat.
+    await page.setViewportSize({ width: 1440, height: 480 });
+    await openChat(page);
+    await ask(page, "Draft the first section.");
+    await expect(turns(page).nth(1)).toContainText(ANSWER_END);
+
+    // The next answer is held, so it's still on its way while the visitor
+    // reads.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(
+      "**/api/chat",
+      async (route) => {
+        await held;
+        await route.continue();
+      },
+      { times: 1 },
+    );
+    await ask(page, QUESTION);
+    const working = conversation(page).getByText("Working…");
+    await expect(working).toBeInViewport();
+
+    const scroller = page.locator("#chat-title + div");
+    const distanceFromEnd = () =>
+      scroller.evaluate(
+        (element) =>
+          element.scrollHeight - element.scrollTop - element.clientHeight,
+      );
+    const jump = page.getByRole("button", { name: "Jump to latest" });
+    await expect(jump).toHaveCount(0);
+
+    await scroller.hover();
+    await page.mouse.wheel(0, -2000);
+    await expect(jump).toBeVisible();
+    await expect(working).not.toBeInViewport();
+    // Square corners, like the other buttons.
+    await expect(jump).toHaveCSS("border-radius", "4px");
+    await expectNoAccessibilityViolations(page);
+
+    await jump.click();
+    await expect(working).toBeInViewport();
+    await expect(jump).toHaveCount(0);
+    await expect(
+      page.getByRole("textbox", { name: "Your message" }),
+    ).toBeFocused();
+
+    // Following again: the answer arrives, and the chat keeps its end.
+    release();
+    await expect(turns(page).nth(3)).toContainText(ANSWER_END);
+    await expect.poll(distanceFromEnd).toBeLessThan(2);
+    await expect(jump).toHaveCount(0);
+  });
+
+  test("offers Jump to latest once opened passages push the chat's end out of view", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 480 });
+    await openChat(page);
+    await ask(page, "Draft the first section.");
+    await expect(turns(page).nth(1)).toContainText(ANSWER_END);
+    const jump = page.getByRole("button", { name: "Jump to latest" });
+
+    await turns(page)
+      .nth(1)
+      .getByRole("button", { name: /closest passages from/ })
+      .click();
+    await expect(jump).toBeVisible();
+
+    await jump.click();
+    await expect(turns(page).nth(1).getByText(ANSWER_END)).toBeInViewport();
+    await expect(jump).toHaveCount(0);
+  });
+
   test("keeps the focused skip link inside the slimmer header", async ({
     page,
   }) => {
@@ -321,5 +397,26 @@ test.describe("the workspace on a phone", () => {
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+  });
+
+  test("never offers Jump to latest, since the chat doesn't scroll on its own", async ({
+    page,
+  }) => {
+    await openChat(page);
+    await ask(page, "Draft the first section.");
+    await expect(turns(page).nth(1)).toContainText(ANSWER_END);
+
+    // The page scrolls, not the chat's pane.
+    const scroller = page.locator("#chat-title + div");
+    expect(
+      await scroller.evaluate(
+        (element) => element.scrollHeight <= element.clientHeight,
+      ),
+    ).toBe(true);
+    await page.mouse.wheel(0, 2000);
+    await page.mouse.wheel(0, -2000);
+    await expect(
+      page.getByRole("button", { name: "Jump to latest" }),
+    ).toHaveCount(0);
   });
 });
