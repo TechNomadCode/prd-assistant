@@ -479,6 +479,48 @@ describe("answering in the chat", () => {
       ),
     );
   });
+
+  it("ends with no further model calls when the visitor stops the answer", async () => {
+    const fake = createFakeChatModel({
+      chunkDelayInMs: 0,
+      failedMessages: new Set(),
+    });
+    let calls = 0;
+    const model: ChatModel = {
+      ...fake,
+      doStream: (call) => {
+        calls += 1;
+        return fake.doStream(call);
+      },
+    };
+    // The route hands the browser's cancel to the answer as this signal.
+    const stop = new AbortController();
+    const chunks: UIMessageChunk[] = [];
+
+    for await (const chunk of streamAnswer(
+      [visitor("Draft the first section.")],
+      {
+        abortSignal: stop.signal,
+        dependencies: {
+          model,
+          search: async () => [HENK, DAAN],
+          findPassages: async (ids) =>
+            STORED.filter((passage) => ids.includes(passage.passage)),
+        },
+      },
+    )) {
+      chunks.push(chunk);
+      // Stop once the search is asked for: the save and the reply would
+      // each take another call.
+      if (chunk.type === "tool-input-available") stop.abort();
+    }
+
+    expect(calls).toBe(1);
+    expect(
+      chunks.filter((chunk) => chunk.type === "tool-input-available"),
+    ).toHaveLength(1);
+    expect(textIn(chunks)).toBe("");
+  });
 });
 
 describe("saving a section", () => {

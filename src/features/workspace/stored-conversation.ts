@@ -22,13 +22,15 @@ export const STORAGE_KEY = "prd-assistant:conversation";
  * to the parts the chat shows, or an upgrade of `ai`. An older one is then
  * discarded with a notice, not shown broken.
  */
-export const STORED_FORMAT = 1;
+export const STORED_FORMAT = 2;
 
 /** The conversation as it was last kept. */
 export type StoredConversation = {
   messages: ChatMessage[];
   /** The last answer broke off, so the chat offers "Try again". */
   interrupted: boolean;
+  /** The questions whose answers the visitor stopped, by message id. */
+  stopped: string[];
 };
 
 /** What the page found in storage when it opened. */
@@ -132,6 +134,7 @@ const storedSchema = z.object({
   format: z.literal(STORED_FORMAT),
   messages: z.array(messageSchema),
   interrupted: z.boolean(),
+  stopped: z.array(z.string()),
 });
 
 /**
@@ -160,6 +163,7 @@ export function restoreConversation(): RestoredConversation {
       // loosely are the server's own, and the server checks them again.
       messages: result.data.messages as ChatMessage[],
       interrupted: result.data.interrupted,
+      stopped: result.data.stopped,
     },
   };
 }
@@ -172,6 +176,7 @@ export function restoreConversation(): RestoredConversation {
 export function keepConversation({
   messages,
   interrupted,
+  stopped,
 }: StoredConversation) {
   if (messages.length === 0) {
     forgetConversation();
@@ -180,7 +185,7 @@ export function keepConversation({
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ format: STORED_FORMAT, messages, interrupted }),
+      JSON.stringify({ format: STORED_FORMAT, messages, interrupted, stopped }),
     );
   } catch {
     // Nothing to do: the conversation on screen is unaffected.

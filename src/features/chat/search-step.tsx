@@ -11,9 +11,12 @@ const SHOWN_QUERY_LENGTH = 80;
 /** One search the assistant ran: one line that opens to its passages. */
 export function SearchStep({
   part,
+  stopped = false,
   className,
 }: {
   part: SearchNotesPart;
+  /** Its answer was stopped, so a search still running never finished. */
+  stopped?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -25,7 +28,9 @@ export function SearchStep({
     case "input-available":
       return (
         <p className={cn("text-sm text-muted-foreground", className)}>
-          Searching the interviews for “{query}”…
+          {stopped
+            ? `Stopped searching the interviews for “${query}”`
+            : `Searching the interviews for “${query}”…`}
         </p>
       );
 

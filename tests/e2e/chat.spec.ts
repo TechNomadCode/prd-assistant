@@ -111,6 +111,34 @@ test.describe("chat", () => {
     });
   }
 
+  test("stops an answer with Stop, keeping what the visitor typed and the focus, and the chat goes on, after a reload too", async ({
+    page,
+  }) => {
+    // Held, so the answer is still on its way when Stop is clicked.
+    await page.route("**/api/chat", () => {}, { times: 1 });
+    await openChat(page);
+    await ask(page, QUESTION);
+    const box = page.getByRole("textbox", { name: "Your message" });
+    await box.fill("Who doesn't?");
+
+    await page.getByRole("button", { name: "Stop" }).click();
+
+    await expect(conversation(page)).toContainText(
+      `${QUESTION}AssistantYou stopped this answer.`,
+    );
+    await expect(page.getByRole("button", { name: "Send" })).toBeFocused();
+    await expect(box).toHaveValue("Who doesn't?");
+    await expect(chatAlert(page)).toHaveCount(0);
+    await expectNoAccessibilityViolations(page);
+
+    await page.reload();
+    await expect(conversation(page)).toContainText("You stopped this answer.");
+    await ask(page, `${QUESTION} Again.`);
+    await expect(conversation(page)).toContainText(FAKE_NOTE);
+    await expect(conversation(page)).toContainText("You stopped this answer.");
+    await expect(chatAlert(page)).toHaveCount(0);
+  });
+
   test("keeps the demo notice with the message box", async ({ page }) => {
     await openChat(page);
 
