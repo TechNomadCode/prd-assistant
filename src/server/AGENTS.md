@@ -45,6 +45,7 @@ The owner's decision of 2026-10-19 (`docs/decisions.md`, External services): the
   - Free checks first; the fake model for anything about our own code.
   - One run at a time on this machine, across all sessions; never start runs in parallel.
   - Never rerun to get a better result. A run is rerun only when it couldn't count (a broken setup, "not run"), and the rerun is announced like any run.
+  - No probes (the owner, 2026-10-20): every real-model request is a run of a measurement, sent to measure the model's behaviour, never to see whether Cloudflare accepts requests again. After a refusal, wait for the next reset or the owner's word, then send the planned runs.
   - Before a run, say how many answers it sends and roughly what it costs; stop and report when it costs half as much again as announced.
   - After each run, report its neurons and the running totals for the day and the month.
 - **A stop rule.** Launch needs only the grocery delivery request to pass (`docs/decisions.md`, Launch). A change to what shapes the model ships only if it beats the baseline without worsening another rule: measured on the grocery delivery request alone, then on the full set before it ships (`docs/decisions.md`, External services, 2026-10-19); what remains is reported in the README.
