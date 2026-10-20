@@ -1,14 +1,16 @@
-"use client";
-
-import { useId, useState } from "react";
-import { PassageQuote } from "@/features/transcripts/passage-quote";
+import type { ReactNode } from "react";
 import { listNames, whoseWords, type SearchNotesPart } from "@/lib/chat";
 import { cn } from "@/lib/utils";
 
 /** The line shows this much of a query; the search used all of it. */
 const SHOWN_QUERY_LENGTH = 80;
 
-/** One search the assistant ran: one line that opens to its passages. */
+/**
+ * One search the assistant ran, as a plain line that doesn't open, the way
+ * opencode's desktop app shows a search tool: "Search" in medium weight, then
+ * the query and what came of it in grey (docs/decisions.md, Design,
+ * 2026-10-20). The passages the PRD quotes open from its source names.
+ */
 export function SearchStep({
   part,
   stopped = false,
@@ -19,74 +21,62 @@ export function SearchStep({
   stopped?: boolean;
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const passagesId = useId();
-  const query = shorten(part.input?.query ?? "");
+  const result = outcome(part, stopped);
+  if (result === undefined) return null;
+  // The moving band colours the whole line, so "Search" turns white once
+  // the search is over.
+  const over =
+    stopped ||
+    (part.state !== "input-streaming" && part.state !== "input-available");
+  return (
+    <p
+      className={cn(
+        "text-[0.8125rem] text-muted-foreground",
+        // One line, cut off with an ellipsis, as opencode's; a failure keeps
+        // its whole reason.
+        part.state !== "output-error" && "truncate",
+        className,
+      )}
+    >
+      <span className={cn("font-medium", over && "text-foreground")}>
+        Search
+      </span>{" "}
+      “{shorten(part.input?.query ?? "")}”{result}
+    </p>
+  );
+}
 
+/** What came of a search, after its query; nothing for a state it can't be in. */
+function outcome(part: SearchNotesPart, stopped: boolean): ReactNode {
   switch (part.state) {
     case "input-streaming":
     case "input-available":
-      return (
-        <p className={cn("text-sm text-muted-foreground", className)}>
-          {stopped
-            ? `Stopped searching the interviews for “${query}”`
-            : `Searching the interviews for “${query}”…`}
-        </p>
-      );
-
+      return stopped ? <After>stopped</After> : "…";
     case "output-error":
-      return (
-        <p className={cn("text-sm text-muted-foreground", className)}>
-          Searching the interviews for “{query}” didn&apos;t work.{" "}
-          {part.errorText}
-        </p>
-      );
-
+      return <After>didn&apos;t work. {part.errorText}</After>;
     case "output-available": {
       const { passages } = part.output;
-      if (passages.length === 0) {
-        return (
-          <p className={cn("text-sm text-muted-foreground", className)}>
-            Searched the interviews for “{query}”: no passages came back.
-          </p>
-        );
-      }
+      if (passages.length === 0) return <After>no passages</After>;
       return (
-        <div className={cn("text-sm", className)}>
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls={passagesId}
-            onClick={() => setOpen(!open)}
-            className="text-left text-muted-foreground hover:text-foreground"
-          >
-            <span className="text-foreground">Searched</span> the interviews for
-            “{query}”: closest passages from {listNames(whoseWords(passages))}{" "}
-            <span aria-hidden="true">{open ? "⌃" : "⌄"}</span>
-          </button>
-          <ol
-            id={passagesId}
-            hidden={!open}
-            aria-label={`Passages found for “${query}”`}
-            className="mt-4 space-y-5 border-l border-border pl-4 text-base"
-          >
-            {passages.map((passage) => (
-              <li key={passage.id} className="space-y-2">
-                <PassageQuote
-                  question={passage.question}
-                  answer={passage.answer}
-                  participant={passage.participant}
-                />
-              </li>
-            ))}
-          </ol>
-        </div>
+        <After>
+          <span className="sr-only">passages from </span>
+          {listNames(whoseWords(passages))}
+        </After>
       );
     }
-
     default:
-      return null;
+      return undefined;
   }
+}
+
+/** What follows the query, after a dot that screen readers skip. */
+function After({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <span aria-hidden="true"> · </span>
+      {children}
+    </>
+  );
 }
 
 function shorten(text: string): string {

@@ -20,6 +20,7 @@ import {
 import { Workspace } from "@/features/workspace/workspace";
 import { textOf, type ChatMessage } from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
+import { stepText } from "./step-line";
 
 // The conversation kept in the browser, so the PRD survives a reload: what's
 // kept, what comes back, and what happens to a kept conversation that no
@@ -416,7 +417,7 @@ describe("the home page after a reload", () => {
 
     expect(screen.getByText("You stopped this answer.")).toBeInTheDocument();
     expect(
-      screen.getByText("Stopped searching the interviews for “pings”"),
+      screen.getByText(stepText("Search “pings” · stopped")),
     ).toBeInTheDocument();
     expect(introStatements()).toHaveTextContent(
       "Henk wants a ping for every item.",

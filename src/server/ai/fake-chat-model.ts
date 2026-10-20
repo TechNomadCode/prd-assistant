@@ -31,6 +31,9 @@ import type {
 // - "fake: flawed section": the saved section also quotes a researcher's
 //   question, quotes one passage while citing another, and has a statement
 //   that cites nothing, so the check has something to catch.
+// - "fake: search again": it searches again with the same words for as long
+//   as the search is on offer (three times in all: `MAX_SEARCHES` in
+//   chat.ts), then goes on as usual, so the chat has searches in a row.
 
 export const FAKE_CHAT_MODEL = "fake-scripted-chat";
 
@@ -40,6 +43,8 @@ export const FAKE_FAILURES = {
 } as const;
 
 export const FAKE_FLAWED_SECTION = "fake: flawed section";
+
+export const FAKE_SEARCH_AGAIN = "fake: search again";
 
 /** A model searches with a short question, not a whole message. */
 const MAX_QUERY_LENGTH = 300;
@@ -106,6 +111,14 @@ export function createFakeChatModel({
             isRetryable: false,
           });
         }
+        return { stream: streamOf(searchStep(call, message), pacing) };
+      }
+
+      if (
+        result?.toolName === "searchNotes" &&
+        offers(call, "searchNotes") &&
+        message.toLowerCase().includes(FAKE_SEARCH_AGAIN)
+      ) {
         return { stream: streamOf(searchStep(call, message), pacing) };
       }
 
@@ -208,7 +221,11 @@ function lastResult(call: ChatModelCall): ToolResult | undefined {
 /** The visitor's words, without the phrases that steer the fake. */
 function searchQuery(message: string): string {
   let query = message;
-  for (const phrase of [...Object.values(FAKE_FAILURES), FAKE_FLAWED_SECTION]) {
+  for (const phrase of [
+    ...Object.values(FAKE_FAILURES),
+    FAKE_FLAWED_SECTION,
+    FAKE_SEARCH_AGAIN,
+  ]) {
     query = query.replace(new RegExp(phrase, "gi"), " ");
   }
   return query.replace(/\s+/g, " ").trim().slice(0, MAX_QUERY_LENGTH);

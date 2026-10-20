@@ -5,6 +5,7 @@ import { Conversation } from "@/features/chat/conversation";
 import type { ChatMessage, SaveSectionPart, SearchNotesPart } from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
 import type { PassageMatch } from "@/lib/transcripts";
+import { stepText } from "./step-line";
 
 const HENK: PassageMatch = {
   id: 1,
@@ -50,6 +51,11 @@ function search(
   } as SearchNotesPart;
 }
 
+/** A step's line, by its whole text. */
+function stepLine(text: string | RegExp): HTMLElement {
+  return screen.getByText(stepText(text));
+}
+
 function show(messages: ChatMessage[], status: ChatStatus = "ready") {
   return render(<Conversation messages={messages} status={status} />);
 }
@@ -74,13 +80,11 @@ describe("Conversation", () => {
     show([question, answer(search("input-available"))], "streaming");
 
     expect(
-      screen.getByText(
-        "Searching the interviews for “notifications for new items”…",
-      ),
+      stepLine("Search “notifications for new items”…"),
     ).toBeInTheDocument();
   });
 
-  it("shows a finished search as one line naming whose passages came back, which opens to them", () => {
+  it("shows a finished search as one plain line naming whose passages came back", () => {
     show([
       question,
       answer(
@@ -89,27 +93,13 @@ describe("Conversation", () => {
       ),
     ]);
 
-    const line = screen.getByRole("button", {
-      name: "Searched the interviews for “notifications for new items”: closest passages from Henk and Daan",
-    });
-    const controlled = document.getElementById(
-      line.getAttribute("aria-controls") ?? "",
-    );
-    expect(line).toHaveAttribute("aria-expanded", "false");
-    expect(controlled).not.toBeVisible();
-
-    fireEvent.click(line);
-
-    expect(line).toHaveAttribute("aria-expanded", "true");
-    const passages = screen.getByRole("list", {
-      name: "Passages found for “notifications for new items”",
-    });
-    expect(passages).toBe(controlled);
-    const [first, second] = within(passages).getAllByRole("listitem");
-    expect(first).toHaveTextContent(
-      /^Researcher:\s*How would you want to know when Ineke adds something\?\s*I'd like my phone to ping me.*\s*Henk$/,
-    );
-    expect(second).toHaveTextContent(/Not as they come in\.\s*Daan$/);
+    expect(
+      stepLine(
+        "Search “notifications for new items” · passages from Henk and Daan",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Researcher:/)).not.toBeInTheDocument();
   });
 
   it("names each person once, closest first", () => {
@@ -122,10 +112,17 @@ describe("Conversation", () => {
       ),
     ]);
 
+    expect(stepLine(/passages from Daan and Henk$/)).toBeInTheDocument();
+  });
+
+  it("says when a search found nothing", () => {
+    show([
+      question,
+      answer(search("output-available", { output: { passages: [] } })),
+    ]);
+
     expect(
-      screen.getByRole("button", {
-        name: /closest passages from Daan and Henk$/,
-      }),
+      stepLine("Search “notifications for new items” · no passages"),
     ).toBeInTheDocument();
   });
 
@@ -140,10 +137,105 @@ describe("Conversation", () => {
     ]);
 
     expect(
-      screen.getByText(
-        "Searching the interviews for “notifications for new items” didn't work. The search didn't work this time.",
+      stepLine(
+        "Search “notifications for new items” · didn't work. The search didn't work this time.",
       ),
     ).toBeInTheDocument();
+  });
+
+  describe("searches in a row", () => {
+    const done = (toolCallId: string, query: string, passages = [HENK]) =>
+      search("output-available", {
+        toolCallId,
+        input: { query },
+        output: { passages },
+      });
+
+    it("fold into one line that opens to their plain lines", () => {
+      show([
+        question,
+        answer(done("call-1", "pings"), done("call-2", "lists", [DAAN]), {
+          type: "text",
+          text: "Henk does.",
+        }),
+      ]);
+
+      const line = screen.getByRole("button", { name: "Used 2 searches" });
+      const lines = document.getElementById(
+        line.getAttribute("aria-controls") ?? "",
+      );
+      expect(line).toHaveAttribute("aria-expanded", "false");
+      expect(lines).toHaveAttribute("inert");
+
+      fireEvent.click(line);
+
+      expect(line).toHaveAttribute("aria-expanded", "true");
+      expect(lines).not.toHaveAttribute("inert");
+      expect(lines).toHaveTextContent(
+        /^Search “pings” · passages from Henk\s*Search “lists” · passages from Daan$/,
+      );
+
+      fireEvent.click(line);
+
+      expect(line).toHaveAttribute("aria-expanded", "false");
+      expect(lines).toHaveAttribute("inert");
+    });
+
+    it("start a new line after text, and never fold a save", () => {
+      show([
+        question,
+        answer(
+          done("call-1", "pings"),
+          done("call-2", "lists"),
+          { type: "text", text: "Two so far." },
+          done("call-3", "apps"),
+          {
+            type: "tool-saveSection",
+            toolCallId: "save-1",
+            state: "input-available",
+            input: { section: "Goals / Objectives", statements: [] },
+          } as SaveSectionPart,
+          done("call-4", "phones"),
+        ),
+      ]);
+
+      expect(screen.getAllByRole("button")).toHaveLength(1);
+      expect(
+        screen.getByRole("button", { name: "Used 2 searches" }),
+      ).toBeInTheDocument();
+      expect(
+        stepLine("Search “apps” · passages from Henk"),
+      ).toBeInTheDocument();
+      expect(
+        stepLine("Search “phones” · passages from Henk"),
+      ).toBeInTheDocument();
+    });
+
+    it("count up as each search starts, keeping the line open", () => {
+      const first = [done("call-1", "pings"), done("call-2", "lists")];
+      const { rerender } = show([question, answer(...first)], "streaming");
+      fireEvent.click(screen.getByRole("button", { name: "Used 2 searches" }));
+
+      rerender(
+        <Conversation
+          messages={[
+            question,
+            answer(
+              ...first,
+              search("input-available", {
+                toolCallId: "call-3",
+                input: { query: "apps" },
+              }),
+            ),
+          ]}
+          status="streaming"
+        />,
+      );
+
+      const line = screen.getByRole("button", { name: "Used 3 searches" });
+      expect(line).toHaveAttribute("aria-expanded", "true");
+      expect(stepLine("Search “apps”…")).toBeInTheDocument();
+    });
   });
 
   describe("while an answer is on its way, exactly one line moves", () => {
@@ -163,6 +255,22 @@ describe("Conversation", () => {
       const { container } = show(
         [
           question,
+          answer({ type: "text", text: "Looking." }, search("input-available")),
+        ],
+        "streaming",
+      );
+
+      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(moving(container)).toHaveLength(1);
+      expect(moving(container)[0]).toHaveTextContent(
+        "Search “notifications for new items”…",
+      );
+    });
+
+    it("moves the folded line while a search in it runs", () => {
+      const { container } = show(
+        [
+          question,
           answer(
             search("output-available", { output: { passages: [HENK] } }),
             search("input-available", { toolCallId: "call-2" }),
@@ -173,9 +281,7 @@ describe("Conversation", () => {
 
       expect(screen.queryByText("Working…")).not.toBeInTheDocument();
       expect(moving(container)).toHaveLength(1);
-      expect(moving(container)[0]).toHaveTextContent(
-        "Searching the interviews for “notifications for new items”…",
-      );
+      expect(moving(container)[0]).toHaveTextContent(/^Used 2 searches$/);
     });
 
     it("moves only the latest of two steps in progress", () => {
@@ -184,6 +290,7 @@ describe("Conversation", () => {
           question,
           answer(
             search("input-available"),
+            { type: "text", text: "And also" },
             search("input-streaming", {
               toolCallId: "call-2",
               input: { query: "pings" },
@@ -194,9 +301,7 @@ describe("Conversation", () => {
       );
 
       expect(moving(container)).toHaveLength(1);
-      expect(moving(container)[0]).toHaveTextContent(
-        "Searching the interviews for “pings”…",
-      );
+      expect(moving(container)[0]).toHaveTextContent("Search “pings”…");
     });
 
     it("shows Working… at the end of the answer between steps, and the finished step stays still", () => {
@@ -438,7 +543,7 @@ describe("Conversation", () => {
         screen.getByRole("list", { name: "Conversation" }),
       ).getAllByRole("listitem");
       expect(assistant).toHaveTextContent(
-        /Searched the interviews for “notifications for new items”: closest passages from Henk.*Henk wants\s*Stopped searching the interviews for “notifications for new items”\s*You stopped this answer\.$/,
+        /Search “notifications for new items” · passages from Henk.*Henk wants\s*Search “notifications for new items” · stopped\s*You stopped this answer\.$/,
       );
       expect(screen.queryByText(/Searching/)).not.toBeInTheDocument();
       expect(screen.queryByText(/didn't work/)).not.toBeInTheDocument();

@@ -22,6 +22,7 @@ import {
   FIRST_SECTION_REQUEST,
   GROCERY_DELIVERY_SUGGESTION,
 } from "@/lib/suggestions";
+import { stepText } from "./step-line";
 
 // The home page's workspace, with the server's answers stubbed: the chat's
 // transport posts to /api/chat with the browser's fetch, so each test decides
@@ -537,11 +538,7 @@ describe("the Stop button", () => {
       target: { value: "Draft the first section." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    await screen.findByText(
-      "Searching the interviews for “pings”…",
-      {},
-      { timeout: 3000 },
-    );
+    await screen.findByText(stepText("Search “pings”…"), {}, { timeout: 3000 });
   }
 
   function messageBox() {
@@ -563,7 +560,7 @@ describe("the Stop button", () => {
       await screen.findByText("You stopped this answer."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Stopped searching the interviews for “pings”"),
+      screen.getByText(stepText("Search “pings” · stopped")),
     ).toBeInTheDocument();
     expect(screen.getByText("I saved Introduction")).toBeInTheDocument();
     expect(

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
-import { FAKE_FAILURES } from "@/server/ai/fake-chat-model";
+import { FAKE_FAILURES, FAKE_SEARCH_AGAIN } from "@/server/ai/fake-chat-model";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
 // The workspace's spacing and layout (docs/decisions.md, Design, 2026-10-20):
@@ -304,18 +304,18 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     await expect(jump).toHaveCount(0);
   });
 
-  test("offers Jump to latest once opened passages push the chat's end out of view", async ({
+  test("offers Jump to latest once opened searches push the chat's end out of view", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 480 });
     await openChat(page);
-    await ask(page, "Draft the first section.");
+    await ask(page, `Draft the first section. ${FAKE_SEARCH_AGAIN}`);
     await expect(turns(page).nth(1)).toContainText(ANSWER_END);
     const jump = page.getByRole("button", { name: "Jump to latest" });
 
     await turns(page)
       .nth(1)
-      .getByRole("button", { name: /closest passages from/ })
+      .getByRole("button", { name: "Used 3 searches" })
       .click();
     await expect(jump).toBeVisible();
 

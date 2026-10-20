@@ -11,6 +11,7 @@ import {
 } from "@/lib/chat";
 import { cn } from "@/lib/utils";
 import { RichText } from "./rich-text";
+import { SearchRun } from "./search-run";
 import { SearchStep } from "./search-step";
 import { SectionStep } from "./section-step";
 
@@ -174,6 +175,40 @@ function spaceAbove(
   return previous.type !== "text" && part.type !== "text" ? "mt-2" : "mt-4";
 }
 
+/**
+ * An answer's parts as the chat lays them out: two or more searches in a row
+ * fold into one run (docs/decisions.md, Design, 2026-10-20); a text or a save
+ * between them starts a new one. `first` and `last` are the run's indexes
+ * among the parts.
+ */
+type Laid =
+  | { part: ShownPart; first: number; last: number }
+  | { run: SearchNotesPart[]; first: number; last: number };
+
+function laidOut(parts: ShownPart[]): Laid[] {
+  const laid: Laid[] = [];
+  parts.forEach((part, index) => {
+    const before = laid.at(-1);
+    if (part.type === "tool-searchNotes" && before !== undefined) {
+      if ("run" in before) {
+        before.run.push(part);
+        before.last = index;
+        return;
+      }
+      if (before.part.type === "tool-searchNotes") {
+        laid[laid.length - 1] = {
+          run: [before.part, part],
+          first: before.first,
+          last: index,
+        };
+        return;
+      }
+    }
+    laid.push({ part, first: index, last: index });
+  });
+  return laid;
+}
+
 function AssistantMessage({
   parts,
   unfinished,
@@ -195,9 +230,25 @@ function AssistantMessage({
   return (
     <li data-role="assistant">
       <p className="sr-only">Assistant</p>
-      {parts.map((part, index) => {
-        const space = spaceAbove(parts[index - 1], part);
-        const step = cn(space, index === movingStep && "shimmer");
+      {laidOut(parts).map((laid) => {
+        const space = spaceAbove(parts[laid.first - 1], parts[laid.first]!);
+        const moving =
+          movingStep !== undefined &&
+          movingStep >= laid.first &&
+          movingStep <= laid.last;
+        if ("run" in laid) {
+          return (
+            <SearchRun
+              key={laid.run[0]!.toolCallId}
+              parts={laid.run}
+              stopped={stopped}
+              moving={moving}
+              className={space}
+            />
+          );
+        }
+        const { part, first: index } = laid;
+        const step = cn(space, moving && "shimmer");
         switch (part.type) {
           case "text":
             return (

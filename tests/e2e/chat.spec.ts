@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { FAKE_FAILURES } from "@/server/ai/fake-chat-model";
+import { FAKE_FAILURES, FAKE_SEARCH_AGAIN } from "@/server/ai/fake-chat-model";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
 // The chat on the home page, with the scripted fake model. It searches with
@@ -35,33 +35,83 @@ function chatAlert(page: Page) {
 }
 
 test.describe("chat", () => {
-  test("answers with the search it ran as one line, which opens to the passages", async ({
+  test("answers with the search it ran as one plain line naming whose passages came back", async ({
     page,
   }) => {
     await openChat(page);
     await ask(page, QUESTION);
 
     await expect(conversation(page)).toContainText(QUESTION);
-    const line = page.getByRole("button", {
-      name: `Searched the interviews for “${QUESTION}”: closest passages from Sofia, Maya, Henk and Daan`,
-    });
-    await expect(line).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      conversation(page).getByText(
+        `Search “${QUESTION}” · passages from Sofia, Maya, Henk and Daan`,
+      ),
+    ).toBeVisible();
     await expect(conversation(page)).toContainText(
       "The closest passages come from Sofia, Maya, Henk and Daan.",
     );
     await expect(conversation(page)).toContainText(FAKE_NOTE);
+    await expect(conversation(page).getByRole("button")).toHaveCount(0);
+  });
+
+  test("folds searches in a row into one line that slides open to them", async ({
+    page,
+  }) => {
+    await openChat(page);
+    await ask(page, `${QUESTION} ${FAKE_SEARCH_AGAIN}`);
+    await expect(conversation(page)).toContainText(FAKE_NOTE);
+
+    const line = conversation(page).getByRole("button", {
+      name: "Used 3 searches",
+    });
+    const lines = conversation(page).getByText(
+      `Search “${QUESTION}” · passages from Sofia, Maya, Henk and Daan`,
+    );
+    await expect(line).toHaveAttribute("aria-expanded", "false");
+    await expect(lines).toHaveCount(3);
+    for (const each of await lines.all()) await expect(each).toBeHidden();
 
     await line.click();
 
-    const passages = page.getByRole("list", {
-      name: `Passages found for “${QUESTION}”`,
+    await expect(line).toHaveAttribute("aria-expanded", "true");
+    for (const each of await lines.all()) await expect(each).toBeVisible();
+    const [first, second] = await lines.all();
+    const gap =
+      (await second!.boundingBox())!.y - (await first!.boundingBox())!.y;
+    // 28px rows, 8px apart, as opencode's (docs/decisions.md, Design, 2026-10-20).
+    expect(gap).toBe(36);
+
+    await line.click();
+
+    await expect(line).toHaveAttribute("aria-expanded", "false");
+    for (const each of await lines.all()) await expect(each).toBeHidden();
+  });
+
+  test("opens the folded line at once under reduced motion", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openChat(page);
+    await ask(page, `${QUESTION} ${FAKE_SEARCH_AGAIN}`);
+    await expect(conversation(page)).toContainText(FAKE_NOTE);
+    const line = conversation(page).getByRole("button", {
+      name: "Used 3 searches",
     });
-    await expect(passages.getByRole("listitem")).toHaveCount(5);
+
+    await line.click();
+
+    // Neither the mark turns nor the lines slide: no transition starts.
+    expect(
+      await line.evaluate(
+        (button) =>
+          button.parentElement!.getAnimations({ subtree: true }).length,
+      ),
+    ).toBe(0);
     await expect(
-      passages.getByRole("listitem").filter({ hasText: "ping me" }),
-    ).toHaveText(
-      /^Researcher: How would you want to know when Ineke adds something\?\s*I'd like my phone to ping me every time .*Henk$/,
-    );
+      conversation(page)
+        .getByText(/^Search “/)
+        .first(),
+    ).toBeVisible();
   });
 
   test("streams the answer from the server as it's written", async ({
@@ -207,17 +257,21 @@ test.describe("chat", () => {
     await expect(chatAlert(page)).toHaveCount(0);
   });
 
-  test("passes the accessibility check with an answer and its passages open", async ({
+  test("passes the accessibility check with an answer's searches folded and open", async ({
     page,
   }) => {
     await openChat(page);
-    await ask(page, QUESTION);
+    await ask(page, `${QUESTION} ${FAKE_SEARCH_AGAIN}`);
     await expect(conversation(page)).toContainText(FAKE_NOTE);
-    await page
-      .getByRole("button", { name: /^Searched the interviews for/ })
+    await expectNoAccessibilityViolations(page);
+
+    await conversation(page)
+      .getByRole("button", { name: "Used 3 searches" })
       .click();
     await expect(
-      page.getByRole("list", { name: /^Passages found for/ }),
+      conversation(page)
+        .getByText(/^Search “/)
+        .first(),
     ).toBeVisible();
 
     await expectNoAccessibilityViolations(page);
