@@ -52,6 +52,41 @@ body {
 }
 
 /*
+ * The one line that moves while the assistant works: a lighter band sweeps
+ * across its grey text about once a second (opencode's `TextShimmer`, its
+ * idea, not its code). Decoration only: screen readers hear the chat's status
+ * line. With reduced motion, forced colours or no text clipping, the line
+ * stays still and grey.
+ */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .shimmer {
+      width: fit-content;
+      background-image: linear-gradient(
+        90deg,
+        var(--muted-foreground) 35%,
+        var(--foreground) 50%,
+        var(--muted-foreground) 65%
+      );
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shimmer 1s linear infinite;
+    }
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/*
  * The pop-over a source's name opens. On a phone it isn't anchored: nearly
  * full width, scrolling inside, closed by a tap outside. On a laptop it sits
  * by the name that opened it where the browser has anchor positioning, and is

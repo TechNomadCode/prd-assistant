@@ -77,6 +77,40 @@ test.describe("chat", () => {
     expect(events.match(/"type":"text-delta"/g)?.length).toBeGreaterThan(10);
   });
 
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`moves Working… while the answer is on its way, unless motion is reduced (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => (release = resolve));
+      await page.route(
+        "**/api/chat",
+        async (route) => {
+          await held;
+          await route.continue();
+        },
+        { times: 1 },
+      );
+      await openChat(page);
+      await ask(page, QUESTION);
+
+      const working = conversation(page).getByText("Working…");
+      await expect(working).toBeVisible();
+      await expect(working).toHaveCSS(
+        "animation-name",
+        reducedMotion === "reduce" ? "none" : "shimmer",
+      );
+      if (reducedMotion === "reduce") {
+        await expect(working).toHaveCSS("color", "rgb(180, 180, 180)");
+      }
+
+      release();
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+      await expect(working).toHaveCount(0);
+    });
+  }
+
   test("keeps the demo notice with the message box", async ({ page }) => {
     await openChat(page);
 
