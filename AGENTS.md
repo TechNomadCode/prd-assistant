@@ -6,6 +6,7 @@ This project is built in stages by an AI coding agent working with its owner. Th
 
 ## Every session
 1. Whatever the owner's first message is, read the **Now** block in `docs/plan.md` first. It names the stage and the next action.
+   - **Lanes:** when the Now block splits the work into lanes for parallel sessions, work only in the lane the owner's first message names, follow that lane's rules, and update only that lane's lines. If the message names no lane, ask which before you act.
 2. Work from that stage's file in `.kit/stages/`. Read nothing else unless the task needs it.
 3. Update the Now block after every finished step, not only at the end: a session can stop at any moment.
 4. When you stop, tell the owner in a few lines what you did, what's next and what you need from them.
