@@ -16,10 +16,8 @@ import {
   type SectionName,
   type StatementSource,
 } from "@/lib/prd";
+import { downloadPrd, PRODUCT, VISITOR_DECISION } from "./prd-markdown";
 import { SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
-
-/** The product the six interviews are about. */
-const PRODUCT = "Shared grocery list app";
 
 /** The check-in under the latest saved section. */
 export type CheckIn = {
@@ -59,7 +57,14 @@ export function PrdDocument({
       aria-labelledby="prd-title"
       className="flex flex-col gap-3 lg:min-h-0 lg:flex-1"
     >
-      <StartOver onConfirm={onStartOver} />
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {sections.size > 0 && (
+          <Button variant="outline" onClick={() => downloadPrd(sections)}>
+            Download as Markdown
+          </Button>
+        )}
+        <StartOver onConfirm={onStartOver} />
+      </div>
 
       {/* Focusable, so the PRD scrolls by keyboard before it holds a link. */}
       <div
@@ -202,9 +207,7 @@ function Statement({
             <p key={index}>{objection(citation)}</p>
           ))}
           {isFlagged(section, statement) && <p>{NO_QUOTE}</p>}
-          {isVisitorDecision(statement) && (
-            <p>Your decision, not from the interviews.</p>
-          )}
+          {isVisitorDecision(statement) && <p>{VISITOR_DECISION}</p>}
         </div>
       )}
     </li>
@@ -242,11 +245,9 @@ function StartOver({ onConfirm }: { onConfirm: () => void }) {
   const [asking, setAsking] = useState(false);
   if (!asking) {
     return (
-      <div className="flex justify-end">
-        <Button variant="outline" onClick={() => setAsking(true)}>
-          Start over
-        </Button>
-      </div>
+      <Button variant="outline" onClick={() => setAsking(true)}>
+        Start over
+      </Button>
     );
   }
   return (

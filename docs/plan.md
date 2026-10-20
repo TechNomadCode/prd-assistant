@@ -19,13 +19,12 @@
 - **Waiting on the owner:** the go for each day's batch, with what staging used that day.
 
 ### Build lane
-- **Where:** its own worktree per piece, on a branch from an up-to-date `main`. If the session isn't in a worktree yet (`git worktree list` shows its folder as the main checkout, not under `.claude/worktrees/`), it creates one before touching anything, and never checks out a branch in the main folder, where the measurement lane works. Claude Code's worktree option puts it under `.claude/worktrees/`; run `npm ci` there first. Its browser check uses `app-build` in `.claude/launch.json` (port 3200), never `app` or `app-real`, which are the measurement lane's on port 3000. It never runs `measure`, `measure:fake` or `dev:real`, never edits the measurement lane's files above, and changes code in `src/server` only where its piece needs it, never what the model receives (listed above); its pull request says which `src/server` files it changed and why.
-- **Doing:** slice 8a is done on `feat/quota-message` (`.claude/worktrees/quota-message`), waiting for the owner's push and merge. Local checks on 2026-10-20: `verify` (390 unit tests) and `test:e2e` (33), all passed. Its pull request names the `src/server` changes for the measurement lane: the transport no longer retries a quota 429 and drops retry waits over 5 seconds; the requests are unchanged; `tests/unit/measurement-runner.test.ts` now counts one quota request instead of three.
+- **Where:** its own worktree per piece, on a branch from an up-to-date `main`. If the session isn't in a worktree yet (`git worktree list` shows its folder as the main checkout, not under `.claude/worktrees/`), it creates one before touching anything, and never checks out a branch in the main folder, where the measurement lane works. Claude Code's worktree option puts it under `.claude/worktrees/`; run `npm ci` there first. A worktree made with `git worktree add` gets no `.env.local`: run `npm run env:local` there, or the end-to-end tests find no interviews. Its browser check uses `app-build` in `.claude/launch.json` (port 3200), never `app` or `app-real`, which are the measurement lane's on port 3000. It never runs `measure`, `measure:fake` or `dev:real`, never edits the measurement lane's files above, and changes code in `src/server` only where its piece needs it, never what the model receives (listed above); its pull request says which `src/server` files it changed and why.
+- **Doing:** slice 10 is done on `feat/keep-and-download-prd` (`.claude/worktrees/keep-and-download-prd`), from `main` at 5267952, waiting for the owner's push and merge. Local checks on 2026-10-20: `verify` (414 unit tests) and `test:e2e` (38), all passed; the page checked once with `app-build`. It changes nothing in `src/server` or `src/lib`, so the measurement lane needn't wait for it.
 - **Next:**
-  1. Slice 10, keeping the PRD after a reload and the download, from `main` once slice 8a is merged and pulled: it waited only for slice 7 and 9c's code, both merged.
-  2. Slice 8, the rate limit, once 9d is done and the owner has decided its legal basis and size (*Deferred*).
-- **Unverified:** on staging, the quota message against Cloudflare's real refusal (the tests replay its reply of 2026-10-20) and whether its per-minute 429 carries a retry header; a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, the table fix and the intro screen; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
-- **Waiting on the owner:** pushing `feat/quota-message`, its pull request and the merge; removing the merged worktrees of slice 7 and KI-6 (`.claude/worktrees/wf_d381d3ee-548-1` and `-2`), which no lane removes by itself; the GitHub description and topics whenever they like.
+  1. Slice 8, the rate limit, once 9d is done and the owner has decided its legal basis and size (*Deferred*).
+- **Unverified:** on staging, a reload keeping the PRD and the downloaded file (local Chromium only); the quota message against Cloudflare's real refusal (the tests replay its reply of 2026-10-20) and whether its per-minute 429 carries a retry header; a source name's pop-over, "Your decision, not from the interviews." under a claim of the visitor's, the table fix and the intro screen; Safari and Firefox (only Chromium ran; without anchor positioning the pop-over is a centred box, by design). Expect the Security Advisor's lint 0028 on `search_passages` on staging; it's intended (`supabase/AGENTS.md`). Production waits for launch and its Cloudflare token.
+- **Waiting on the owner:** pushing `feat/keep-and-download-prd`, its pull request and the merge; removing the merged worktrees of slice 7, KI-6 and slice 8a (`.claude/worktrees/wf_d381d3ee-548-1`, `-2` and `quota-message`), which no lane removes by itself; the GitHub description and topics whenever they like.
 
 ### Shared rules
 - One branch per piece, from an up-to-date `main`; the owner pushes it, opens the pull request and merges it (`AGENTS.md`, Branches). After the other lane's merge, rebase an unpushed branch onto `main`, and merge `main` into a pushed one; never rewrite a pushed branch.
@@ -60,7 +59,7 @@
 
 ### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: done (eebbacf)
 
-### 8a · The quota message · risk: normal · status: done (on `feat/quota-message`; its id on `main` goes here after the merge)
+### 8a · The quota message · risk: normal · status: done (5267952)
 
 ### 8 · Rate limit · risk: risky (personal data, permissions) · status: todo
 - **Goal:** one visitor can't use up the free quota.
@@ -91,9 +90,4 @@
   - A change ships only if it beats the baseline on its rule and no other rule drops by two runs or more; it then becomes the new baseline.
   - It stops when the grocery delivery request passes reliably (*Deferred*: what that means) or the owner stops it. The README reports the final numbers with their date and setup.
 
-### 10 · Keep the PRD after a reload, and download it · risk: normal · status: todo
-- **Goal:** the PRD survives a reload and downloads as Markdown. This piece is first to go if time runs short.
-- **Acceptance:**
-  - After a reload, the PRD and the visitor messages its quotes come from are still there. "Start over" clears them and returns to the intro screen.
-  - The download is a Markdown file with every statement, its quotes and their sources.
-  - A stored PRD that no longer fits the current format is discarded with a notice, not shown broken.
+### 10 · Keep the PRD after a reload, and download it · risk: normal · status: done (on `feat/keep-and-download-prd`; its id on `main` goes here after the merge)

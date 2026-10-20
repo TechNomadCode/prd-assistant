@@ -4,4 +4,6 @@ import { afterEach } from "vitest";
 
 afterEach(() => {
   cleanup();
+  // The workspace keeps the conversation in the browser; no test inherits one.
+  if (typeof window !== "undefined") window.localStorage.clear();
 });

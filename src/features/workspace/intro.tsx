@@ -14,19 +14,27 @@ export const INTRO_TITLE_ID = "intro-title";
  */
 export function Intro({
   failed,
+  discarded = false,
   quotaUsedUp,
   onDraft,
   onAsk,
 }: {
   /** The first request failed, so the intro came back. */
   failed: boolean;
+  /** A PRD kept in this browser no longer fitted the app, so it's gone. */
+  discarded?: boolean;
   /**
    * The day's free AI allocation is used up: a notice takes the place of the
    * ways into the chat, and the interviews stay open to read.
    */
   quotaUsedUp: boolean;
-  onDraft: () => void;
-  onAsk: () => void;
+  /**
+   * Absent in the server's page, which the browser replaces once it has read
+   * what's kept. Until then the buttons are `aria-disabled`, which looks the
+   * same, and Playwright waits for them.
+   */
+  onDraft?: () => void;
+  onAsk?: () => void;
 }) {
   // Not a named region: its heading names a "shared grocery list app", and
   // the PRD is the region of that name.
@@ -52,6 +60,16 @@ export function Intro({
         </p>
       </div>
 
+      {discarded && (
+        <p
+          role="status"
+          className="border-l-2 border-border-strong py-1 pl-4 text-muted-foreground"
+        >
+          The PRD you started earlier couldn&apos;t be brought back: the demo
+          has changed since. You can start a new one.
+        </p>
+      )}
+
       {quotaUsedUp ? (
         <QuotaNotice />
       ) : (
@@ -67,7 +85,11 @@ export function Intro({
 
       <div className="space-y-5">
         {!quotaUsedUp && (
-          <Button size="large" onClick={onDraft}>
+          <Button
+            size="large"
+            aria-disabled={onDraft === undefined || undefined}
+            onClick={onDraft}
+          >
             Draft the first section
           </Button>
         )}
@@ -79,7 +101,12 @@ export function Intro({
             Read the full interviews
           </Link>
           {!quotaUsedUp && (
-            <Button variant="quiet" className="h-auto px-0" onClick={onAsk}>
+            <Button
+              variant="quiet"
+              className="h-auto px-0"
+              aria-disabled={onAsk === undefined || undefined}
+              onClick={onAsk}
+            >
               Or ask your own question first
             </Button>
           )}
