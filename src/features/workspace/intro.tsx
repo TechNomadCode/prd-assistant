@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { QuotaNotice } from "./quota";
 
 /** The intro's heading, which takes focus when the intro comes back. */
 export const INTRO_TITLE_ID = "intro-title";
@@ -13,11 +14,17 @@ export const INTRO_TITLE_ID = "intro-title";
  */
 export function Intro({
   failed,
+  quotaUsedUp,
   onDraft,
   onAsk,
 }: {
   /** The first request failed, so the intro came back. */
   failed: boolean;
+  /**
+   * The day's free AI allocation is used up: a notice takes the place of the
+   * ways into the chat, and the interviews stay open to read.
+   */
+  quotaUsedUp: boolean;
   onDraft: () => void;
   onAsk: () => void;
 }) {
@@ -45,19 +52,25 @@ export function Intro({
         </p>
       </div>
 
-      {failed && (
-        <div role="alert" className="border-l-2 border-foreground py-1 pl-4">
-          <p>
-            The first section wasn&apos;t drafted: something went wrong before
-            the assistant could finish. Try again in a moment.
-          </p>
-        </div>
+      {quotaUsedUp ? (
+        <QuotaNotice />
+      ) : (
+        failed && (
+          <div role="alert" className="border-l-2 border-foreground py-1 pl-4">
+            <p>
+              The first section wasn&apos;t drafted: something went wrong before
+              the assistant could finish. Try again in a moment.
+            </p>
+          </div>
+        )
       )}
 
       <div className="space-y-5">
-        <Button size="large" onClick={onDraft}>
-          Draft the first section
-        </Button>
+        {!quotaUsedUp && (
+          <Button size="large" onClick={onDraft}>
+            Draft the first section
+          </Button>
+        )}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link
             href="/transcripts"
@@ -65,9 +78,11 @@ export function Intro({
           >
             Read the full interviews
           </Link>
-          <Button variant="quiet" className="h-auto px-0" onClick={onAsk}>
-            Or ask your own question first
-          </Button>
+          {!quotaUsedUp && (
+            <Button variant="quiet" className="h-auto px-0" onClick={onAsk}>
+              Or ask your own question first
+            </Button>
+          )}
         </div>
       </div>
     </div>

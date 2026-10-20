@@ -3,7 +3,8 @@
 import type { ChatStatus } from "ai";
 import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
+import { QuotaNotice } from "@/features/workspace/quota";
+import { DEMO_BUSY, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
 import type { SectionName } from "@/lib/prd";
 import { Conversation } from "./conversation";
 
@@ -16,10 +17,14 @@ export const MESSAGE_BOX_ID = "chat-message";
 /**
  * The chat with the assistant: the conversation, which scrolls on its own,
  * and under it a suggested message, when there is one, and the message box.
+ * Once the day's free AI allocation is used up, the conversation stays to
+ * read, and a notice takes the place of the suggestion and the message box.
  */
 export function Chat({
   messages,
   status,
+  error,
+  quotaUsedUp,
   suggestion,
   draft,
   onDraftChange,
@@ -29,6 +34,10 @@ export function Chat({
 }: {
   messages: ChatMessage[];
   status: ChatStatus;
+  /** Why the last answer failed, in the server's words. */
+  error: Error | undefined;
+  /** The day's free AI allocation is used up, so nothing can be sent. */
+  quotaUsedUp: boolean;
   /** A message the visitor can send with one click. */
   suggestion: string | undefined;
   /** The message box's text, kept by the page so it outlasts the chat. */
@@ -105,14 +114,15 @@ export function Chat({
           onSeeSection={onSeeSection}
         />
 
-        {status === "error" && (
+        {status === "error" && !quotaUsedUp && (
           <div
             role="alert"
             className="space-y-3 border-l-2 border-foreground py-1 pl-4"
           >
             <p>
-              Something went wrong before the assistant could finish. Try again
-              in a moment.
+              {error?.message === DEMO_BUSY
+                ? DEMO_BUSY
+                : "Something went wrong before the assistant could finish. Try again in a moment."}
             </p>
             <Button variant="outline" onClick={onRetry}>
               Try again
@@ -121,7 +131,9 @@ export function Chat({
         )}
       </div>
 
-      {suggestion !== undefined && (
+      {quotaUsedUp && <QuotaNotice />}
+
+      {suggestion !== undefined && !quotaUsedUp && (
         <div
           role="group"
           aria-labelledby="suggestion-title"
@@ -143,6 +155,7 @@ export function Chat({
       )}
 
       <form
+        hidden={quotaUsedUp}
         onSubmit={(event) => {
           event.preventDefault();
           send();

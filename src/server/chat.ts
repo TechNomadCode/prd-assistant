@@ -1,11 +1,13 @@
 import "server-only";
 import {
+  APICallError,
   convertToModelMessages,
   createUIMessageStream,
   InvalidToolInputError,
   isStepCount,
   JSONParseError,
   NoSuchToolError,
+  RetryError,
   safeValidateUIMessages,
   streamText,
   tool,
@@ -15,7 +17,9 @@ import {
 } from "ai";
 import { z } from "zod";
 import {
+  DEMO_BUSY,
   MAX_MESSAGE_LENGTH,
+  QUOTA_USED_UP,
   textOf,
   type ChatMessage,
   type SearchNotesOutput,
@@ -37,6 +41,7 @@ import {
   type SourcePassage,
 } from "@/lib/transcripts";
 import type { ChatModel } from "./ai/chat-model.ts";
+import { QuotaExceededError } from "./ai/cloudflare.ts";
 import { createChatModel } from "./ai/providers.ts";
 import {
   checkSection,
@@ -563,6 +568,14 @@ const CUT_OFF = "The answer got too long and was cut off.";
 
 /** What the visitor sees when something fails: plain words, no internals. */
 function describeError(error: unknown): string {
+  // After its retries, the AI SDK reports the last refusal inside RetryError.
+  const last = RetryError.isInstance(error) ? error.lastError : error;
+  if (last instanceof QuotaExceededError) return QUOTA_USED_UP;
+  // Any other 429 the retries didn't get past: the per-minute limit, or
+  // Cloudflare out of capacity.
+  if (APICallError.isInstance(last) && last.statusCode === 429) {
+    return DEMO_BUSY;
+  }
   if (
     error instanceof SearchQueryError ||
     error instanceof SearchFailedError ||

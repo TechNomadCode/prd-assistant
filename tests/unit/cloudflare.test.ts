@@ -1,7 +1,11 @@
-import { isStepCount, streamText, tool } from "ai";
+import { APICallError, isStepCount, streamText, tool } from "ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { createCloudflareChatModel } from "@/server/ai/cloudflare";
+import { DEMO_BUSY, QUOTA_USED_UP } from "@/lib/chat";
+import {
+  createCloudflareChatModel,
+  QuotaExceededError,
+} from "@/server/ai/cloudflare";
 import { createCloudflareEmbedder } from "@/server/ai/cloudflare-embedder";
 import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
 import { streamAnswer } from "@/server/chat";
@@ -414,5 +418,224 @@ describe("the chat's requests to Cloudflare", () => {
       true,
       false,
     ]);
+  });
+});
+
+/** Cloudflare's reply on 2026-10-20 once the day's free allocation was used up. */
+const quota4006 = () =>
+  Response.json(
+    {
+      errors: [
+        {
+          message:
+            "AiError: AiError: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage. (f8fafcc3-d351-41a1-a7ed-9874a985ccfd)",
+          code: 4006,
+        },
+      ],
+      success: false,
+      result: {},
+      messages: [],
+    },
+    { status: 429 },
+  );
+
+/** The same refusal with the code Cloudflare's errors page gives it. */
+const quota3036 = () =>
+  Response.json(
+    {
+      errors: [{ message: "daily free allocation used up", code: 3036 }],
+      success: false,
+      result: {},
+      messages: [],
+    },
+    { status: 429 },
+  );
+
+/**
+ * The per-minute limit: 429 without a quota code. The header only keeps the
+ * AI SDK's retries from waiting seconds in a test.
+ */
+const perMinute = () =>
+  Response.json(
+    { errors: [], success: false, result: {}, messages: [] },
+    { status: 429, headers: { "retry-after-ms": "1" } },
+  );
+
+/** Out of capacity, code 3040. */
+const busy = () =>
+  Response.json(
+    {
+      errors: [{ message: "Capacity temporarily exceeded", code: 3040 }],
+      success: false,
+    },
+    { status: 429, headers: { "retry-after-ms": "1" } },
+  );
+
+/** The replies in order, one per request. */
+function replaying(replies: (() => Response)[]) {
+  let call = 0;
+  return chatModel(() => {
+    const reply = replies[call++];
+    if (!reply) throw new Error("No recorded reply left.");
+    return reply();
+  });
+}
+
+/** The text and the errors of the chat's answer to one message. */
+async function answerTo(model: ReturnType<typeof chatModel>["model"]) {
+  let text = "";
+  const errors: string[] = [];
+  for await (const chunk of streamAnswer(
+    [
+      {
+        id: "visitor-1",
+        role: "user",
+        parts: [{ type: "text", text: "Draft the first section." }],
+      },
+    ],
+    {
+      dependencies: {
+        model,
+        search: async () => [],
+        findPassages: async () => [],
+      },
+    },
+  )) {
+    if (chunk.type === "text-delta") text += chunk.delta;
+    if (chunk.type === "error") errors.push(chunk.errorText);
+  }
+  return { text, errors };
+}
+
+// On 2026-10-20 Cloudflare refused the account all morning with code 4006,
+// and staging showed the generic error and a "Try again" that couldn't work.
+describe("the chat when Cloudflare refuses", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["4006, as the /ai/v1 endpoint sent it on 2026-10-20", quota4006],
+    ["3036, as Cloudflare's errors page names it", quota3036],
+  ])(
+    "says the day's allocation is used up, without retrying, at code %s",
+    async (_, quota) => {
+      vi.spyOn(console, "info").mockImplementation(() => {});
+      const failed = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { sent, model } = replaying([quota, quota, quota]);
+
+      expect(await answerTo(model)).toEqual({
+        text: "",
+        errors: [QUOTA_USED_UP],
+      });
+      expect(sent).toHaveLength(1);
+      expect(failed).toHaveBeenCalledWith(
+        "The chat model failed:",
+        expect.any(QuotaExceededError),
+      );
+    },
+  );
+
+  it.each([
+    ["the per-minute limit", perMinute],
+    ["Cloudflare out of capacity, code 3040", busy],
+  ])("retries twice at %s, then says the demo is busy", async (_, refusal) => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sent, model } = replaying([refusal, refusal, refusal]);
+
+    expect(await answerTo(model)).toEqual({ text: "", errors: [DEMO_BUSY] });
+    expect(sent).toHaveLength(3);
+  });
+
+  it("answers as usual when a retry gets past the per-minute limit", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { sent, model } = replaying([
+      perMinute,
+      chatReply({ role: "assistant", content: "Here's the overview." }, "stop"),
+    ]);
+
+    expect(await answerTo(model)).toEqual({
+      text: "Here's the overview.",
+      errors: [],
+    });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("says the allocation is used up when it runs out during the retries", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sent, model } = replaying([perMinute, quota4006, quota4006]);
+
+    expect(await answerTo(model)).toEqual({
+      text: "",
+      errors: [QUOTA_USED_UP],
+    });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("keeps the usual error for any other failure", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model } = replaying([
+      () =>
+        Response.json(
+          { errors: [{ message: "Bad input", code: 5006 }] },
+          { status: 400 },
+        ),
+    ]);
+
+    expect(await answerTo(model)).toEqual({
+      text: "",
+      errors: ["The assistant couldn't finish its answer."],
+    });
+  });
+
+  it("drops a retry header that asks for a longer wait than a few seconds", async () => {
+    const { model } = replaying([
+      () =>
+        Response.json(
+          { errors: [] },
+          { status: 429, headers: { "retry-after": "60", "x-kept": "yes" } },
+        ),
+      () =>
+        Response.json(
+          { errors: [] },
+          { status: 429, headers: { "retry-after-ms": "3000" } },
+        ),
+    ]);
+    const headersOf = async () => {
+      let refused: unknown;
+      const result = streamText({
+        model,
+        prompt: "Hi",
+        maxRetries: 0,
+        onError: ({ error }) => {
+          refused = error;
+        },
+      });
+      await result.consumeStream();
+      if (!APICallError.isInstance(refused)) throw refused;
+      return refused.responseHeaders;
+    };
+
+    const long = await headersOf();
+    expect(long).not.toHaveProperty("retry-after");
+    expect(long).toHaveProperty("x-kept", "yes");
+    expect(await headersOf()).toHaveProperty("retry-after-ms", "3000");
+  });
+
+  it("refuses the search's embedding at the quota without retrying", async () => {
+    const { sent, fetch } = recordingFetch(quota4006);
+    const embedder = createCloudflareEmbedder({
+      accountId: ACCOUNT,
+      apiToken: "test",
+      fetch,
+    });
+
+    await expect(embedder.embed(["milk"])).rejects.toBeInstanceOf(
+      QuotaExceededError,
+    );
+    expect(sent).toHaveLength(1);
   });
 });

@@ -10,6 +10,16 @@ import type { PassageMatch } from "./transcripts.ts";
 /** The longest message a visitor may send. The server refuses longer ones. */
 export const MAX_MESSAGE_LENGTH = 2000;
 
+/**
+ * The answer's error when Cloudflare's daily free allocation is used up. The
+ * browser recognises it by these words and shows when the demo works again.
+ */
+export const QUOTA_USED_UP =
+  "The demo's free AI allocation for today is used up. It resets at 00:00 UTC.";
+
+/** The answer's error when Cloudflare stayed busy through the retries. */
+export const DEMO_BUSY = "The demo is busy right now. Try again in a minute.";
+
 export type SearchNotesInput = { query: string };
 
 /** The closest passages, closest first. */

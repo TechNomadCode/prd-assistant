@@ -11,9 +11,11 @@ import {
   type InferUIMessageChunk,
 } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { localTime, nextReset } from "@/features/workspace/quota";
 import { Workspace } from "@/features/workspace/workspace";
-import { textOf, type ChatMessage } from "@/lib/chat";
+import { DEMO_BUSY, QUOTA_USED_UP, textOf, type ChatMessage } from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
+import { site } from "@/lib/site";
 import {
   FIRST_SECTION_REQUEST,
   GROCERY_DELIVERY_SUGGESTION,
@@ -399,5 +401,150 @@ describe("the home page", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(draftButton()).toBeEnabled();
+  });
+});
+
+// The server's words for Cloudflare's 429s (src/server/chat.ts, describeError).
+describe("the home page when the demo's AI can't answer", () => {
+  const usedUp = () => answer([{ type: "error", errorText: QUOTA_USED_UP }]);
+
+  function expectQuotaNotice(notice: HTMLElement) {
+    expect(notice).toHaveTextContent(
+      "The demo's free AI allocation for today is used up",
+    );
+    expect(notice).toHaveTextContent(/resets at 00:00 UTC \(.+ your time\)/);
+    expect(
+      screen.getByRole("link", { name: "README" }).getAttribute("href"),
+    ).toBe(`${site.links.repository}#readme`);
+    expect(
+      screen.getByRole("link", { name: "repository" }).getAttribute("href"),
+    ).toBe(site.links.repository);
+  }
+
+  it("says on the intro that today's allocation is used up and when it resets, without the ways into the chat", async () => {
+    fetchMock.mockResolvedValueOnce(usedUp());
+    render(<Workspace />);
+
+    fireEvent.click(draftButton());
+
+    const alert = await screen.findByRole("alert");
+    expectQuotaNotice(alert);
+    expect(alert).not.toHaveTextContent("Try again");
+    expect(introHeading()).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: "Draft the first section" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Or ask your own question first" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Read the full interviews" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the chat and the PRD readable once the allocation runs out, with no way to send, through Start over too", async () => {
+    fetchMock.mockResolvedValueOnce(answer(SAVES_INTRODUCTION));
+    render(<Workspace />);
+    fireEvent.click(draftButton());
+    await screen.findByRole("list", {
+      name: "Statements in Introduction / Overview",
+    });
+
+    fetchMock.mockResolvedValueOnce(usedUp());
+    fireEvent.change(screen.getByRole("textbox", { name: "Your message" }), {
+      target: { value: "Who wants a ping?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const chat = screen.getByRole("region", {
+      name: "Chat with the assistant",
+    });
+    expectQuotaNotice(await within(chat).findByRole("alert"));
+    expect(within(chat).getAllByRole("alert")).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Your message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Send" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: GROCERY_DELIVERY_SUGGESTION }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Looks right/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Conversation" }),
+    ).toHaveTextContent("Who wants a ping?");
+    expect(
+      screen.getByRole("list", {
+        name: "Statements in Introduction / Overview",
+      }),
+    ).toHaveTextContent("Henk wants a ping for every item.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear both" }));
+
+    expect(introHeading()).toHaveFocus();
+    expectQuotaNotice(screen.getByRole("alert"));
+    expect(
+      screen.queryByRole("button", { name: "Draft the first section" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says the demo is busy when Cloudflare stayed busy, and keeps Try again and the message box", async () => {
+    fetchMock.mockResolvedValueOnce(
+      answer([{ type: "error", errorText: DEMO_BUSY }]),
+    );
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Your message" }), {
+      target: { value: "Who wants a ping?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const chat = screen.getByRole("region", {
+      name: "Chat with the assistant",
+    });
+    const alert = await within(chat).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "The demo is busy right now. Try again in a minute.",
+    );
+    expect(alert).not.toHaveTextContent("used up");
+    expect(
+      within(alert).getByRole("button", { name: "Try again" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("textbox", { name: "Your message" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("when the allocation resets", () => {
+  it("is the next 00:00 UTC, also late in the UTC day", () => {
+    expect(nextReset(new Date("2026-10-20T06:22:00Z")).toISOString()).toBe(
+      "2026-10-21T00:00:00.000Z",
+    );
+    expect(nextReset(new Date("2026-12-31T23:59:59Z")).toISOString()).toBe(
+      "2027-01-01T00:00:00.000Z",
+    );
+    expect(nextReset(new Date("2026-10-21T00:00:00Z")).toISOString()).toBe(
+      "2026-10-22T00:00:00.000Z",
+    );
+  });
+
+  it("reads in the visitor's own time zone", () => {
+    const reset = new Date("2026-10-21T00:00:00Z");
+    expect(
+      localTime(reset, { locale: "en-GB", timeZone: "Europe/Amsterdam" }),
+    ).toBe("02:00");
+    expect(
+      localTime(reset, { locale: "en-GB", timeZone: "America/New_York" }),
+    ).toBe("20:00");
   });
 });

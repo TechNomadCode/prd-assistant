@@ -15,6 +15,11 @@
 - **Not a named region:** the intro's heading mentions a "shared grocery list app", and the PRD is the region of that name; Playwright matches names as substrings, so a named intro would make `getByRole("region", { name: "Shared grocery list app" })` ambiguous.
 - **Kept out of `src/lib`:** the intro's logic lives here, not in `src/lib`, whose changes the measurement's comparison reports as code that shapes the model (`src/server/measurement/report.ts`).
 
+## When the AI can't answer (`workspace/quota.tsx`)
+- **The used-up allocation:** `useChat`'s `onError` (`noteQuota`) sets `quotaUsedUp` when the error's message is `QUOTA_USED_UP` from `src/lib/chat.ts`, the server's words for Cloudflare's quota 429 (`src/server/AGENTS.md`). It lasts until a reload, through "Start over" too. The intro then shows `QuotaNotice` instead of its button and "Or ask your own question first"; the chat shows it instead of the suggestion, the message box and "Try again"; the PRD drops its check-in, which sends a message too. The conversation, the PRD and the link to the interviews stay.
+- **The reset time:** 00:00 UTC, and the same moment in the visitor's locale and time zone (`nextReset`, `localTime`), computed in the browser when the notice first shows, so the server's render never holds a time.
+- **Busy:** an error whose message is `DEMO_BUSY` shows those words with "Try again", since a minute later it can work. Every other error keeps the generic sentence.
+
 ## The source pop-over (`prd/source-popover.tsx`)
 - **No library:** one native `popover="auto"` element serves every name. Each name is its invoker (`popoverTarget`, `popoverTargetAction="show"`), which gives light dismiss (a tap outside, Escape) and makes the name the pop-over's implicit anchor, so the CSS needs no `anchor-name` (MDN, *Using the Popover API*, "Popover anchor positioning", read 2026-10-18 through Context7).
 - **Position** (`.source-popover` in `src/app/globals.css`): on a phone it isn't anchored, nearly full width and scrolling inside. From `lg` up it uses `position-area` with `position-try-fallbacks`, inside `@supports (position-area: bottom)`, with `inset` and `margin` reset as MDN advises, so browsers without anchor positioning get the centred box. Support (MDN's compatibility data, read 2026-10-18): Chrome 129, Firefox 147, Safari 26.
