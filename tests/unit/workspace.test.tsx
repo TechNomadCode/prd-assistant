@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -667,6 +668,224 @@ describe("the Stop button", () => {
     await waitFor(() =>
       expect(screen.queryByText("You stopped this answer.")).toBeNull(),
     );
+  });
+});
+
+describe("Jump to latest", () => {
+  /**
+   * jsdom lays nothing out, so the chat's pane gets a size: 1,000px of
+   * conversation in 300px of pane, at its end. `scrollPaneTo` moves it
+   * with a scroll event, as the visitor or a smooth scroll's steps do; its
+   * `scrollTo` only records the call.
+   */
+  function sizePane() {
+    const pane = screen.getByRole("list", {
+      name: "Conversation",
+    }).parentElement!;
+    let top = 700;
+    Object.defineProperties(pane, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 300 },
+      scrollTop: {
+        configurable: true,
+        get: () => top,
+        set: (value: number) => (top = Math.min(value, 700)),
+      },
+    });
+    const scrollTo = vi.fn();
+    pane.scrollTo = scrollTo;
+    return {
+      pane,
+      scrollTo,
+      grow(height: number) {
+        Object.defineProperty(pane, "scrollHeight", {
+          configurable: true,
+          value: height,
+        });
+      },
+      scrollPaneTo(to: number) {
+        pane.scrollTop = to;
+        fireEvent.scroll(pane);
+      },
+    };
+  }
+
+  function reduceMotion(reduce: boolean) {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: reduce && query === "(prefers-reduced-motion: reduce)",
+        }) as MediaQueryList,
+    );
+  }
+
+  function jumpButton() {
+    return screen.queryByRole("button", { name: "Jump to latest" });
+  }
+
+  function messageBox() {
+    return screen.getByRole("textbox", { name: "Your message" });
+  }
+
+  function send(words: string) {
+    fireEvent.change(messageBox(), { target: { value: words } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  }
+
+  /** The chat after one answer, which saved the first section. */
+  async function chatWithAnAnswer() {
+    fetchMock.mockImplementation(async () => answer(SAVES_INTRODUCTION));
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    send("Draft the first section.");
+    await screen.findByText(
+      "I saved Introduction / Overview.",
+      {},
+      { timeout: 3000 },
+    );
+    await screen.findByRole("button", { name: "Send" });
+  }
+
+  /** The next answer, held back until the test releases it. */
+  function holdNextAnswer() {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    fetchMock.mockImplementationOnce(async () =>
+      createUIMessageStreamResponse({
+        stream: createUIMessageStream<ChatMessage>({
+          execute: async ({ writer }) => {
+            writer.write({ type: "start" });
+            await held;
+            for (const chunk of text("reply-2", "Nobody else asked."))
+              writer.write(chunk);
+            writer.write({ type: "finish" });
+          },
+        }),
+      }),
+    );
+    return release;
+  }
+
+  it("shows once the visitor scrolls up, and goes when they scroll back down", async () => {
+    await chatWithAnAnswer();
+    const { scrollPaneTo } = sizePane();
+    expect(jumpButton()).not.toBeInTheDocument();
+
+    scrollPaneTo(200);
+    expect(jumpButton()).toBeInTheDocument();
+    // Within 48px of the end counts as the end.
+    scrollPaneTo(660);
+    expect(jumpButton()).not.toBeInTheDocument();
+  });
+
+  it("scrolls smoothly to the end, goes, hands focus to the message box, and the chat follows the answer on its way", async () => {
+    reduceMotion(false);
+    await chatWithAnAnswer();
+    const release = holdNextAnswer();
+    send("Who wants a ping?");
+    await screen.findByRole("button", { name: "Stop" });
+    const { pane, scrollTo, scrollPaneTo } = sizePane();
+    scrollPaneTo(200);
+
+    const jump = jumpButton()!;
+    jump.focus();
+    fireEvent.click(jump);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "smooth" });
+    expect(jumpButton()).not.toBeInTheDocument();
+    expect(messageBox()).toHaveFocus();
+    // The smooth scroll's steps on the way down don't bring it back.
+    scrollPaneTo(400);
+    expect(jumpButton()).not.toBeInTheDocument();
+
+    // Following again: the answer arrives, and the chat goes to its end,
+    // even from where a test puts it without a scroll event.
+    pane.scrollTop = 0;
+    release();
+    await screen.findByText("Nobody else asked.");
+    expect(pane.scrollTop).toBe(700);
+  });
+
+  it("comes back when the visitor scrolls up during the jump", async () => {
+    reduceMotion(false);
+    await chatWithAnAnswer();
+    const { scrollPaneTo } = sizePane();
+    scrollPaneTo(200);
+    fireEvent.click(jumpButton()!);
+
+    scrollPaneTo(400);
+    scrollPaneTo(300);
+    expect(jumpButton()).toBeInTheDocument();
+  });
+
+  it("shows when the conversation grows without a scroll, as when the visitor opens a search's passages", async () => {
+    // jsdom's stand-in never reports a size; this one reports on demand.
+    const observed: { callback: ResizeObserverCallback; target: Element }[] =
+      [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
+        observe(target: Element) {
+          observed.push({ callback: this.callback, target });
+        }
+        disconnect() {}
+      },
+    );
+    await chatWithAnAnswer();
+    const { grow } = sizePane();
+    const list = screen.getByRole("list", { name: "Conversation" });
+    const reportResize = () =>
+      observed
+        .filter(({ target }) => target === list)
+        .forEach(({ callback }) =>
+          act(() => callback([], {} as ResizeObserver)),
+        );
+
+    reportResize();
+    expect(jumpButton()).not.toBeInTheDocument();
+    grow(1400);
+    reportResize();
+    expect(jumpButton()).toBeInTheDocument();
+  });
+
+  it("jumps at once with reduced motion", async () => {
+    reduceMotion(true);
+    await chatWithAnAnswer();
+    const { scrollTo, scrollPaneTo } = sizePane();
+    scrollPaneTo(200);
+
+    fireEvent.click(jumpButton()!);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "instant" });
+  });
+
+  it("hands focus to the chat's heading once the allocation is used up and the message box is gone", async () => {
+    reduceMotion(false);
+    await chatWithAnAnswer();
+    fetchMock.mockImplementation(async () =>
+      answer([{ type: "error", errorText: QUOTA_USED_UP }]),
+    );
+    send("Who wants a ping?");
+    expect(
+      await screen.findByRole("alert", {}, { timeout: 3000 }),
+    ).toHaveTextContent("The demo's free AI allocation for today is used up");
+    const { scrollPaneTo } = sizePane();
+    scrollPaneTo(200);
+
+    const jump = jumpButton()!;
+    jump.focus();
+    fireEvent.click(jump);
+
+    expect(
+      screen.getByRole("heading", { name: "Chat with the assistant" }),
+    ).toHaveFocus();
   });
 });
 
