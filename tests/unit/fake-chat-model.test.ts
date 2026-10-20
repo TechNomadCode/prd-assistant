@@ -9,6 +9,7 @@ import {
   FAKE_CHAT_MODEL,
   FAKE_FAILURES,
   FAKE_FLAWED_SECTION,
+  FAKE_SEARCH_AGAIN,
 } from "@/server/ai/fake-chat-model";
 
 type Prompt = ChatModelCall["prompt"];
@@ -159,6 +160,32 @@ describe("the fake chat model", () => {
 
     expect(parts.some((part) => part.type === "tool-call")).toBe(false);
     expect(textOf(parts)).toMatch(/^I can only answer from the interviews/);
+  });
+
+  describe("asked to search again", () => {
+    const again = `Who wants a ping? ${FAKE_SEARCH_AGAIN}`;
+
+    it("searches again with the same words while the search is on offer", async () => {
+      const parts = await partsOf(afterSearch(again, FOUND));
+
+      expect(parts).toContainEqual(
+        expect.objectContaining({
+          type: "tool-call",
+          toolName: "searchNotes",
+          input: JSON.stringify({ query: "Who wants a ping?" }),
+        }),
+      );
+      expect(textOf(parts)).toBe("");
+    });
+
+    it("answers once the search is off", async () => {
+      const parts = await partsOf(afterSearch(again, FOUND), fake(), []);
+
+      expect(parts.some((part) => part.type === "tool-call")).toBe(false);
+      expect(textOf(parts)).toMatch(
+        /^I searched the interviews for “Who wants a ping\?”\./,
+      );
+    });
   });
 
   it("reports the tokens it estimates for each call", async () => {

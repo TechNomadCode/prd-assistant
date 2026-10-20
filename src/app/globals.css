@@ -87,6 +87,42 @@ body {
 }
 
 /*
+ * The lines a folded line opens to slide open and shut in about 0.35s, like
+ * opencode's spring without bounce: the one grid row grows from 0fr to 1fr.
+ * Closed, they're hidden once the slide has ended. With reduced motion they
+ * show and hide at once.
+ */
+.fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+
+.fold[data-open] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+
+.fold > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fold {
+    transition:
+      grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s 0.35s;
+  }
+
+  .fold[data-open] {
+    transition:
+      grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s;
+  }
+}
+
+/*
  * A PRD section just saved, or saved again with different statements: a soft
  * highlight behind it that fades to the page in about two seconds, with no
  * border. A fade isn't motion, so it shows with reduced motion too.
