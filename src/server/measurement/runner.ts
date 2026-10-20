@@ -325,7 +325,7 @@ function outcomeOf(
   const refusal = unrecovered.find((one) => one.kind !== "other");
   if (refusal) {
     const why = {
-      quota: "Cloudflare's daily allocation is used up (429, code 3036)",
+      quota: `Cloudflare's daily allocation is used up (429, code ${refusal.code})`,
       busy: "Cloudflare is out of capacity (code 3040)",
       "per-minute": "Cloudflare's per-minute limit (429)",
       other: "",
