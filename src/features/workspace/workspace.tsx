@@ -2,7 +2,16 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { browser } from "react-dom";
 import { Chat, MESSAGE_BOX_ID } from "@/features/chat/chat";
 import { PrdDocument } from "@/features/prd/prd-document";
 import {
@@ -16,6 +25,7 @@ import { firstUndrafted, sectionAnchor, type SectionName } from "@/lib/prd";
 import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
 import { breakItSuggestion, conversationStarted } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
+import { keepConversation, restoreConversation } from "./stored-conversation";
 
 const transport = new DefaultChatTransport<ChatMessage>({ api: "/api/chat" });
 
@@ -38,9 +48,25 @@ type SentCheckIn = { section: SectionName; fromMessage: number };
  * The home page: the intro first, then the chat and the PRD beside it, side
  * by side on a laptop, each scrolling on its own, and stacked on one page on
  * a phone. The PRD is built from the conversation: the latest save of each
- * section.
+ * section. The conversation is kept in the browser, so a reload brings both
+ * back; the server's page holds the intro, since only the browser knows
+ * what's kept.
  */
 export function Workspace() {
+  return (
+    <Suspense fallback={<Intro failed={false} quotaUsedUp={false} />}>
+      <RestoredWorkspace />
+    </Suspense>
+  );
+}
+
+function RestoredWorkspace() {
+  // On the server this leaves the intro above; in the browser it renders the
+  // workspace with what's kept, before anything is painted.
+  use(browser("The conversation is kept in the visitor's browser."));
+  const [restored] = useState(restoreConversation);
+  const kept =
+    restored.status === "restored" ? restored.conversation : undefined;
   // The intro's request is on its way; if it fails before saving a section,
   // the intro comes back.
   const introRequest = useRef(false);
@@ -57,9 +83,15 @@ export function Workspace() {
     error,
   } = useChat<ChatMessage>({
     transport,
+    messages: kept?.messages,
     onError: noteQuota,
     onFinish: afterAnswer,
   });
+  // The kept conversation's last answer broke off before the reload, so the
+  // chat shows it as failed, with "Try again", until the next request.
+  const [interrupted, setInterrupted] = useState(kept?.interrupted ?? false);
+  // A kept conversation that no longer fit was discarded: the intro says so.
+  const [discarded, setDiscarded] = useState(restored.status === "discarded");
   // The day's free AI allocation is used up. It stays so until the page
   // reloads, through "Start over" too: nothing can be sent before 00:00 UTC.
   const [quotaUsedUp, setQuotaUsedUp] = useState(false);
@@ -73,6 +105,7 @@ export function Workspace() {
 
   const onIntro = !leftIntro && !conversationStarted(messages);
   const working = status === "submitted" || status === "streaming";
+  const failed = status === "error" || (interrupted && status === "ready");
   const sections = useMemo(() => savedSections(messages), [messages]);
   const latest = latestSave(sections)?.section.section;
   const next = firstUndrafted(new Set(sections.keys()));
@@ -100,6 +133,12 @@ export function Workspace() {
     }
   }, [onIntro]);
 
+  // Kept after every answer, finished or failed, never halfway: a reload
+  // during an answer brings back the conversation from before it.
+  useEffect(() => {
+    if (!working) keepConversation({ messages, interrupted: failed });
+  }, [messages, working, failed]);
+
   const checkInArrived =
     checkIn !== undefined &&
     savedSections(messages.slice(checkIn.fromMessage)).has(checkIn.section);
@@ -108,13 +147,20 @@ export function Workspace() {
   function send(text: string, { fromIntro = false } = {}) {
     introRequest.current = fromIntro;
     // An answer that broke off never reaches the model as if it were whole.
-    if (status === "error" && messages.at(-1)?.role === "assistant") {
+    if (failed && messages.at(-1)?.role === "assistant") {
       setMessages(messages.slice(0, -1));
     }
+    setInterrupted(false);
     void sendMessage({ text });
   }
 
+  function retry() {
+    setInterrupted(false);
+    void regenerate();
+  }
+
   function draftFirstSection() {
+    setDiscarded(false);
     setIntroFailed(false);
     setLeftIntro(true);
     focusNext.current = "workspace";
@@ -122,6 +168,7 @@ export function Workspace() {
   }
 
   function askOwnQuestion() {
+    setDiscarded(false);
     clearError();
     setIntroFailed(false);
     setLeftIntro(true);
@@ -172,6 +219,7 @@ export function Workspace() {
     stop();
     setMessages([]);
     clearError();
+    setInterrupted(false);
     setCheckIn(undefined);
     setLeftIntro(false);
     setIntroFailed(false);
@@ -182,6 +230,7 @@ export function Workspace() {
     return (
       <Intro
         failed={introFailed}
+        discarded={discarded}
         quotaUsedUp={quotaUsedUp}
         onDraft={draftFirstSection}
         onAsk={askOwnQuestion}
@@ -200,7 +249,7 @@ export function Workspace() {
       <div className="flex flex-col lg:col-span-5 lg:min-h-0">
         <Chat
           messages={messages}
-          status={status}
+          status={failed ? "error" : status}
           error={error}
           quotaUsedUp={quotaUsedUp}
           suggestion={suggestion}
@@ -210,7 +259,7 @@ export function Workspace() {
             setCheckIn(undefined);
             send(text);
           }}
-          onRetry={() => void regenerate()}
+          onRetry={retry}
           onSeeSection={seeSection}
         />
       </div>

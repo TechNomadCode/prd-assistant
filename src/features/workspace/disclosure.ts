@@ -7,8 +7,8 @@ import { GROCERY_DELIVERY_SUGGESTION } from "@/lib/suggestions";
 
 /**
  * Whether the conversation has started, so the home page shows the chat and
- * the PRD instead of the intro. A visitor with a saved PRD goes straight to
- * the chat: once slice 10 restores a stored conversation, this holds for it.
+ * the PRD instead of the intro. A visitor with a kept conversation goes
+ * straight to the chat, since it holds messages from the first render.
  */
 export function conversationStarted(
   messages: readonly Pick<ChatMessage, "role" | "parts">[],
