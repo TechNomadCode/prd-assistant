@@ -212,7 +212,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 
 **Progressive disclosure**
 - Each moment shows only what the visitor needs right then. Details open when they ask for them.
-- Each step the AI takes is one line that opens to show its passages.
+- Each step the AI takes is one line; searches in a row fold into one line that opens to them, as in opencode’s desktop app.
 - Confirmed quotes open on a click; only what the check objects to is written out. How to read this is explained once, above the first section.
 - The suggestion to try to break it appears only after the first section.
 - The link for engineers stays quiet and leads to the README's explanation and the code.

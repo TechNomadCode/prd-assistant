@@ -42,7 +42,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 - Streaming chat after the intro screen:
   - drafting before asking, with questions only where the transcripts are silent
   - nine sections drafted one at a time and confirmed by the user
-  - each step shown as one line that opens its passages
+  - each step shown as one line, searches in a row folded into one
   - the suggestion to try to break it, after the first section
   - the demo notice under the chat box, and the link for engineers
 
