@@ -79,7 +79,7 @@ export function embeddingSpend(tokenBound: number): Spend {
 }
 
 /**
- * Why Cloudflare refused a request. Quota (429, code 3036: the day's free
+ * Why Cloudflare refused a request. Quota (429, `QUOTA_CODES`: the day's free
  * allocation is used up), busy (code 3040: out of capacity) and any other
  * 429 (the per-minute limit) make an answer "not run"
  * (https://developers.cloudflare.com/workers-ai/platform/errors/, read
@@ -91,10 +91,16 @@ export type Refusal = {
   kind: "quota" | "busy" | "per-minute" | "other";
 };
 
+/**
+ * The day's free allocation used up: 3036 on Cloudflare's errors page, 4006
+ * as the `/ai/v1` endpoint actually sent it (2026-10-20), with the same message.
+ */
+export const QUOTA_CODES: readonly number[] = [3036, 4006];
+
 export function classifyRefusal(status: number, body: unknown): Refusal {
   const code = errorCode(body);
   const kind =
-    code === 3036
+    code !== null && QUOTA_CODES.includes(code)
       ? "quota"
       : code === 3040
         ? "busy"
@@ -107,7 +113,7 @@ export function classifyRefusal(status: number, body: unknown): Refusal {
 /** Cloudflare's error code, from its own format or an OpenAI-style one. */
 function errorCode(body: unknown): number | null {
   if (typeof body === "string") {
-    const match = /\b(3036|3040)\b/.exec(body);
+    const match = /\b(3036|3040|4006)\b/.exec(body);
     return match ? Number(match[1]) : null;
   }
   if (typeof body !== "object" || body === null) return null;

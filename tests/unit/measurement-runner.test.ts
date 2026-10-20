@@ -853,6 +853,46 @@ describe("a batch", () => {
     );
   });
 
+  it("stops at the daily quota as the /ai/v1 endpoint sends it, code 4006", async () => {
+    // Cloudflare's reply on 2026-10-20; the errors page gives this message code 3036.
+    const quota4006 = () =>
+      Response.json(
+        {
+          errors: [
+            {
+              message:
+                "AiError: AiError: you have used up your daily free allocation of 10,000 neurons, please upgrade to Cloudflare's Workers Paid plan if you would like to continue usage. (f8fafcc3-d351-41a1-a7ed-9874a985ccfd)",
+              code: 4006,
+            },
+          ],
+          success: false,
+          result: {},
+          messages: [],
+        },
+        // Only so the AI SDK's retries don't wait seconds in a test.
+        { status: 429, headers: { "retry-after-ms": "1" } },
+      );
+    expect(classifyRefusal(429, { errors: [{ code: 4006 }] })).toMatchObject({
+      kind: "quota",
+    });
+
+    const env = cloudflareEnv([quota4006, quota4006, quota4006]);
+    const result = await runBatch(options({ runs: 2 }), env);
+
+    expect(result.stopped).toBe("Cloudflare's daily allocation is used up");
+    expect(result.answers).toEqual([
+      {
+        request: "A",
+        run: 1,
+        outcome: {
+          kind: "not run",
+          reason: "Cloudflare's daily allocation is used up (429, code 4006)",
+          refusal: "quota",
+        },
+      },
+    ]);
+  });
+
   it("stops once the batch passes 1.5 times what it expected", async () => {
     // One earlier first section that cost 10 neurons sets the expectation.
     await writeFile(
