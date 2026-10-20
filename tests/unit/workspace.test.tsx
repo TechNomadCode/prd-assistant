@@ -491,10 +491,13 @@ describe("the Stop button", () => {
     expect(messageBox()).toHaveValue("Who wants pings?");
     expect(screen.getByRole("button", { name: "Send" })).toHaveFocus();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    const kept = JSON.parse(
-      window.localStorage.getItem(STORAGE_KEY) ?? "null",
-    ) as { messages: ChatMessage[]; stopped: string[] };
-    expect(kept.stopped).toEqual([kept.messages[0]?.id]);
+    // Kept by an effect React may run after the stop is painted.
+    await waitFor(() => {
+      const kept = JSON.parse(
+        window.localStorage.getItem(STORAGE_KEY) ?? "null",
+      ) as { messages: ChatMessage[]; stopped: string[] } | null;
+      expect(kept?.stopped).toEqual([kept?.messages[0]?.id]);
+    });
   });
 
   it("keeps focus on the button when an empty message box leaves nothing to send", async () => {

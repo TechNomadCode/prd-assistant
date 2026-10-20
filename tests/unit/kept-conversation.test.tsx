@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -318,7 +324,8 @@ describe("the home page after a reload", () => {
     expect(
       screen.queryByRole("button", { name: "Try again" }),
     ).not.toBeInTheDocument();
-    expect(kept()).toMatchObject({ interrupted: false });
+    // Kept by an effect React may run after the answer is painted.
+    await waitFor(() => expect(kept()).toMatchObject({ interrupted: false }));
   });
 
   it("drops the kept answer that broke off when the visitor sends a new message instead", async () => {
@@ -357,12 +364,19 @@ describe("the home page after a reload", () => {
     expect(
       await screen.findByRole("button", { name: "Try again" }),
     ).toBeInTheDocument();
-    const value = kept() as { messages: ChatMessage[]; interrupted: boolean };
-    expect(value.interrupted).toBe(true);
-    expect(value.messages.map((message) => textOf(message))).toEqual([
-      "Who wants pings?",
-      "Half an answer",
-    ]);
+    // Kept by an effect React may run after the failure is painted: the
+    // answer comes from the network, not a click (found 2026-10-20 in CI).
+    await waitFor(() => {
+      const value = kept() as {
+        messages: ChatMessage[];
+        interrupted: boolean;
+      } | null;
+      expect(value?.interrupted).toBe(true);
+      expect(value?.messages.map((message) => textOf(message))).toEqual([
+        "Who wants pings?",
+        "Half an answer",
+      ]);
+    });
   });
 
   it("still reads a stopped answer as stopped, with no Try again", () => {
