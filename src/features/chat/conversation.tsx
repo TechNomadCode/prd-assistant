@@ -1,5 +1,5 @@
 import type { ChatStatus } from "ai";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import type { SectionName } from "@/lib/prd";
 import {
   textOf,
@@ -64,7 +64,8 @@ function activityOf(parts: ShownPart[]): Activity {
  * progress, or "Working…" whenever no step runs and no text arrives. An
  * answer that broke off stays visible, marked as unfinished, until it's
  * retried or replaced. An answer the visitor stopped keeps what it finished
- * and says so.
+ * and says so. The text of an answer that came in after the chat showed
+ * fades in as it arrives.
  */
 export function Conversation({
   messages,
@@ -79,6 +80,11 @@ export function Conversation({
   /** Brings a saved section into view in the PRD. */
   onSeeSection?: (section: SectionName) => void;
 }) {
+  // The messages the chat showed with, such as a conversation brought back
+  // after a reload: their text is there already, so it doesn't fade in.
+  const [shownAtFirst] = useState(
+    () => new Set(messages.map((message) => message.id)),
+  );
   const last = messages.at(-1);
   const working = status === "submitted" || status === "streaming";
   const lastParts = last?.role === "assistant" ? shownParts(last) : [];
@@ -124,6 +130,7 @@ export function Conversation({
           <AssistantMessage
             key={message.id}
             parts={shownParts(message)}
+            arriving={!shownAtFirst.has(message.id)}
             unfinished={status === "error" && message === last}
             stopped={question?.role === "user" && stopped.has(question.id)}
             activity={message === last ? activity : undefined}
@@ -211,12 +218,15 @@ function laidOut(parts: ShownPart[]): Laid[] {
 
 function AssistantMessage({
   parts,
+  arriving = false,
   unfinished,
   stopped = false,
   activity,
   onSeeSection,
 }: {
   parts: ShownPart[];
+  /** The answer came in after the chat showed: its text fades in. */
+  arriving?: boolean;
   unfinished: boolean;
   /** The visitor stopped this answer. */
   stopped?: boolean;
@@ -255,6 +265,7 @@ function AssistantMessage({
               <RichText
                 key={index}
                 text={part.text}
+                arriving={arriving}
                 className={cn(space, unfinished && "text-muted-foreground")}
               />
             );
