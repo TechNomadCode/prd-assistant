@@ -84,24 +84,43 @@ function sectionsOf(
   );
 }
 
-function showPrd({
-  sections = sectionsOf(INTRODUCTION),
-  checkIn,
-  onStartOver = () => {},
-}: {
+type PrdProps = {
   sections?: Map<SectionName, SavedSection>;
+  drafting?: ReadonlySet<SectionName>;
   checkIn?: CheckIn;
   onStartOver?: () => void;
-} = {}) {
-  render(
+};
+
+function prdOf({
+  sections = sectionsOf(INTRODUCTION),
+  drafting,
+  checkIn,
+  onStartOver = () => {},
+}: PrdProps = {}) {
+  return (
     <PrdDocument
       sections={sections}
       latest={[...sections.keys()].at(-1)}
+      drafting={drafting}
       checkIn={checkIn}
       visitorMessages={VISITOR_MESSAGES}
       onStartOver={onStartOver}
-    />,
+    />
   );
+}
+
+function showPrd(props: PrdProps = {}) {
+  return render(prdOf(props));
+}
+
+/** A section's own region in the outline. */
+function sectionRegion(section: SectionName) {
+  return screen.getByRole("region", { name: new RegExp(`^${section}`) });
+}
+
+/** The soft highlight behind a section that just changed, if it shows. */
+function highlight(section: SectionName) {
+  return sectionRegion(section).querySelector(".just-changed");
 }
 
 /** The statements' own items in a section. */
@@ -299,13 +318,27 @@ describe("the PRD", () => {
       ).toBeDisabled();
     });
 
-    it("reads Drafting until the section arrives", () => {
-      showPrd({ checkIn: checkIn({ drafting: true }) });
+    it("gives way to Drafting beside the next section's own heading until it arrives", () => {
+      showPrd({
+        checkIn: checkIn({ drafting: true }),
+        drafting: new Set(["Goals / Objectives"]),
+      });
 
-      expect(screen.getByText("Drafting Goals / Objectives…")).toBeVisible();
       expect(
         screen.queryByRole("button", { name: /^Looks right/ }),
       ).not.toBeInTheDocument();
+      expect(sectionRegion("Introduction / Overview")).not.toHaveTextContent(
+        "Drafting",
+      );
+      const drafting = within(sectionRegion("Goals / Objectives")).getByText(
+        "Drafting…",
+      );
+      expect(drafting).toBeVisible();
+      expect(drafting).toHaveClass("shimmer");
+      // Beside the heading, not in it: the heading keeps its name.
+      expect(
+        screen.getByRole("heading", { level: 3, name: /^Goals \/ Objectives/ }),
+      ).toHaveTextContent(/^Goals \/ Objectives \(not drafted yet\)$/);
     });
 
     it("comes back with a line beside it after a failure", () => {
@@ -319,6 +352,101 @@ describe("the PRD", () => {
       expect(
         screen.getByText("That answer didn't finish. Try again."),
       ).toBeVisible();
+    });
+  });
+
+  describe("what just changed", () => {
+    const GOALS: CheckedSection = {
+      section: "Goals / Objectives",
+      statements: [{ text: "Fewer double purchases.", citations: [] }],
+    };
+
+    it("says Drafting beside a drafted section's heading while it's drafted again", () => {
+      showPrd({ drafting: new Set(["Introduction / Overview"]) });
+
+      const region = sectionRegion("Introduction / Overview");
+      expect(within(region).getByText("Drafting…")).toHaveClass("shimmer");
+      expect(
+        screen.getByRole("heading", { level: 3, name: /^Introduction/ }),
+      ).toHaveTextContent(/^Introduction \/ Overview 3 of 6 quotes confirmed$/);
+      expect(sectionRegion("Goals / Objectives")).not.toHaveTextContent(
+        "Drafting",
+      );
+    });
+
+    it("lights up a section once it's saved, but not the sections the PRD opened with", () => {
+      const { rerender } = showPrd();
+      expect(highlight("Introduction / Overview")).toBeNull();
+
+      rerender(prdOf({ sections: sectionsOf(INTRODUCTION, GOALS) }));
+
+      expect(highlight("Goals / Objectives")).toBeInTheDocument();
+      expect(highlight("Goals / Objectives")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      expect(highlight("Introduction / Overview")).toBeNull();
+    });
+
+    it("lights up a section again when it's saved with different statements, not when nothing changed", () => {
+      const { rerender } = showPrd({ sections: sectionsOf() });
+      rerender(prdOf({ sections: sectionsOf(GOALS) }));
+      const first = highlight("Goals / Objectives");
+      expect(first).toBeInTheDocument();
+
+      // The same statements, saved again as a new object.
+      rerender(prdOf({ sections: sectionsOf(structuredClone(GOALS)) }));
+      expect(highlight("Goals / Objectives")).toBe(first);
+
+      rerender(
+        prdOf({
+          sections: sectionsOf({
+            ...GOALS,
+            statements: [{ text: "No double purchases.", citations: [] }],
+          }),
+        }),
+      );
+      // A new highlight, so its fade starts again.
+      expect(highlight("Goals / Objectives")).toBeInTheDocument();
+      expect(highlight("Goals / Objectives")).not.toBe(first);
+    });
+
+    it("lights up a section saved again after Start over cleared it", () => {
+      const { rerender } = showPrd();
+      rerender(prdOf({ sections: sectionsOf() }));
+      expect(highlight("Introduction / Overview")).toBeNull();
+
+      rerender(prdOf({ sections: sectionsOf(INTRODUCTION) }));
+      expect(highlight("Introduction / Overview")).toBeInTheDocument();
+    });
+
+    it("rolls the section count to its new number, upwards as it grows, then reads as plain text", () => {
+      const { rerender } = showPrd();
+      const line = () => screen.getByText(/^Product requirements document/);
+
+      rerender(prdOf({ sections: sectionsOf(INTRODUCTION, GOALS) }));
+
+      const roll = line().querySelector(".roll");
+      expect(roll).toHaveAttribute("data-direction", "up");
+      expect(roll?.querySelector(".roll-out")).toHaveTextContent(/^1$/);
+      expect(roll?.querySelector(".roll-out")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      const incoming = roll?.querySelector(".roll-in");
+      expect(incoming).toHaveTextContent(/^2$/);
+
+      fireEvent.animationEnd(incoming!);
+      expect(line().querySelector(".roll")).toBeNull();
+      expect(line()).toHaveTextContent(
+        /^Product requirements document · Draft · 2 of 9 sections · /,
+      );
+
+      rerender(prdOf({ sections: sectionsOf() }));
+      expect(line().querySelector(".roll")).toHaveAttribute(
+        "data-direction",
+        "down",
+      );
     });
   });
 

@@ -21,12 +21,17 @@ import {
   textOf,
   type ChatMessage,
 } from "@/lib/chat";
-import { firstUndrafted, sectionAnchor, type SectionName } from "@/lib/prd";
+import {
+  firstUndrafted,
+  PRD_SECTIONS,
+  sectionAnchor,
+  type SectionName,
+} from "@/lib/prd";
 import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
 import { breakItSuggestion, conversationStarted } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
 import { keepConversation, restoreConversation } from "./stored-conversation";
-import { finishedOnly } from "./stopped-answer";
+import { finishedOnly, unfinishedStep } from "./stopped-answer";
 
 const transport = new DefaultChatTransport<ChatMessage>({
   api: "/api/chat",
@@ -162,6 +167,16 @@ function RestoredWorkspace() {
     checkIn !== undefined &&
     savedSections(messages.slice(checkIn.fromMessage)).has(checkIn.section);
   const checkInOpen = checkIn !== undefined && !checkInArrived;
+  const drafting = useMemo(
+    () =>
+      working
+        ? sectionsBeingDrafted(
+            messages,
+            checkInOpen ? checkIn.section : undefined,
+          )
+        : new Set<SectionName>(),
+    [working, messages, checkInOpen, checkIn],
+  );
 
   function send(text: string, { fromIntro = false } = {}) {
     introRequest.current = fromIntro;
@@ -306,6 +321,7 @@ function RestoredWorkspace() {
         <PrdDocument
           sections={sections}
           latest={latest}
+          drafting={drafting}
           visitorMessages={visitorMessages}
           onStartOver={startOver}
           checkIn={
@@ -324,6 +340,30 @@ function RestoredWorkspace() {
       </div>
     </div>
   );
+}
+
+/**
+ * The sections being drafted while the assistant works: the one the check-in
+ * asked for, from its message until it's saved, and any whose save has
+ * started in the answer on its way.
+ */
+function sectionsBeingDrafted(
+  messages: ChatMessage[],
+  checkInSection: SectionName | undefined,
+): Set<SectionName> {
+  const drafting = new Set<SectionName>();
+  if (checkInSection !== undefined) drafting.add(checkInSection);
+  const answer = messages.at(-1);
+  if (answer?.role !== "assistant") return drafting;
+  for (const part of answer.parts) {
+    if (part.type !== "tool-saveSection" || !unfinishedStep(part)) continue;
+    // Until its input has arrived, the name can be cut short.
+    const name = PRD_SECTIONS.find(
+      (section) => section === part.input?.section,
+    );
+    if (name !== undefined) drafting.add(name);
+  }
+  return drafting;
 }
 
 /**

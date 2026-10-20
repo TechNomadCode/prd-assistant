@@ -440,6 +440,88 @@ describe("the home page", () => {
   });
 });
 
+describe("the PRD while the assistant works", () => {
+  function sectionRegion(section: string) {
+    return screen.getByRole("region", { name: new RegExp(`^${section}`) });
+  }
+
+  async function openChat() {
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+  }
+
+  function send(words: string) {
+    fireEvent.change(screen.getByRole("textbox", { name: "Your message" }), {
+      target: { value: words },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  }
+
+  it("says Drafting beside a section from the start of its save, and lights it up once saved", async () => {
+    fetchMock.mockImplementationOnce(async (_, init) =>
+      answerOnItsWay(SAVES_INTRODUCTION.slice(0, 1), init?.signal),
+    );
+    await openChat();
+    send("Draft the first section.");
+
+    const drafting = await within(
+      sectionRegion("Introduction / Overview"),
+    ).findByText("Drafting…", {}, { timeout: 3000 });
+    expect(drafting).toHaveClass("shimmer");
+    expect(sectionRegion("Goals / Objectives")).not.toHaveTextContent(
+      "Drafting",
+    );
+
+    // Stopped mid-save: nothing is being drafted any more.
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Drafting…")).not.toBeInTheDocument(),
+    );
+    expect(
+      sectionRegion("Introduction / Overview").querySelector(".just-changed"),
+    ).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(answer(SAVES_INTRODUCTION));
+    send("Draft the first section.");
+    await screen.findByText("I saved Introduction / Overview.");
+    expect(
+      sectionRegion("Introduction / Overview").querySelector(".just-changed"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Drafting…")).not.toBeInTheDocument();
+  });
+
+  it("says Drafting beside the section the check-in asked for, from its message, instead of under the one before", async () => {
+    fetchMock.mockResolvedValueOnce(answer(SAVES_INTRODUCTION));
+    await openChat();
+    send("Draft the first section.");
+    const checkIn = await screen.findByRole("button", {
+      name: "Looks right: draft Goals / Objectives",
+    });
+    fetchMock.mockImplementationOnce(async (_, init) =>
+      answerOnItsWay([], init?.signal),
+    );
+
+    fireEvent.click(checkIn);
+
+    expect(
+      await within(sectionRegion("Goals / Objectives")).findByText("Drafting…"),
+    ).toHaveClass("shimmer");
+    expect(sectionRegion("Introduction / Overview")).not.toHaveTextContent(
+      "Drafting",
+    );
+    expect(
+      screen.queryByRole("button", { name: /^Looks right/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Drafting…")).not.toBeInTheDocument(),
+    );
+  });
+});
+
 describe("the Stop button", () => {
   /** Asks a question whose answer saves the first section, then keeps working. */
   async function askAndWait() {
