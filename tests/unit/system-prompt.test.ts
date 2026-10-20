@@ -22,6 +22,8 @@ const FINGERPRINTS: Record<number, string> = {
   // Its text and its tools' wording. It saved nothing on staging
   // (2026-10-18), so the prompt went back to version 3.
   4: "aabe554870e08560a0d877a3333012cded67cb001b9bbd673ea98f43da44e5d2",
+  // Version 3 cut by about a quarter, with the claim rule reworded.
+  5: "314da5d9d1f1b37ea272e028f785dbe6d1696ff6647f2991f60781d42b50699a",
 };
 
 /** The toolkit template's nine sections, in its order. */
