@@ -5,6 +5,8 @@
 // sit in `.env.development.local`, which only `next dev` and the measurement
 // (`npm run measure`, 2026-10-19) read: `npm run dev:real` runs the chat on
 // the real model with it, and the measurement the chat and its search.
+// `npm run dev:replay` runs the chat on recorded answers ("replay"), which
+// reach no provider.
 
 export type EnvSource = {
   /** Where the values came from, such as ".env.local" or "the shell". */
@@ -33,11 +35,11 @@ const ADDRESS_VARIABLES = [
   "DATABASE_URL",
 ] as const;
 
-/** Variables that choose an adapter, with the only value allowed here. */
-const ADAPTER_VARIABLES = {
-  AI_PROVIDER: "fake",
-  AI_CHAT_PROVIDER: "fake",
-} as const;
+/** Variables that choose an adapter, with the only values allowed here. */
+const ADAPTER_VARIABLES: Record<string, readonly string[]> = {
+  AI_PROVIDER: ["fake"],
+  AI_CHAT_PROVIDER: ["fake", "replay"],
+};
 
 /** The real provider's settings, allowed in one file only. */
 const PROVIDER_KEY_VARIABLES = [
@@ -93,11 +95,11 @@ export function checkEnvironment(
 
     for (const [variable, allowed] of Object.entries(ADAPTER_VARIABLES)) {
       const value = values[variable];
-      if (value && value !== allowed) {
+      if (value && !allowed.includes(value)) {
         problems.push({
           source: name,
           variable,
-          reason: `is "${shown(value)}". Only the "${allowed}" adapter runs on this machine; the real chat model runs through \`npm run dev:real\`.`,
+          reason: `is "${shown(value)}". Only the ${allowed.map((adapter) => `"${adapter}"`).join(" or ")} adapter runs on this machine; the real chat model runs through \`npm run dev:real\`.`,
         });
       }
     }

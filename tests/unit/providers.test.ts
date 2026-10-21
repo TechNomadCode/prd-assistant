@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FAKE_CHAT_MODEL } from "@/server/ai/fake-chat-model";
 import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
 import { createChatModel, createEmbedder } from "@/server/ai/providers";
+import { REPLAY_CHAT_MODEL } from "@/server/ai/replay-chat-model";
 import { providerSettings, readChatEnv, readLoaderEnv } from "@/server/env";
 
 const cloudflare = {
@@ -144,6 +145,31 @@ describe("the chat model on its own adapter", () => {
       );
     },
   );
+
+  it("replays recorded answers as the chat model alone, at the speed asked", () => {
+    expect(
+      createChatModel({ provider: "fake", chatProvider: "replay" }).modelId,
+    ).toBe(REPLAY_CHAT_MODEL);
+    expect(() => createChatModel({ provider: "replay" })).toThrow(
+      'Unknown AI_PROVIDER "replay"',
+    );
+    expect(() => createEmbedder({ provider: "replay" })).toThrow(
+      /Unknown AI_PROVIDER/,
+    );
+
+    const env = readChatEnv({
+      AI_PROVIDER: "fake",
+      AI_CHAT_PROVIDER: "replay",
+      REPLAY_SPEED: "100",
+    });
+    expect(providerSettings(env)).toMatchObject({
+      chatProvider: "replay",
+      replaySpeed: 100,
+    });
+    expect(() =>
+      readChatEnv({ AI_PROVIDER: "fake", REPLAY_SPEED: "0.5" }),
+    ).toThrow(/REPLAY_SPEED/);
+  });
 
   it("needs the token for the real chat model", () => {
     expect(() =>

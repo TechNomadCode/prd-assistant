@@ -152,7 +152,7 @@ export function createFakeChatModel({
 type PromptMessage = ChatModelCall["prompt"][number];
 
 /** The visitor's latest message, as they wrote it. */
-function lastVisitorMessage(call: ChatModelCall): string {
+export function lastVisitorMessage(call: ChatModelCall): string {
   const message = call.prompt.findLast(
     (entry): entry is Extract<PromptMessage, { role: "user" }> =>
       entry.role === "user",

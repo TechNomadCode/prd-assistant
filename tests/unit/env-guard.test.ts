@@ -75,6 +75,17 @@ describe("the environment guard", () => {
     }
   });
 
+  it("lets the chat replay recorded answers, which reach no provider", () => {
+    expect(
+      checkEnvironment([
+        { name: "the shell", values: { ...local, AI_CHAT_PROVIDER: "replay" } },
+      ]),
+    ).toEqual([]);
+    expect(check({ ...local, AI_PROVIDER: "replay" })).toEqual([
+      expect.objectContaining({ variable: "AI_PROVIDER" }),
+    ]);
+  });
+
   it("allows this machine's token in .env.development.local only", () => {
     expect(PROVIDER_KEY_FILE).toBe(".env.development.local");
     expect(
