@@ -10,6 +10,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // The fake model streams its parts 15ms apart, so a drafted section takes
+  // about 1.5s alone and, under load, past the default 5s: full runs with six
+  // workers timed out waiting for an answer to end now and then (2026-10-20
+  // and 21), and 10 tests of 90 with twelve. The waits keep their conditions;
+  // only how long they may take changes.
+  expect: { timeout: 15_000 },
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,

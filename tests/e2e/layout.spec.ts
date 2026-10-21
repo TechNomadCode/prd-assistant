@@ -312,6 +312,9 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     await openChat(page);
     await ask(page, `Draft the first section. ${FAKE_SEARCH_AGAIN}`);
     await expect(turns(page).nth(1)).toContainText(ANSWER_END);
+    // The answer's last words show before it ends, and until then the chat
+    // follows it, which can take it back to its end past the opened searches.
+    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
     const jump = page.getByRole("button", { name: "Jump to latest" });
 
     await turns(page)
