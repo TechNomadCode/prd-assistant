@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 // dev server, so they test what users get.
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
+const REPLAY_PORT = 3101;
+const REPLAY_URL = `http://127.0.0.1:${REPLAY_PORT}`;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -22,11 +24,27 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: `npm run build && npm run start -- --port ${PORT}`,
-    url: baseURL,
-    reuseExistingServer: false,
-    timeout: 300_000,
-    stdout: "pipe",
-  },
+  // Playwright starts its servers one after another, each once the one
+  // before answers (`createPluginSetupTasks` in the installed runner, read
+  // 2026-10-21), so the second starts on the build the first made. It runs
+  // the chat on the replayed answers (`npm run dev:replay`'s model), a
+  // hundred times faster than recorded; only `tests/e2e/replay.spec.ts` uses
+  // it, and every other test stays on the scripted fake.
+  webServer: [
+    {
+      command: `npm run build && npm run start -- --port ${PORT}`,
+      url: baseURL,
+      reuseExistingServer: false,
+      timeout: 300_000,
+      stdout: "pipe",
+    },
+    {
+      command: `npm run start -- --port ${REPLAY_PORT}`,
+      url: REPLAY_URL,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      stdout: "pipe",
+      env: { AI_CHAT_PROVIDER: "replay", REPLAY_SPEED: "100" },
+    },
+  ],
 });

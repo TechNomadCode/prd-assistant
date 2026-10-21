@@ -64,6 +64,8 @@ Use the npm scripts, not the tools underneath them: they run the environment gua
 | --- | --- |
 | `dev`, `build`, `start` | Next.js, behind the environment guard |
 | `dev:real` | The dev server with the chat on the real model, from this machine's token in `.env.development.local` |
+| `dev:replay` | The dev server with the chat replaying the real model's recorded answers, at their real pace; free, no token (`src/server/AGENTS.md`, *Replayed answers*) |
+| `replays:copy` | Copies a few counted runs of each measured request from a measurement's records into `src/server/ai/replays.json`; reads the records only |
 | `measure`, `measure:fake` | The measurement: fixed requests on the real model and the real search, with that token; the same on the fakes, free (`src/server/AGENTS.md`, *The measurement*) |
 | `measure:report` | A measurement's report and its comparison with the baseline, from the saved records; sends nothing |
 | `doctor` | Checks Node, Git, Docker, the pinned Supabase CLI, gitleaks and the GitHub CLI |

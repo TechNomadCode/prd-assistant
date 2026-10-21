@@ -63,6 +63,8 @@ Then open http://localhost:3000. Everything runs on your machine: the database i
 | --- | --- |
 | `npm run dev` | The app in development mode, at http://localhost:3000 |
 | `npm run dev:real` | The same, with the chat on the real model and your own token (see below) |
+| `npm run dev:replay` | The same, with the chat replaying the real model's recorded answers: free, no token (see below) |
+| `npm run replays:copy -- --from <measurement folder>` | Copies a few recorded runs of each measured request into the project, for `dev:replay` |
 | `npm run measure -- --name <n> --purpose "<why>"` | Measures the AI's behaviour on the real model with your own token (see below); `--plan` only prints what it would send and cost |
 | `npm run measure:fake -- --name <n> --purpose "<why>"` | The same tool on the fakes, free |
 | `npm run build`, `npm start` | A production build, and serving it |
@@ -90,6 +92,10 @@ By default the chat runs on a scripted fake, so the tests are free and always gi
 3. Run `npm run dev:real` instead of `npm run dev`.
 
 The search still runs on the fake embedder, because the local passages carry its vectors, so which passages come back differs from staging. Every message spends neurons from the daily free allocation that staging and production share (10,000 a day; a first section costs about 310). Plain `npm run dev` reads the file too but keeps the fake chat; only `dev:real` switches the chat to the real model. Tests, builds and every other command except the measurement keep the fakes, and the environment guard refuses the token anywhere but that file.
+
+### Replayed real answers
+
+`npm run dev:replay` shows the interface with the real model's answers as they arrive on staging, for free and without a token. The chat replays answers the measurement recorded on gpt-oss-120b (a few runs of each measured request, in `src/server/ai/replays.json`): each reply whole, after the time the real model took. The intro's button, the grocery delivery suggestion and the other measured requests replay, each request's runs in turn; any other message gets the scripted fake's answer, paced the same way. The searches and saves still run on your machine, so the search lines show local passages, while the words come from the recording. The header says "Replaying recorded answers". To refresh the copy after a new measurement, run `npm run replays:copy -- --from docs/records/measurements/<name>` where the records are.
 
 ### Measuring the AI's behaviour
 

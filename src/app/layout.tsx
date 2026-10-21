@@ -18,6 +18,11 @@ export const metadata: Metadata = {
 // jump when Inter arrives (Next.js, `next/font`, read 2026-10-21).
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
+// `npm run dev:replay` sets it, so the screen says the answers are replayed
+// (src/server/ai/replay-chat-model.ts). Inlined when Next.js compiles, so no
+// build for staging or production has it.
+const REPLAY = process.env.NEXT_PUBLIC_CHAT_REPLAY === "1";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
@@ -33,14 +38,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="text-base font-semibold tracking-tight">
               {site.name}
             </Link>
-            <nav aria-label="Main">
-              <Link
-                href="/transcripts"
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Transcripts
-              </Link>
-            </nav>
+            <div className="flex items-center gap-6">
+              {REPLAY && (
+                <p className="text-sm text-muted-foreground">
+                  Replaying recorded answers
+                </p>
+              )}
+              <nav aria-label="Main">
+                <Link
+                  href="/transcripts"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Transcripts
+                </Link>
+              </nav>
+            </div>
           </div>
         </header>
         <main

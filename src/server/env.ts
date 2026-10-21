@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { AI_PROVIDERS, type ProviderSettings } from "./ai/providers.ts";
+import {
+  AI_PROVIDERS,
+  CHAT_PROVIDERS,
+  type ProviderSettings,
+} from "./ai/providers.ts";
 
 // Each part of the app reads only the settings it needs, checked here, so a
 // missing or mistyped value fails with a clear message instead of halfway
@@ -33,9 +37,13 @@ export function readAppEnv(env: Settings = process.env) {
 
 const aiSchema = z.object({
   AI_PROVIDER: z.enum(AI_PROVIDERS),
-  // The chat model's adapter alone; `npm run dev:real` sets it for the dev
-  // server. An empty line in an env file means unset, like a missing one.
-  AI_CHAT_PROVIDER: z.union([z.enum(AI_PROVIDERS), z.literal("")]).optional(),
+  // The chat model's adapter alone; `npm run dev:real` and `npm run
+  // dev:replay` set it for the dev server. An empty line in an env file means
+  // unset, like a missing one.
+  AI_CHAT_PROVIDER: z.union([z.enum(CHAT_PROVIDERS), z.literal("")]).optional(),
+  // How many times faster than recorded the replay runs; the end-to-end
+  // tests shorten its waits with it.
+  REPLAY_SPEED: z.coerce.number().min(1).optional(),
   // 32 hexadecimal characters, so a token pasted here by mistake is refused.
   CLOUDFLARE_ACCOUNT_ID: z
     .string()
@@ -53,6 +61,7 @@ export function providerSettings(
     chatProvider: env.AI_CHAT_PROVIDER || undefined,
     cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
     cloudflareApiToken: env.CLOUDFLARE_API_TOKEN,
+    replaySpeed: env.REPLAY_SPEED,
   };
 }
 

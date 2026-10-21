@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "node scripts/env-guard.ts && next dev",
     "dev:real": "node scripts/env-guard.ts --real-chat && node scripts/dev-real.ts",
+    "dev:replay": "node scripts/env-guard.ts && node scripts/dev-replay.ts",
+    "replays:copy": "node scripts/copy-replays.ts",
     "measure": "node scripts/env-guard.ts --measure && node scripts/measure.ts",
     "measure:fake": "node scripts/env-guard.ts && node scripts/measure.ts --fake",
     "measure:report": "node scripts/env-guard.ts && node scripts/measure.ts --report",
