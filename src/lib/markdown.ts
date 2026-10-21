@@ -2,11 +2,10 @@
 // no Markdown library. It keeps bold, inline code and lists, reads `<br>` as a
 // line break, and removes every other mark (headings, italics, links, quotes,
 // rules, strikethrough), so no `**`, `#` or table pipe is ever shown as typed.
-// The chat is too narrow for a table's grid, so a table shows row by row: one
-// line per row, its cells joined with " · " and its header in bold; or, when a
-// cell below the header holds a line break, a card per row, its first cell the
-// title and each further cell under its column's name. Any other HTML is shown
-// as typed, never interpreted. It returns plain data, never HTML.
+// A table is read into its header's cells and its rows' cells, for the chat to
+// show as a table. Any other HTML is shown as typed, never interpreted. It
+// returns plain data, never HTML. Only the browser uses it: the model never
+// sees what it makes of the text.
 
 /** A run of text inside a line, or a line break inside it. */
 export type Inline =
@@ -15,27 +14,19 @@ export type Inline =
   | { type: "code"; text: string }
   | { type: "break" };
 
-/**
- * A table's row as a card: its first cell as the title, in bold, then each
- * further cell that isn't empty. A card has no title when its first cell is
- * empty.
- */
-export type Card = { title?: Inline[]; fields: Field[] };
+/** A table's cell: its runs, none when it's empty. */
+export type Cell = Inline[];
 
 /**
- * A cell of a card, under its column's name in bold; without a label when the
- * column has no name (no header, an empty name, or more cells than names).
+ * A table: its header's cells, when it has a header with a name in it, and
+ * its rows' cells, as many as each row was written with, an empty one kept.
  */
-export type Field = { label?: Inline[]; value: Inline[] };
+export type Table = { type: "table"; header?: Cell[]; rows: Cell[][] };
 
 export type Block =
   | { type: "paragraph"; lines: Inline[][] }
   | { type: "list"; ordered: boolean; items: Inline[][] }
-  | { type: "table"; rows: Inline[][] }
-  | { type: "cards"; cards: Card[] };
-
-/** A table as read: its header's cells, if it has a header, and its rows'. */
-type Table = { header?: Inline[][]; rows: Inline[][][] };
+  | Table;
 
 const BULLET = /^\s*[-*+•]\s+(.*)$/;
 const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
@@ -44,8 +35,6 @@ const HEADING = /^\s*#{1,6}\s+/;
 const BLOCKQUOTE = /^\s*>\s?/;
 /** A table's separator row: cells of dashes, with optional alignment colons. */
 const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
-/** Between the cells of a row. */
-const CELL_SEPARATOR = " · ";
 /** A line break written in HTML: `<br>`, `<br/>` or `<br />`, in any case. */
 const BREAK = /<br\s*\/?>/gi;
 
@@ -101,10 +90,10 @@ export function parseMarkdown(text: string): Block[] {
       if (headed || line.trim().startsWith("|")) {
         endParagraph();
         endList();
-        const cells = tableCells(line);
+        const cells = tableCells(line).map((cell) => parseInline(cell));
         table = headed
-          ? { header: cells.map((cell) => bold(parseInline(cell))), rows: [] }
-          : { rows: [cells.map((cell) => parseInline(cell))] };
+          ? { type: "table", header: cells, rows: [] }
+          : { type: "table", rows: [cells] };
         continue;
       }
     }
@@ -156,64 +145,17 @@ function continuesTable(raw: string, line: string): boolean {
 }
 
 /**
- * The table row by row. Each cell is read on its own, so the breaks at its
- * edges go even inside its marks (they'd only part a cell from the next), and
- * a cell that comes out empty is dropped. When a cell below the header still
- * holds a line break, a row on one line would run its cells' lines together,
- * so every row of the table becomes a card, and the header's names its labels.
+ * The table as it shows. Each cell is read on its own, so the breaks at its
+ * edges go even inside its marks; an empty cell stays, in its place. A row of
+ * nothing but empty cells goes, and so does a header without a name, so the
+ * model's spare lines don't show as empty rows; a table left with nothing
+ * goes too.
  */
-function tableBlock({ header, rows }: Table): Block | undefined {
-  const breaks = rows.some((row) =>
-    row.some((cell) => cell.some((run) => run.type === "break")),
-  );
-  if (breaks) {
-    return {
-      type: "cards",
-      cards: rows.flatMap((row) => tableCard(row, header) ?? []),
-    };
-  }
-  const lines = [
-    ...(header ? [joinCells(header, true)] : []),
-    ...rows.map((row) => joinCells(row, false)),
-  ].filter((line) => line.length > 0);
-  return lines.length > 0 ? { type: "table", rows: lines } : undefined;
-}
-
-/** The row on one line, its cells apart; a header's separators are bold. */
-function joinCells(cells: Inline[][], header: boolean): Inline[] {
-  const line: Inline[] = [];
-  for (const runs of cells) {
-    if (runs.length === 0) continue;
-    if (line.length > 0) {
-      appendRun(line, { type: header ? "bold" : "text", text: CELL_SEPARATOR });
-    }
-    for (const run of runs) appendRun(line, run);
-  }
-  return line;
-}
-
-/** The row as a card, each cell under its column's name; none if it's empty. */
-function tableCard(
-  row: Inline[][],
-  header: Inline[][] | undefined,
-): Card | undefined {
-  const [first = [], ...rest] = row;
-  const fields: Field[] = [];
-  for (const [index, value] of rest.entries()) {
-    if (value.length === 0) continue;
-    const label = header?.[index + 1];
-    fields.push(label && label.length > 0 ? { label, value } : { value });
-  }
-  if (first.length > 0) return { title: bold(first), fields };
-  return fields.length > 0 ? { fields } : undefined;
-}
-
-/** Adds the run to the row, joined to text or bold of its own kind. */
-function appendRun(row: Inline[], run: Inline) {
-  const last = row.at(-1);
-  if (run.type === "text" && last?.type === "text") last.text += run.text;
-  else if (run.type === "bold" && last?.type === "bold") last.text += run.text;
-  else row.push({ ...run });
+function tableBlock({ header, rows }: Table): Table | undefined {
+  const filled = (cells: Cell[]) => cells.some((cell) => cell.length > 0);
+  const kept = rows.filter(filled);
+  if (header && filled(header)) return { type: "table", header, rows: kept };
+  return kept.length > 0 ? { type: "table", rows: kept } : undefined;
 }
 
 /** A row's cells, without the outer pipes. */
@@ -223,19 +165,6 @@ function tableCells(row: string): string[] {
   if (inner.startsWith("|")) inner = inner.slice(1);
   if (inner.endsWith("|")) inner = inner.slice(0, -1);
   return inner.split("|").map((cell) => cell.replaceAll("\u0000", "|").trim());
-}
-
-/** The runs with all their words bold, their code and breaks kept. */
-function bold(runs: Inline[]): Inline[] {
-  const bolded: Inline[] = [];
-  for (const run of runs) {
-    const next: Inline =
-      run.type === "text" ? { type: "bold", text: run.text } : { ...run };
-    const last = bolded.at(-1);
-    if (last?.type === "bold" && next.type === "bold") last.text += next.text;
-    else bolded.push(next);
-  }
-  return bolded;
 }
 
 /** `code`, **bold** or __bold__, in that order of precedence. */

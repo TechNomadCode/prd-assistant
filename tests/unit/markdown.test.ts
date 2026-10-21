@@ -141,7 +141,16 @@ describe("the model's formatting", () => {
   });
 
   describe("a table", () => {
-    it("shows each row as its own block, the header in bold", () => {
+    /** A cell of plain text, a line break between its lines. */
+    const cell = (...lines: string[]) =>
+      lines.flatMap((text, index) => [
+        ...(index > 0 ? [{ type: "break" }] : []),
+        { type: "text", text },
+      ]);
+    /** A cell of bold text. */
+    const bold = (text: string) => [{ type: "bold", text }];
+
+    it("reads its header's cells and its rows' cells, the text around it kept in order", () => {
       expect(
         parseMarkdown(
           [
@@ -159,15 +168,10 @@ describe("the model's formatting", () => {
         { type: "paragraph", lines: [[{ type: "text", text: "Goals:" }]] },
         {
           type: "table",
+          header: [cell("Goal"), cell("Metric")],
           rows: [
-            [{ type: "bold", text: "Goal · Metric" }],
-            [
-              {
-                type: "text",
-                text: "Fewer forgotten items · Items forgotten a week",
-              },
-            ],
-            [{ type: "text", text: "Faster lists · Minutes per list" }],
+            [cell("Fewer forgotten items"), cell("Items forgotten a week")],
+            [cell("Faster lists"), cell("Minutes per list")],
           ],
         },
         {
@@ -177,7 +181,7 @@ describe("the model's formatting", () => {
       ]);
     });
 
-    it("reads rows without outer pipes, keeps the marks in cells and drops empty cells", () => {
+    it("reads rows without outer pipes, keeps the marks in cells and keeps an empty cell empty", () => {
       expect(
         parseMarkdown(
           "Goal | Target\n--- | ---\n**Speed** | `X` minutes\nReach | |\nA \\| B | 10",
@@ -185,28 +189,29 @@ describe("the model's formatting", () => {
       ).toEqual([
         {
           type: "table",
+          header: [cell("Goal"), cell("Target")],
           rows: [
-            [{ type: "bold", text: "Goal · Target" }],
             [
-              { type: "bold", text: "Speed" },
-              { type: "text", text: " · " },
-              { type: "code", text: "X" },
-              { type: "text", text: " minutes" },
+              bold("Speed"),
+              [
+                { type: "code", text: "X" },
+                { type: "text", text: " minutes" },
+              ],
             ],
-            [{ type: "text", text: "Reach" }],
-            [{ type: "text", text: "A | B · 10" }],
+            [cell("Reach"), []],
+            [cell("A | B"), cell("10")],
           ],
         },
       ]);
     });
 
-    it("shows rows with no separator as plain rows", () => {
+    it("reads rows with no separator as a table without a header", () => {
       expect(parseMarkdown("| Henk | every ping |\n| Daan | none |")).toEqual([
         {
           type: "table",
           rows: [
-            [{ type: "text", text: "Henk · every ping" }],
-            [{ type: "text", text: "Daan · none" }],
+            [cell("Henk"), cell("every ping")],
+            [cell("Daan"), cell("none")],
           ],
         },
       ]);
@@ -232,10 +237,8 @@ describe("the model's formatting", () => {
 
     const TABLE = {
       type: "table",
-      rows: [
-        [{ type: "bold", text: "a · b" }],
-        [{ type: "text", text: "1 · 2" }],
-      ],
+      header: [cell("a"), cell("b")],
+      rows: [[cell("1"), cell("2")]],
     };
     const table = "| a | b |\n|---|---|\n| 1 | 2 |\n";
 
@@ -287,27 +290,34 @@ describe("the model's formatting", () => {
 
     it("drops a separator row between data rows, and a row of empty cells", () => {
       expect(parseMarkdown(table + "|---|---|\n| | |\n| 3 | 4 |")).toEqual([
-        {
-          type: "table",
-          rows: [...TABLE.rows, [{ type: "text", text: "3 · 4" }]],
-        },
+        { ...TABLE, rows: [...TABLE.rows, [cell("3"), cell("4")]] },
       ]);
     });
 
-    it("keeps code in a bold header, and takes a single dash as a separator", () => {
+    it("drops a header without a name, and keeps a header without rows", () => {
+      expect(parseMarkdown("| | |\n|---|---|\n| 1 | 2 |")).toEqual([
+        { type: "table", rows: [[cell("1"), cell("2")]] },
+      ]);
+      expect(parseMarkdown("| a | b |\n|---|---|\n| | |")).toEqual([
+        { type: "table", header: [cell("a"), cell("b")], rows: [] },
+      ]);
+      expect(parseMarkdown("| | |\n|---|---|\n| | |\n\nAfter")).toEqual([
+        { type: "paragraph", lines: [[{ type: "text", text: "After" }]] },
+      ]);
+    });
+
+    it("keeps code in a header, and takes a single dash as a separator", () => {
       expect(
         parseMarkdown("| Goal | `id` | Metric |\n|-|-|-|\n| x | y | z |"),
       ).toEqual([
         {
           type: "table",
-          rows: [
-            [
-              { type: "bold", text: "Goal · " },
-              { type: "code", text: "id" },
-              { type: "bold", text: " · Metric" },
-            ],
-            [{ type: "text", text: "x · y · z" }],
+          header: [
+            cell("Goal"),
+            [{ type: "code", text: "id" }],
+            cell("Metric"),
           ],
+          rows: [[cell("x"), cell("y"), cell("z")]],
         },
       ]);
     });
@@ -332,20 +342,11 @@ describe("the model's formatting", () => {
           ordered: false,
           items: [[{ type: "text", text: "Price | Qty" }]],
         },
-        { type: "table", rows: [[{ type: "text", text: "1 · 2" }]] },
+        { type: "table", rows: [[cell("1"), cell("2")]] },
       ]);
     });
 
-    /** Bold text, as a card's title or a column's name. */
-    const bold = (text: string) => [{ type: "bold", text }];
-    /** A cell's text, a line break between its lines. */
-    const cell = (...lines: string[]) =>
-      lines.flatMap((text, index) => [
-        ...(index > 0 ? [{ type: "break" }] : []),
-        { type: "text", text },
-      ]);
-
-    it("shows a table whose cells hold several points as one card per row, each further cell under its column's name (seen on staging, 2026-10-19)", () => {
+    it("reads a table whose cells hold several points, each <br> a line break in its cell (seen on staging, 2026-10-19)", () => {
       expect(
         parseMarkdown(
           [
@@ -355,7 +356,6 @@ describe("the model's formatting", () => {
             "|---|---|---|---|",
             "| **The planner** (Maya) | • Plans the week's meals<br>• Shops once a week | • One shared list<br>• Items in aisle order | • Forgotten items<br>• Buying things twice |",
             "| **The quick adder** (Henk) | • Adds items as he thinks of them | • A ping for every item<br>• Adding in one tap | • Missing what Ineke added |",
-            "| **The quiet one** (Daan) | • Checks the list in the store | • No pings while working | • Too many notifications<br>• Bad signal in the store |",
           ].join("\n"),
         ),
       ).toEqual([
@@ -364,278 +364,90 @@ describe("the model's formatting", () => {
           lines: [[{ type: "text", text: "Three personas stand out:" }]],
         },
         {
-          type: "cards",
-          cards: [
-            {
-              title: bold("The planner (Maya)"),
-              fields: [
-                {
-                  label: bold("Who they are"),
-                  value: cell(
-                    "• Plans the week's meals",
-                    "• Shops once a week",
-                  ),
-                },
-                {
-                  label: bold("Needs"),
-                  value: cell("• One shared list", "• Items in aisle order"),
-                },
-                {
-                  label: bold("Pain points"),
-                  value: cell("• Forgotten items", "• Buying things twice"),
-                },
-              ],
-            },
-            {
-              title: bold("The quick adder (Henk)"),
-              fields: [
-                {
-                  label: bold("Who they are"),
-                  value: cell("• Adds items as he thinks of them"),
-                },
-                {
-                  label: bold("Needs"),
-                  value: cell("• A ping for every item", "• Adding in one tap"),
-                },
-                {
-                  label: bold("Pain points"),
-                  value: cell("• Missing what Ineke added"),
-                },
-              ],
-            },
-            {
-              title: bold("The quiet one (Daan)"),
-              fields: [
-                {
-                  label: bold("Who they are"),
-                  value: cell("• Checks the list in the store"),
-                },
-                {
-                  label: bold("Needs"),
-                  value: cell("• No pings while working"),
-                },
-                {
-                  label: bold("Pain points"),
-                  value: cell(
-                    "• Too many notifications",
-                    "• Bad signal in the store",
-                  ),
-                },
-              ],
-            },
+          type: "table",
+          header: [
+            cell("Persona"),
+            cell("Who they are"),
+            cell("Needs"),
+            cell("Pain points"),
+          ],
+          rows: [
+            [
+              [...bold("The planner"), { type: "text", text: " (Maya)" }],
+              cell("• Plans the week's meals", "• Shops once a week"),
+              cell("• One shared list", "• Items in aisle order"),
+              cell("• Forgotten items", "• Buying things twice"),
+            ],
+            [
+              [...bold("The quick adder"), { type: "text", text: " (Henk)" }],
+              cell("• Adds items as he thinks of them"),
+              cell("• A ping for every item", "• Adding in one tap"),
+              cell("• Missing what Ineke added"),
+            ],
           ],
         },
       ]);
     });
 
-    it("shows the staging table as the owner's preview: a card per row, titled by its first cell, each further cell under its column's name (2026-10-20)", () => {
-      expect(
-        parseMarkdown(
-          [
-            "| Persona | Who they are | Needs | Pain points |",
-            "|---|---|---|---|",
-            "| Maya | Parent of two<br>Shops weekly | • One shared list<br>• Aisle order | • Duplicates<br>• Forgotten items |",
-            "| Henk | Retired | • A ping for every item | • Missing what Ineke adds |",
-          ].join("\n"),
-        ),
-      ).toEqual([
-        {
-          type: "cards",
-          cards: [
-            {
-              title: bold("Maya"),
-              fields: [
-                {
-                  label: bold("Who they are"),
-                  value: cell("Parent of two", "Shops weekly"),
-                },
-                {
-                  label: bold("Needs"),
-                  value: cell("• One shared list", "• Aisle order"),
-                },
-                {
-                  label: bold("Pain points"),
-                  value: cell("• Duplicates", "• Forgotten items"),
-                },
-              ],
-            },
-            {
-              title: bold("Henk"),
-              fields: [
-                { label: bold("Who they are"), value: cell("Retired") },
-                {
-                  label: bold("Needs"),
-                  value: cell("• A ping for every item"),
-                },
-                {
-                  label: bold("Pain points"),
-                  value: cell("• Missing what Ineke adds"),
-                },
-              ],
-            },
-          ],
-        },
-      ]);
-    });
-
-    it("leaves an empty cell out with its label, a card's title when its first cell is empty, and a row of empty cells", () => {
-      expect(
-        parseMarkdown(
-          [
-            "| Persona | Needs | Pain points |",
-            "|---|---|---|",
-            "| Maya | | • Duplicates<br>• Forgotten items |",
-            "| | • A ping for every item | <br> |",
-            "| | | |",
-          ].join("\n"),
-        ),
-      ).toEqual([
-        {
-          type: "cards",
-          cards: [
-            {
-              title: bold("Maya"),
-              fields: [
-                {
-                  label: bold("Pain points"),
-                  value: cell("• Duplicates", "• Forgotten items"),
-                },
-              ],
-            },
-            {
-              fields: [
-                {
-                  label: bold("Needs"),
-                  value: cell("• A ping for every item"),
-                },
-              ],
-            },
-          ],
-        },
-      ]);
-    });
-
-    it("shows a table without a separator row as cards without labels", () => {
-      expect(
-        parseMarkdown(
-          "| Maya | Parent of two<br>Shops weekly | • One shared list |\n| Henk | Retired |",
-        ),
-      ).toEqual([
-        {
-          type: "cards",
-          cards: [
-            {
-              title: bold("Maya"),
-              fields: [
-                { value: cell("Parent of two", "Shops weekly") },
-                { value: cell("• One shared list") },
-              ],
-            },
-            { title: bold("Henk"), fields: [{ value: cell("Retired") }] },
-          ],
-        },
-      ]);
-    });
-
-    it("shows a cell without a header name without a label: one beyond the header's names, or under an empty name", () => {
+    it("keeps an empty cell and an empty header name in their places, and a row's cells beyond the header", () => {
       expect(
         parseMarkdown(
           [
             "| Persona | | Needs |",
             "|---|---|---|",
             "| Maya | Shops weekly | • One shared list<br>• Aisle order | Since 2024 |",
+            "| | • A ping for every item | <br> |",
           ].join("\n"),
         ),
       ).toEqual([
         {
-          type: "cards",
-          cards: [
-            {
-              title: bold("Maya"),
-              fields: [
-                { value: cell("Shops weekly") },
-                {
-                  label: bold("Needs"),
-                  value: cell("• One shared list", "• Aisle order"),
-                },
-                { value: cell("Since 2024") },
-              ],
-            },
+          type: "table",
+          header: [cell("Persona"), [], cell("Needs")],
+          rows: [
+            [
+              cell("Maya"),
+              cell("Shops weekly"),
+              cell("• One shared list", "• Aisle order"),
+              cell("Since 2024"),
+            ],
+            [[], cell("• A ping for every item"), []],
           ],
         },
       ]);
     });
 
-    it("switches per table: one with no line break inside a cell below its header stays one line per row", () => {
+    it("keeps a break inside a header's cell, drops one at a cell's edge, and shows <br> in code as typed", () => {
       expect(
         parseMarkdown(
           [
-            "| Persona | Needs |",
+            "| Persona<br>(who) | Needs |",
             "|---|---|",
-            "| Maya | • One shared list<br>• Aisle order |",
-            "",
-            "| Goal<br>(why) | Metric |",
-            "|---|---|",
-            "| Fewer forgotten items | Write `<br>` for a break |",
-            "| <br>Faster lists<br> | Minutes per list |",
+            "| <br>Maya<br> | <br> |",
+            "| Henk | • Quick add<br/> |",
+            "| Daan | Write `<br>` for a break |",
           ].join("\n"),
         ),
       ).toEqual([
         {
-          type: "cards",
-          cards: [
-            {
-              title: bold("Maya"),
-              fields: [
-                {
-                  label: bold("Needs"),
-                  value: cell("• One shared list", "• Aisle order"),
-                },
+          type: "table",
+          header: [cell("Persona", "(who)"), cell("Needs")],
+          rows: [
+            [cell("Maya"), []],
+            [cell("Henk"), cell("• Quick add")],
+            [
+              cell("Daan"),
+              [
+                { type: "text", text: "Write " },
+                { type: "code", text: "<br>" },
+                { type: "text", text: " for a break" },
               ],
-            },
-          ],
-        },
-        {
-          type: "table",
-          rows: [
-            [
-              { type: "bold", text: "Goal" },
-              { type: "break" },
-              { type: "bold", text: "(why) · Metric" },
             ],
-            [
-              { type: "text", text: "Fewer forgotten items · Write " },
-              { type: "code", text: "<br>" },
-              { type: "text", text: " for a break" },
-            ],
-            [{ type: "text", text: "Faster lists · Minutes per list" }],
           ],
         },
       ]);
     });
 
-    it("keeps a header bold across a break, and drops a break at a cell's edge and a cell of only a break", () => {
-      expect(
-        parseMarkdown(
-          "| Persona<br>(who) | Needs |\n|---|---|\n| <br>Maya<br> | <br> |\n| Henk | • Quick add<br/> |",
-        ),
-      ).toEqual([
-        {
-          type: "table",
-          rows: [
-            [
-              { type: "bold", text: "Persona" },
-              { type: "break" },
-              { type: "bold", text: "(who) · Needs" },
-            ],
-            [{ type: "text", text: "Maya" }],
-            [{ type: "text", text: "Henk · • Quick add" }],
-          ],
-        },
-      ]);
-    });
-
-    it("drops a break at a cell's edge inside its marks, and a cell of only a marked break", () => {
+    it("drops a break at a cell's edge inside its marks, leaving a cell of only a marked break empty", () => {
       expect(
         parseMarkdown(
           [
@@ -649,15 +461,11 @@ describe("the model's formatting", () => {
       ).toEqual([
         {
           type: "table",
+          header: [bold("Persona"), cell("Needs")],
           rows: [
-            [{ type: "bold", text: "Persona · Needs" }],
-            [
-              { type: "bold", text: "Maya" },
-              { type: "text", text: " · " },
-              { type: "bold", text: "One list" },
-            ],
-            [{ type: "text", text: "Henk · A ping" }],
-            [{ type: "text", text: "Daan" }],
+            [bold("Maya"), bold("One list")],
+            [cell("Henk"), cell("A ping")],
+            [cell("Daan"), []],
           ],
         },
       ]);
