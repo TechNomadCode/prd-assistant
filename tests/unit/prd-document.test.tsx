@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { COPY_OUTCOME_MS } from "@/features/prd/copy-section";
 import { PrdDocument, type CheckIn } from "@/features/prd/prd-document";
+import { sectionMarkdown } from "@/features/prd/prd-markdown";
 import type { SavedSection } from "@/lib/chat";
 import type { CheckedSection, SectionName } from "@/lib/prd";
 
@@ -447,6 +449,129 @@ describe("the PRD", () => {
         "data-direction",
         "down",
       );
+    });
+  });
+
+  describe("copying a section", () => {
+    const COPY_INTRODUCTION = "Copy section: Introduction / Overview";
+
+    function stubClipboard(clipboard: Partial<Clipboard> | undefined) {
+      Object.defineProperty(navigator, "clipboard", {
+        value: clipboard,
+        configurable: true,
+      });
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+      Reflect.deleteProperty(navigator, "clipboard");
+    });
+
+    /** Clicks the button and lets the clipboard's promise settle. */
+    async function copy(name = COPY_INTRODUCTION) {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name }));
+      });
+    }
+
+    it("offers a copy button beside each saved section's heading, none beside one not drafted yet", () => {
+      showPrd();
+
+      expect(
+        within(sectionRegion("Introduction / Overview")).getByRole("button", {
+          name: COPY_INTRODUCTION,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(sectionRegion("Goals / Objectives")).queryByRole("button"),
+      ).toBeNull();
+      expect(
+        screen.getByRole("heading", { level: 3, name: /^Introduction/ }),
+      ).toHaveAccessibleName("Introduction / Overview 3 of 6 quotes confirmed");
+    });
+
+    it("copies the section as Markdown, then shows a check mark and is named Copied for two seconds", async () => {
+      vi.useFakeTimers();
+      const writeText = vi.fn(() => Promise.resolve());
+      stubClipboard({ writeText });
+      showPrd();
+
+      await copy();
+
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(
+        sectionMarkdown("Introduction / Overview", {
+          section: INTRODUCTION,
+          order: 0,
+        }),
+      );
+      const button = screen.getByRole("button", { name: "Copied" });
+      // The check mark is a single stroke; the copy icon has a square.
+      expect(button.querySelector("rect")).toBeNull();
+      expect(
+        screen.getByText("Copied", { selector: "[aria-live]" }),
+      ).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(COPY_OUTCOME_MS - 1));
+      expect(screen.getByRole("button", { name: "Copied" })).toBe(button);
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(screen.getByRole("button", { name: COPY_INTRODUCTION })).toBe(
+        button,
+      );
+      expect(button.querySelector("rect")).not.toBeNull();
+      expect(document.querySelector("[aria-live]")).toBeEmptyDOMElement();
+    });
+
+    it.each([
+      [
+        "refuses the clipboard",
+        {
+          writeText: () =>
+            Promise.reject(new DOMException("", "NotAllowedError")),
+        },
+      ],
+      ["has no clipboard", undefined],
+    ])(
+      "says Couldn't copy, on screen too, when the browser %s",
+      async (_, clipboard) => {
+        vi.useFakeTimers();
+        stubClipboard(clipboard);
+        showPrd();
+
+        await copy();
+
+        const button = screen.getByRole("button", { name: "Couldn't copy" });
+        expect(button.querySelector("rect")).not.toBeNull();
+        expect(
+          screen.getByText("Couldn't copy", { selector: ".copy-tip" }),
+        ).toHaveAttribute("data-open");
+        expect(
+          screen.getByText("Couldn't copy", { selector: "[aria-live]" }),
+        ).toBeInTheDocument();
+
+        act(() => vi.advanceTimersByTime(COPY_OUTCOME_MS));
+        expect(screen.getByRole("button", { name: COPY_INTRODUCTION })).toBe(
+          button,
+        );
+        expect(document.querySelector(".copy-tip")).not.toHaveAttribute(
+          "data-open",
+        );
+      },
+    );
+
+    it("gives a second copy its own two seconds", async () => {
+      vi.useFakeTimers();
+      stubClipboard({ writeText: () => Promise.resolve() });
+      showPrd();
+
+      await copy();
+      act(() => vi.advanceTimersByTime(1500));
+      await copy("Copied");
+      act(() => vi.advanceTimersByTime(1500));
+
+      expect(
+        screen.getByRole("button", { name: "Copied" }),
+      ).toBeInTheDocument();
     });
   });
 
