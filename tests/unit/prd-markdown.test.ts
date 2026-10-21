@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prdMarkdown } from "@/features/prd/prd-markdown";
+import { prdMarkdown, sectionMarkdown } from "@/features/prd/prd-markdown";
 import type { SavedSection } from "@/lib/chat";
 import type { CheckedSection, SectionName } from "@/lib/prd";
 
@@ -187,5 +187,74 @@ describe("the PRD as Markdown", () => {
     expect(markdown.match(/^## /gm)).toHaveLength(9);
     expect(markdown.match(/^Not drafted yet\.$/gm)).toHaveLength(9);
     expect(markdown).not.toContain("[^");
+  });
+});
+
+describe("a section as Markdown, for the clipboard", () => {
+  it("writes the heading, each statement with its sources' footnotes and what the code objects to, then the footnotes", () => {
+    expect(
+      sectionMarkdown("Introduction / Overview", {
+        section: INTRODUCTION,
+        order: 0,
+      }),
+    ).toBe(
+      [
+        "## Introduction / Overview",
+        "",
+        "- Henk wants a ping for every item. Sources: Henk[^1]; You, in this chat[^2]",
+        "- Daan keeps the list on paper. Sources: Daan[^3]",
+        "  - Unverified quote from Daan: “on a fridge note” These words aren't in the answer it cites.",
+        "  - Unverified quote: “paper only” There's no passage “daan-9” in the interviews.",
+        "- Everyone shops on Saturday.",
+        "  - No quote backs this statement.",
+        "- Pings stay on by default. Sources: You, in this chat[^4]",
+        "  - Your decision, not from the interviews.",
+        "",
+        "[^1]: Henk, interview passage henk-4: “ping me every time” · henk-4: “on the list”",
+        "[^2]: You, in this chat: “Pings stay on by default.”",
+        "[^3]: Daan, interview passage daan-2: “on a fridge note” (unverified)",
+        "[^4]: You, in this chat: “Pings stay on by default.”",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("numbers the footnotes within the section, whatever comes before it in the PRD", () => {
+    const goals: CheckedSection = {
+      section: "Goals / Objectives",
+      statements: [
+        {
+          text: "Fewer *double* purchases.",
+          citations: [{ ...HENK, quote: "on the list", confirmed: true }],
+        },
+      ],
+    };
+
+    expect(
+      sectionMarkdown("Goals / Objectives", { section: goals, order: 1 }),
+    ).toBe(
+      [
+        "## Goals / Objectives",
+        "",
+        "- Fewer \\*double\\* purchases. Sources: Henk[^1]",
+        "",
+        "[^1]: Henk, interview passage henk-4: “on the list”",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("writes a section whose statements cite nothing without footnotes", () => {
+    expect(
+      sectionMarkdown("Open Questions / Future Considerations", {
+        section: {
+          section: "Open Questions / Future Considerations",
+          statements: [{ text: "Who pays for delivery?", citations: [] }],
+        },
+        order: 2,
+      }),
+    ).toBe(
+      "## Open Questions / Future Considerations\n\n- Who pays for delivery?\n",
+    );
   });
 });

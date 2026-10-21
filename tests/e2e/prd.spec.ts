@@ -325,6 +325,97 @@ test.describe("the PRD", () => {
     await expect(heading).toBeFocused();
   });
 
+  test.describe("copying a section", () => {
+    test.use({ permissions: ["clipboard-read", "clipboard-write"] });
+
+    /**
+     * The clipboard's text. Windows hands it back with its own line breaks;
+     * the exact text the app writes is in `tests/unit/prd-markdown.test.ts`.
+     */
+    async function readClipboard(page: Page) {
+      const text = await page.evaluate(() => navigator.clipboard.readText());
+      return text.replace(/\r\n/g, "\n");
+    }
+
+    test("shows the copy button while the section is hovered or focused, with its label once the pointer rests on it, and copies the section as Markdown", async ({
+      page,
+    }) => {
+      await draftFirstSection(page);
+      const section = prd(page).getByRole("region", {
+        name: /^Introduction \/ Overview/,
+      });
+      const button = section.getByRole("button", {
+        name: "Copy section: Introduction / Overview",
+      });
+      const label = section.locator(".copy-tip");
+      // Hover-capable: shown only while the section has the pointer or focus.
+      await page.mouse.move(0, 0);
+      await expect(button.locator("..")).toHaveCSS("opacity", "0");
+
+      await statements(page, INTRODUCTION).first().hover();
+      await expect(button.locator("..")).toHaveCSS("opacity", "1");
+      await expect(label).toBeHidden();
+      await page.mouse.move(0, 0);
+      await expect(button.locator("..")).toHaveCSS("opacity", "0");
+
+      await button.focus();
+      await expect(button.locator("..")).toHaveCSS("opacity", "1");
+      await button.blur();
+
+      await button.hover();
+      await expect(label).toBeVisible();
+      await expect(label).toHaveText("Copy section");
+      await button.click();
+
+      await expect(
+        section.getByRole("button", { name: "Copied", exact: true }),
+      ).toBeVisible();
+      await expect(label).toBeHidden();
+      const copied = await readClipboard(page);
+      const first = await statements(page, INTRODUCTION)
+        .first()
+        .locator("p")
+        .first()
+        .evaluate((element) => element.firstChild?.textContent ?? "");
+      expect(copied).toMatch(/^## Introduction \/ Overview\n\n- /);
+      expect(copied).toContain(`- ${first.trim()} Sources: `);
+      expect(copied.match(/^- /gm)).toHaveLength(4);
+      expect(copied).toMatch(/\n\n\[\^1\]: /);
+      expect(copied.match(/^\[\^\d\]: /gm)).toHaveLength(4);
+      expect(copied).toMatch(/[^\n]\n$/);
+      expect(copied).not.toContain("Goals / Objectives");
+
+      // Back to the copy button after two seconds.
+      await expect(button).toBeVisible({ timeout: 4000 });
+    });
+
+    test.describe("on a phone", () => {
+      test.use({ viewport: { width: 375, height: 812 }, hasTouch: true });
+
+      test("shows the copy button at rest, and a tap copies the section", async ({
+        page,
+      }) => {
+        await draftFirstSection(page);
+        const section = prd(page).getByRole("region", {
+          name: /^Introduction \/ Overview/,
+        });
+        const button = section.getByRole("button", {
+          name: "Copy section: Introduction / Overview",
+        });
+        await expect(button.locator("..")).toHaveCSS("opacity", "1");
+
+        await button.tap();
+
+        await expect(
+          section.getByRole("button", { name: "Copied", exact: true }),
+        ).toBeVisible();
+        expect(await readClipboard(page)).toMatch(
+          /^## Introduction \/ Overview\n\n- /,
+        );
+      });
+    });
+  });
+
   test("Start over asks once, then clears the chat and the PRD and brings the intro back", async ({
     page,
   }) => {

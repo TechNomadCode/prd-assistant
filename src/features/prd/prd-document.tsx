@@ -17,6 +17,7 @@ import {
   type SectionName,
   type StatementSource,
 } from "@/lib/prd";
+import { CopySection } from "./copy-section";
 import { downloadPrd, PRODUCT, VISITOR_DECISION } from "./prd-markdown";
 import { SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
 
@@ -109,7 +110,7 @@ export function PrdDocument({
               <section
                 key={name}
                 aria-labelledby={sectionAnchor(name)}
-                className="relative isolate mt-8"
+                className="group/section relative isolate mt-8"
               >
                 {changed !== undefined && (
                   // Remounted on every change, so its fade starts again.
@@ -132,6 +133,7 @@ export function PrdDocument({
                           {quoteCount(saved)}
                         </span>
                       </h3>
+                      <CopySection name={name} saved={saved} />
                       {drafting.has(name) && <Drafting />}
                     </div>
                     <ul

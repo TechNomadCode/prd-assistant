@@ -55,6 +55,27 @@ export function prdMarkdown(
     }
   }
 
+  return withNotes(lines, notes);
+}
+
+/**
+ * One saved section as Markdown, in the download's form, for the clipboard:
+ * its heading, its statements and its footnotes, numbered within it.
+ */
+export function sectionMarkdown(
+  name: SectionName,
+  saved: SavedSection,
+): string {
+  const notes: string[] = [];
+  const lines = [`## ${name}`, ""];
+  for (const statement of saved.section.statements) {
+    lines.push(...statementLines(name, statement, notes));
+  }
+  return withNotes(lines, notes);
+}
+
+/** The lines, then the footnotes, as one text ending in a line break. */
+function withNotes(lines: string[], notes: string[]): string {
   if (notes.length > 0) {
     lines.push("", ...notes.map((note, index) => `[^${index + 1}]: ${note}`));
   }
