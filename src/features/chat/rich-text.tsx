@@ -1,22 +1,24 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   parseMarkdown,
   type Block,
-  type Card,
-  type Field,
+  type Cell,
   type Inline,
+  type Table,
 } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 import { useReducedMotion } from "./use-reduced-motion";
 
 /**
- * The assistant's text with its formatting: bold, inline code and lists are
- * shown as such, `<br>` as a line break, and every other mark is removed
- * (src/lib/markdown.ts). A table shows row by row, with space between the
- * rows: one line per row, or, when its cells hold line breaks, a card per row
- * whose further cells are labelled with their column's names.
+ * The assistant's text with its formatting: bold, inline code, lists and
+ * tables are shown as such, `<br>` as a line break, and every other mark is
+ * removed (src/lib/markdown.ts). A table is opencode's (`markdown.css`,
+ * *Tables*, at 50c5fce): its header's cells in medium weight over a stronger
+ * hairline, faint hairlines between the rows, no vertical lines, its cells
+ * top-aligned with even padding; one wider than the chat scrolls sideways in
+ * its own box.
  *
  * Text still `arriving` fades in as it comes (opencode's
  * `markdown-word-enter`; `.word-enter` in `src/app/globals.css`): what it
@@ -67,23 +69,8 @@ export function RichText({
             </p>
           );
         }
-        if (block.type === "cards") {
-          return (
-            <div key={index} className="space-y-3">
-              {block.cards.map((card, number) => (
-                <Fragment key={number}>{tableCard(card, words)}</Fragment>
-              ))}
-            </div>
-          );
-        }
         if (block.type === "table") {
-          return (
-            <div key={index} className="space-y-3">
-              {block.rows.map((row, number) => (
-                <p key={number}>{runs(row, words)}</p>
-              ))}
-            </div>
-          );
+          return <SideScroll key={index}>{table(block, words)}</SideScroll>;
         }
         const List = block.ordered ? "ol" : "ul";
         return (
@@ -112,22 +99,17 @@ export function RichText({
 type Words = { starts: number[]; at: number };
 
 /**
- * The text's runs in the order they're rendered: a card's title, then each
- * cell's name and value.
+ * The text's runs in the order they're rendered: a table's header's cells,
+ * then its rows' cells, row by row.
  */
 function* runsOf(blocks: Block[]): Generator<Inline[]> {
   for (const block of blocks) {
     if (block.type === "paragraph") yield* block.lines;
     else if (block.type === "list") yield* block.items;
-    else if (block.type === "table") yield* block.rows;
-    else
-      for (const card of block.cards) {
-        if (card.title) yield card.title;
-        for (const field of card.fields) {
-          if (field.label) yield field.label;
-          yield field.value;
-        }
-      }
+    else {
+      if (block.header) yield* block.header;
+      for (const row of block.rows) yield* row;
+    }
   }
 }
 
@@ -140,52 +122,104 @@ function shownLength(blocks: Block[]): number {
   return length;
 }
 
-/** A cell's later lines go under its first, indented: a hanging indent. */
-const HANGING_INDENT = "pl-4 -indent-4";
+/**
+ * opencode's cell: 12px of padding all round, top-aligned, a hairline under.
+ * Unlike opencode's, at least 144px wide: the chat is narrower than its
+ * reading column, and a table squeezed to fit it showed a word per line, so
+ * a table with more columns than fit scrolls instead.
+ */
+const CELL = "min-w-36 border-b-[0.5px] p-3 text-start align-top";
 
 /**
- * A table row as a card: its title, then a line per cell. A named cell is a
- * term and its description in a description list, so a screen reader hears
- * each cell with its column's name; consecutive named cells share one list,
- * each pair in a `<div>` for the indent. A cell without a name can't be a
- * description without a term, so it's a line of its own, in its place (MDN,
- * `<dl>`: name-value groups, optionally wrapped in a `<div>`; read 2026-10-20
- * through Context7).
+ * The table, every row as wide as its widest row or its header, so the
+ * hairlines run the full width. A header's cell with a name is a column
+ * header; one without, or one the header lacks, is an empty `<td>`, since it
+ * names nothing.
  */
-function tableCard(card: Card, words: Words | undefined) {
-  const named = (field: Field | undefined) => field?.label !== undefined;
-  const groups: Field[][] = [];
-  for (const field of card.fields) {
-    const group = groups.at(-1);
-    if (group && named(group[0]) === named(field)) group.push(field);
-    else groups.push([field]);
-  }
+function table({ header, rows }: Table, words: Words | undefined) {
+  const columns = Math.max(
+    header?.length ?? 0,
+    ...rows.map((row) => row.length),
+  );
+  const padded = (cells: Cell[]) =>
+    Array.from({ length: columns }, (_, column) => cells[column] ?? []);
   return (
-    <div>
-      {card.title && <p>{runs(card.title, words)}</p>}
-      {groups.map((group, index) =>
-        group[0]?.label ? (
-          <dl key={index}>
-            {group.map(({ label = [], value }, number) => (
-              <div key={number} className={HANGING_INDENT}>
-                <dt className="inline font-semibold">{runs(label, words)}:</dt>{" "}
-                <dd className="inline">{runs(value, words)}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <Fragment key={index}>
-            {group.map(({ value }, number) => (
-              <p key={number} className={HANGING_INDENT}>
-                {runs(value, words)}
-              </p>
-            ))}
-          </Fragment>
-        ),
+    <table className="w-full border-collapse">
+      {header && (
+        <thead>
+          <tr>
+            {padded(header).map((cell, column) =>
+              cell.length > 0 ? (
+                <th
+                  key={column}
+                  scope="col"
+                  className={cn(CELL, "border-border-strong font-medium")}
+                >
+                  {runs(cell, words)}
+                </th>
+              ) : (
+                <td key={column} className={cn(CELL, "border-border-strong")} />
+              ),
+            )}
+          </tr>
+        </thead>
       )}
+      {rows.length > 0 && (
+        <tbody>
+          {rows.map((row, number) => (
+            <tr key={number}>
+              {padded(row).map((cell, column) => (
+                <td key={column} className={cn(CELL, "border-border")}>
+                  {runs(cell, words)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      )}
+    </table>
+  );
+}
+
+/**
+ * A box that scrolls its table sideways when the table is wider than the
+ * chat, so the page never does. While it scrolls it's a named region in the
+ * tab order, so a keyboard can scroll it too (axe's
+ * `scrollable-region-focusable`, which checks only a box that overflows; axe
+ * 4.14, read 2026-10-21 through Context7); a table that fits adds no tab stop.
+ * A `ResizeObserver` measures it whenever the box or the table changes size,
+ * as the chat narrows or an arriving table grows.
+ */
+function SideScroll({ children }: { children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const element = box.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() =>
+      setScrolls(element.scrollWidth > element.clientWidth),
+    );
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div
+      ref={box}
+      className="overflow-x-auto"
+      {...(scrolls && {
+        tabIndex: 0,
+        role: "region",
+        "aria-label": SCROLLING_TABLE,
+      })}
+    >
+      {children}
     </div>
   );
 }
+
+/** The name of a table's box while it scrolls sideways. */
+const SCROLLING_TABLE = "Table, scrolls sideways";
 
 function runs(line: Inline[], words: Words | undefined) {
   return line.map((run, index) => {

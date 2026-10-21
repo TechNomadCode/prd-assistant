@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FAKE_FAILURES, FAKE_SEARCH_AGAIN } from "@/server/ai/fake-chat-model";
+import {
+  STORAGE_KEY,
+  STORED_FORMAT,
+} from "@/features/workspace/stored-conversation";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
 // The chat on the home page, with the scripted fake model. It searches with
@@ -309,5 +313,138 @@ test.describe("chat", () => {
     ).toBeVisible();
 
     await expectNoAccessibilityViolations(page);
+  });
+});
+
+// A table in the assistant's answer (slice 19). The fake model never writes
+// one, so the tests open a kept conversation whose answer holds two tables, a
+// wide one and one that fits a laptop's chat.
+test.describe("a table in an answer", () => {
+  const ANSWER = [
+    "The households differ on six points:",
+    "",
+    "| Persona | Household | Shopping | Needs | Pain points | Notifications |",
+    "|---|---|---|---|---|---|",
+    "| **Maya** | Parent of two, organises everything | Supermarket, weekly | • One shared list<br>• Aisle order | • Duplicates<br>• Forgotten items | Summaries |",
+    "| **Henk** | Retired, lives with Ineke | Neighbourhood shop, daily | • A ping for every item | • Missing what Ineke adds | Everything |",
+    "",
+    "And the goal they share:",
+    "",
+    "| Goal | Metric |",
+    "|---|---|",
+    "| Fewer forgotten items | Items forgotten a week |",
+  ].join("\n");
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(
+      ({ key, kept }) => localStorage.setItem(key, JSON.stringify(kept)),
+      {
+        key: STORAGE_KEY,
+        kept: {
+          format: STORED_FORMAT,
+          messages: [
+            {
+              id: "question",
+              role: "user",
+              parts: [{ type: "text", text: "How do the households differ?" }],
+            },
+            {
+              id: "answer",
+              role: "assistant",
+              parts: [
+                { type: "step-start" },
+                { type: "text", text: ANSWER, state: "done" },
+              ],
+            },
+          ],
+          interrupted: false,
+          stopped: [],
+        },
+      },
+    );
+  });
+
+  function wideTable(page: Page) {
+    return conversation(page)
+      .getByRole("table")
+      .filter({
+        has: page.getByRole("columnheader", { name: "Notifications" }),
+      });
+  }
+
+  /** Whether the page itself scrolls sideways. */
+  function pageScrollsSideways(page: Page) {
+    return page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+  }
+
+  test.describe("on a laptop", () => {
+    test.use({ viewport: { width: 1440, height: 900 } });
+
+    test("shows each as a table, the wide one scrolling sideways in its own box, which the keyboard reaches", async ({
+      page,
+    }) => {
+      await page.goto("/");
+
+      await expect(conversation(page).getByRole("table")).toHaveCount(2);
+      await expect(wideTable(page).getByRole("columnheader")).toHaveText([
+        "Persona",
+        "Household",
+        "Shopping",
+        "Needs",
+        "Pain points",
+        "Notifications",
+      ]);
+      await expect(
+        wideTable(page).getByRole("cell", { name: "Maya" }),
+      ).toBeVisible();
+      await expect(conversation(page)).not.toContainText("|");
+      await expect(conversation(page)).not.toContainText("<br");
+      await expect(conversation(page)).not.toContainText("**");
+
+      // Only the wide table's box scrolls, so only it is a stop for the
+      // keyboard; the page and the chat's pane don't scroll sideways.
+      const box = conversation(page).getByRole("region", {
+        name: "Table, scrolls sideways",
+      });
+      await expect(box).toHaveCount(1);
+      await expect(box.getByRole("table")).toContainText("Notifications");
+      expect(await pageScrollsSideways(page)).toBe(false);
+      expect(
+        await page
+          .locator("#chat-title + div")
+          .evaluate((pane) => pane.scrollWidth > pane.clientWidth),
+      ).toBe(false);
+
+      await box.focus();
+      await expect(box).toBeFocused();
+      await page.keyboard.press("ArrowRight");
+      await expect
+        .poll(() => box.evaluate((element) => element.scrollLeft))
+        .toBeGreaterThan(0);
+
+      await expectNoAccessibilityViolations(page);
+    });
+  });
+
+  test.describe("on a phone", () => {
+    test.use({ viewport: { width: 375, height: 812 } });
+
+    test("scrolls a table sideways inside the message, never the page", async ({
+      page,
+    }) => {
+      await page.goto("/");
+
+      await expect(conversation(page).getByRole("table")).toHaveCount(2);
+      await expect(
+        conversation(page).getByRole("region", {
+          name: "Table, scrolls sideways",
+        }),
+      ).not.toHaveCount(0);
+      expect(await pageScrollsSideways(page)).toBe(false);
+
+      await expectNoAccessibilityViolations(page);
+    });
   });
 });
