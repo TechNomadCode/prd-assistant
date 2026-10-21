@@ -924,6 +924,58 @@ describe("earlier answers, as they reach the model again", () => {
       ]),
     });
   });
+
+  it("reach the model exactly as before when they hold the browser's thinking times, which the request check accepts", async () => {
+    // The browser keeps how long the model thought before each reply as a
+    // data part of the answer (`src/features/chat/thoughts.ts`).
+    const stepped = (parts: ChatMessage["parts"]): ChatMessage["parts"] =>
+      parts.flatMap((part) => [{ type: "step-start" as const }, part]);
+    const thought = (ms: number) => ({
+      type: "data-thought" as const,
+      data: { ms },
+    });
+    const without = [
+      visitor("Draft the first section."),
+      { ...earlier, parts: stepped(earlier.parts) },
+      visitor("Who wants a ping for every item?", "visitor-2"),
+    ];
+    const withTimes = [
+      without[0]!,
+      {
+        ...earlier,
+        parts: earlier.parts.flatMap((part, index) => [
+          { type: "step-start" as const },
+          thought(1_000 * (index + 1)),
+          part,
+        ]),
+      },
+      without[2]!,
+    ];
+
+    const accepted = await readChatRequest({ messages: withTimes });
+    expect(accepted).toEqual(withTimes);
+    const prompts = async (messages: ChatMessage[]) => {
+      const fake = createFakeChatModel({
+        chunkDelayInMs: 0,
+        failedMessages: new Set(),
+      });
+      const calls: ChatModelCall[] = [];
+      const model: ChatModel = {
+        ...fake,
+        doStream: (call) => {
+          calls.push(call);
+          return fake.doStream(call);
+        },
+      };
+      await answer(messages, model);
+      return calls.map((call) => call.prompt);
+    };
+
+    const seen = await prompts(accepted);
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen).toEqual(await prompts(without));
+    expect(JSON.stringify(seen)).not.toContain("data-thought");
+  });
 });
 
 describe("when something fails", () => {

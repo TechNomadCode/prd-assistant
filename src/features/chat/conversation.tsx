@@ -14,21 +14,26 @@ import { RichText } from "./rich-text";
 import { SearchRun } from "./search-run";
 import { SearchStep } from "./search-step";
 import { SectionStep } from "./section-step";
+import { ThinkingLine, ThoughtLine } from "./thought-line";
+import { isThought, type ThoughtPart } from "./thoughts";
 
 type ShownPart =
   | Extract<ChatMessagePart, { type: "text" }>
   | SearchNotesPart
   | SaveSectionPart
-  | FailedToolPart;
+  | FailedToolPart
+  | ThoughtPart;
 
 /**
- * The parts a visitor sees: the text, the searches, the saved sections, and
- * any tool call the app couldn't read.
+ * The parts a visitor sees: the text, the searches, the saved sections, any
+ * tool call the app couldn't read, and how long the model thought before
+ * each reply.
  */
 function shownParts(message: ChatMessage): ShownPart[] {
   return message.parts.filter(
     (part): part is ShownPart =>
       (part.type === "text" && part.text !== "") ||
+      isThought(part) ||
       part.type === "tool-searchNotes" ||
       part.type === "tool-saveSection" ||
       (part.type === "dynamic-tool" && part.state === "output-error"),
@@ -45,23 +50,29 @@ function inProgress(part: ShownPart): boolean {
 
 /**
  * What shows that an answer on its way is still being worked on: the latest
- * step in progress, the text as it arrives, or else "Working…" at its end.
- * Text at the end counts as arriving even once its part is done: a reply's
- * steps come after its text (whole replies, slice 8a), so trailing text means
- * the answer is finishing, and "Working…" would only flash before it ends.
+ * step in progress, the reply as it arrives, or else "Thinking" at its end,
+ * while the model thinks before its next reply (`chat/thoughts.ts`). Text at
+ * the end counts as arriving even once its part is done: a reply's steps come
+ * after its text (whole replies, slice 8a), so trailing text means the answer
+ * is finishing, and "Thinking" would only flash before it ends. A thought's
+ * time at the end means its reply has begun.
  */
-type Activity = { step: number } | "text" | "working";
+type Activity = { step: number } | "reply" | "thinking";
 
 function activityOf(parts: ShownPart[]): Activity {
   const step = parts.findLastIndex(inProgress);
   if (step !== -1) return { step };
-  return parts.at(-1)?.type === "text" ? "text" : "working";
+  const last = parts.at(-1);
+  return last !== undefined && (last.type === "text" || isThought(last))
+    ? "reply"
+    : "thinking";
 }
 
 /**
  * The messages so far. While the assistant works, its steps and its text
  * appear as they stream in, and exactly one line moves: the step in
- * progress, or "Working…" whenever no step runs and no text arrives. An
+ * progress, or "Thinking" whenever no step runs and no reply arrives. Each
+ * reply follows a line with how long the model thought before it. An
  * answer that broke off stays visible, marked as unfinished, until it's
  * retried or replaced. An answer the visitor stopped keeps what it finished
  * and says so. The text of an answer that came in after the chat showed
@@ -94,7 +105,7 @@ export function Conversation({
   if (messages.length === 0 && !waiting) return null;
 
   // A question sits closer to its own answer than to the turn before it:
-  // 16px to its answer, or to "Working…" while that's on its way, and 32px
+  // 16px to its answer, or to "Thinking" while that's on its way, and 32px
   // between turns, a question that got no answer included (docs/
   // decisions.md, Design, 2026-10-20).
   return (
@@ -141,19 +152,10 @@ export function Conversation({
       {waiting && (
         <li data-role="assistant">
           <p className="sr-only">Assistant</p>
-          <WorkingLine />
+          <ThinkingLine />
         </li>
       )}
     </ol>
-  );
-}
-
-/** "Working…", with the moving band (`.shimmer` in `src/app/globals.css`). */
-function WorkingLine({ className }: { className?: string }) {
-  return (
-    <p className={cn("shimmer text-sm text-muted-foreground", className)}>
-      Working…
-    </p>
   );
 }
 
@@ -184,36 +186,51 @@ function spaceAbove(
 
 /**
  * An answer's parts as the chat lays them out: two or more searches in a row
- * fold into one run (docs/decisions.md, Design, 2026-10-20); a text or a save
- * between them starts a new one. `first` and `last` are the run's indexes
- * among the parts.
+ * fold into one run (docs/decisions.md, Design, 2026-10-20), with the times
+ * the model thought before, between and after them, as opencode folds its
+ * reasoning with the tools around it (`groupContent` in
+ * `packages/session-ui/src/timeline/projection.ts` at 50c5fce, read
+ * 2026-10-21); a text or a save between them starts a new one. `first` and
+ * `last` are the run's indexes among the parts.
  */
+type RunPart = SearchNotesPart | ThoughtPart;
+
 type Laid =
   | { part: ShownPart; first: number; last: number }
-  | { run: SearchNotesPart[]; first: number; last: number };
+  | { run: RunPart[]; first: number; last: number };
 
 function laidOut(parts: ShownPart[]): Laid[] {
   const laid: Laid[] = [];
-  parts.forEach((part, index) => {
-    const before = laid.at(-1);
-    if (part.type === "tool-searchNotes" && before !== undefined) {
-      if ("run" in before) {
-        before.run.push(part);
-        before.last = index;
-        return;
-      }
-      if (before.part.type === "tool-searchNotes") {
-        laid[laid.length - 1] = {
-          run: [before.part, part],
-          first: before.first,
-          last: index,
-        };
-        return;
-      }
+  let stretch: { parts: RunPart[]; first: number } | undefined;
+  const endStretch = () => {
+    if (stretch === undefined) return;
+    const { parts: run, first } = stretch;
+    if (run.filter((part) => !isThought(part)).length >= 2) {
+      laid.push({ run, first, last: first + run.length - 1 });
+    } else {
+      run.forEach((part, offset) =>
+        laid.push({ part, first: first + offset, last: first + offset }),
+      );
     }
+    stretch = undefined;
+  };
+  parts.forEach((part, index) => {
+    if (part.type === "tool-searchNotes" || isThought(part)) {
+      stretch ??= { parts: [], first: index };
+      stretch.parts.push(part);
+      return;
+    }
+    endStretch();
     laid.push({ part, first: index, last: index });
   });
+  endStretch();
   return laid;
+}
+
+/** A run's key: its first search's, which stays first as the run grows. */
+function runKey(run: RunPart[]): string {
+  const search = run.find((part) => part.type === "tool-searchNotes");
+  return search?.toolCallId ?? "run";
 }
 
 function AssistantMessage({
@@ -249,7 +266,7 @@ function AssistantMessage({
         if ("run" in laid) {
           return (
             <SearchRun
-              key={laid.run[0]!.toolCallId}
+              key={runKey(laid.run)}
               parts={laid.run}
               stopped={stopped}
               moving={moving}
@@ -259,6 +276,9 @@ function AssistantMessage({
         }
         const { part, first: index } = laid;
         const step = cn(space, moving && "shimmer");
+        if (isThought(part)) {
+          return <ThoughtLine key={index} part={part} className={space} />;
+        }
         switch (part.type) {
           case "text":
             return (
@@ -299,8 +319,8 @@ function AssistantMessage({
             );
         }
       })}
-      {activity === "working" && (
-        <WorkingLine className={lastPart?.type === "text" ? "mt-4" : "mt-2"} />
+      {activity === "thinking" && (
+        <ThinkingLine className={lastPart?.type === "text" ? "mt-4" : "mt-2"} />
       )}
       {unfinished && (
         <p className="mt-6 text-sm font-medium">

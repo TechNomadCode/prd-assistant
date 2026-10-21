@@ -231,6 +231,21 @@ describe("the kept conversation", () => {
       },
     ],
     [
+      "a thinking time in another form",
+      {
+        format: STORED_FORMAT,
+        messages: [
+          DRAFTED[0],
+          {
+            ...DRAFTED[1],
+            parts: [{ type: "data-thought", data: { seconds: 3 } }],
+          },
+        ],
+        interrupted: false,
+        stopped: [],
+      },
+    ],
+    [
       "a role the chat doesn't send",
       {
         format: STORED_FORMAT,
@@ -388,6 +403,41 @@ describe("the home page after a reload", () => {
         "Half an answer",
       ]);
     });
+  });
+
+  it("keeps how long the model thought before each reply, and brings it back", async () => {
+    fetchMock.mockResolvedValueOnce(answer(text("reply-1", "Henk does.")));
+    const { unmount } = render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Your message" }), {
+      target: { value: "Who wants pings?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Henk does.")).toBeInTheDocument();
+    const shown = () =>
+      within(screen.getByRole("list", { name: "Conversation" }))
+        .getAllByRole("listitem")
+        .at(-1);
+    expect(shown()).toHaveTextContent(
+      /^Assistant\s*Thought \d+s\s*Henk does\.$/,
+    );
+    await waitFor(() => {
+      const value = kept() as { messages: ChatMessage[] } | null;
+      expect(value?.messages.at(-1)?.parts).toEqual([
+        { type: "data-thought", data: { ms: expect.any(Number) } },
+        expect.objectContaining({ type: "text", text: "Henk does." }),
+      ]);
+    });
+
+    unmount();
+    render(<Workspace />);
+
+    expect(shown()).toHaveTextContent(
+      /^Assistant\s*Thought \d+s\s*Henk does\.$/,
+    );
   });
 
   it("still reads a stopped answer as stopped, with no Try again", () => {

@@ -5,6 +5,8 @@ import { RollingNumber } from "@/components/rolling-number";
 import type { SearchNotesPart } from "@/lib/chat";
 import { cn } from "@/lib/utils";
 import { SearchStep } from "./search-step";
+import { ThoughtLine } from "./thought-line";
+import { isThought, type ThoughtPart } from "./thoughts";
 
 /**
  * Two or more searches in a row, folded into one line that opens to their
@@ -12,7 +14,9 @@ import { SearchStep } from "./search-step";
  * 3 searches", its count rolling up as each search starts, then a small
  * triangle that turns down when the line opens (docs/decisions.md, Design,
  * 2026-10-20). The lines slide open (`.fold` in `src/app/globals.css`) and
- * are inert while closed, so screen readers and the keyboard skip them.
+ * are inert while closed, so screen readers and the keyboard skip them. The
+ * times the model thought around the searches fold with them, as opencode
+ * folds its reasoning, and the count counts only the searches.
  */
 export function SearchRun({
   parts,
@@ -20,7 +24,7 @@ export function SearchRun({
   moving = false,
   className,
 }: {
-  parts: SearchNotesPart[];
+  parts: Array<SearchNotesPart | ThoughtPart>;
   /** Its answer was stopped, so a search still running never finished. */
   stopped?: boolean;
   /** The line in progress carries the moving band (`.shimmer`). */
@@ -29,6 +33,7 @@ export function SearchRun({
 }) {
   const [open, setOpen] = useState(false);
   const linesId = useId();
+  const searches = parts.filter((part) => !isThought(part)).length;
   return (
     <div className={cn("text-[0.8125rem]", className)}>
       <button
@@ -42,7 +47,7 @@ export function SearchRun({
         <span className={cn(moving && "shimmer")}>
           Used{" "}
           <span className={cn("font-medium", !moving && "text-foreground")}>
-            <RollingNumber value={parts.length} /> searches
+            <RollingNumber value={searches} /> searches
           </span>
         </span>
         <svg
@@ -61,14 +66,18 @@ export function SearchRun({
       >
         <div>
           <div className="flex flex-col gap-2 pt-1">
-            {parts.map((part) => (
-              <SearchStep
-                key={part.toolCallId}
-                part={part}
-                stopped={stopped}
-                className="leading-7"
-              />
-            ))}
+            {parts.map((part, index) =>
+              isThought(part) ? (
+                <ThoughtLine key={index} part={part} className="leading-7" />
+              ) : (
+                <SearchStep
+                  key={part.toolCallId}
+                  part={part}
+                  stopped={stopped}
+                  className="leading-7"
+                />
+              ),
+            )}
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { THOUGHT_PART, type ThoughtPart } from "@/features/chat/thoughts";
 import type { ChatMessage, SearchNotesOutput } from "@/lib/chat";
 import {
   PRD_SECTIONS,
@@ -20,7 +21,9 @@ export const STORAGE_KEY = "prd-assistant:conversation";
  * The stored form's version. Raise it whenever a stored conversation could
  * stop fitting the code: a change to `ChatMessage`, to the checked section or
  * to the parts the chat shows, or an upgrade of `ai`. An older one is then
- * discarded with a notice, not shown broken.
+ * discarded with a notice, not shown broken. A new kind of part that older
+ * conversations simply lack, such as the model's thinking times, needs no
+ * raise: they still fit.
  */
 export const STORED_FORMAT = 2;
 
@@ -110,8 +113,19 @@ function toolPart<Type extends string, Output extends z.ZodType>(
   ]);
 }
 
-/** The parts the server's answers hold (`src/server/chat.ts`). */
+/** How long the model thought before a reply, as the browser timed it. */
+const thoughtPartSchema = z.object({
+  type: z.literal(THOUGHT_PART),
+  id: z.string().optional(),
+  data: z.object({ ms: z.number().nonnegative() }),
+}) satisfies z.ZodType<ThoughtPart>;
+
+/**
+ * The parts the server's answers hold (`src/server/chat.ts`), and the times
+ * the browser adds to them. An answer kept before the times existed has none.
+ */
 const partSchema = z.union([
+  thoughtPartSchema,
   z.looseObject({ type: z.literal("text"), text: z.string() }),
   z.looseObject({ type: z.literal("step-start") }),
   toolPart("tool-searchNotes", searchNotesOutputSchema),
