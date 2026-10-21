@@ -20,6 +20,15 @@ const FOLLOW_MARGIN = 48;
 /** The message box, which takes focus when the visitor asks their own question. */
 export const MESSAGE_BOX_ID = "chat-message";
 
+/** Jump to latest's scroll: smooth, or at once under reduced motion. */
+function scrollToEnd(element: HTMLElement) {
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollTo({
+    top: element.scrollHeight,
+    behavior: reduced ? "instant" : "smooth",
+  });
+}
+
 /**
  * The chat with the assistant: the conversation, which scrolls on its own,
  * and under it a suggested message, when there is one, and the message box.
@@ -95,15 +104,20 @@ export function Chat({
 
   // The conversation can grow without a scroll, as when the visitor opens a
   // search's passages: that leaves the chat away from its end too. Only the
-  // button changes; whether the chat follows stays as it was. The list
-  // exists once the conversation has a message.
+  // button changes; whether the chat follows stays as it was. A jump on its
+  // way goes on to the new end instead, as when the searches it was offered
+  // for are still sliding open. The list exists once the conversation has a
+  // message.
   const empty = messages.length === 0;
   useEffect(() => {
     const element = scroller.current;
     const list = element?.querySelector(":scope > ol");
     if (!element || !list) return;
     const observer = new ResizeObserver(() => {
-      if (jumping.current) return;
+      if (jumping.current) {
+        scrollToEnd(element);
+        return;
+      }
       setAwayFromEnd(
         element.scrollHeight - element.scrollTop - element.clientHeight >=
           FOLLOW_MARGIN,
@@ -138,13 +152,7 @@ export function Chat({
     // allocation is used up and the box is gone.
     if (quotaUsedUp) heading.current?.focus();
     else box.current?.focus();
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    element.scrollTo({
-      top: element.scrollHeight,
-      behavior: reduced ? "instant" : "smooth",
-    });
+    scrollToEnd(element);
   }
 
   function send() {
