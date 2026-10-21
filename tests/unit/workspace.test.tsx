@@ -621,7 +621,12 @@ describe("the Stop button", () => {
             ? part.text
             : `${part.type} ${"state" in part ? part.state : ""}`,
         ),
-    ).toEqual(["tool-saveSection output-available", "I saved Introduction"]);
+    ).toEqual([
+      "data-thought ",
+      "tool-saveSection output-available",
+      "data-thought ",
+      "I saved Introduction",
+    ]);
     // The stopped answer still reads as stopped.
     expect(screen.getByText("You stopped this answer.")).toBeInTheDocument();
   });
@@ -645,6 +650,45 @@ describe("the Stop button", () => {
 
     expect(await screen.findByText("Henk does.")).toBeInTheDocument();
     expect(sentByVisitor()).toEqual(["Who wants pings?", "And Daan?"]);
+    const body = JSON.parse(String(fetchMock.mock.lastCall?.[1]?.body)) as {
+      messages: ChatMessage[];
+    };
+    expect(body.messages.map((message) => message.role)).toEqual([
+      "user",
+      "user",
+    ]);
+  });
+
+  it("drops an answer stopped during its first search, though it timed the thinking before it", async () => {
+    fetchMock.mockImplementationOnce(async (_, init) =>
+      answerOnItsWay(
+        [
+          {
+            type: "tool-input-available",
+            toolCallId: "call-1",
+            toolName: "searchNotes",
+            input: { query: "pings" },
+          },
+        ],
+        init?.signal,
+      ),
+    );
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    fireEvent.change(messageBox(), { target: { value: "Who wants pings?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText(stepText("Search “pings”…"));
+    expect(screen.getByText("Thought")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await screen.findByText("You stopped this answer.");
+    fetchMock.mockResolvedValueOnce(answer(text("reply-2", "Henk does.")));
+
+    fireEvent.change(messageBox(), { target: { value: "And Daan?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Henk does.")).toBeInTheDocument();
     const body = JSON.parse(String(fetchMock.mock.lastCall?.[1]?.body)) as {
       messages: ChatMessage[];
     };

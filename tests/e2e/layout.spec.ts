@@ -124,10 +124,11 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
 
     // A question, its answer, the next question and its answer.
     expectGaps(await childGaps(conversation(page)), [16, 32, 16]);
-    // The draft: its search and its save, steps in a row, then its text.
-    expectGaps(await childGaps(turns(page).nth(1)), [8, 16]);
-    // The answer: its search, then its text.
-    expectGaps(await childGaps(turns(page).nth(3)), [16]);
+    // The draft: its search and its save, steps in a row with the time the
+    // model thought before each reply, then its text.
+    expectGaps(await childGaps(turns(page).nth(1)), [8, 8, 8, 8, 16]);
+    // The answer: a time, its search, a time, then its text.
+    expectGaps(await childGaps(turns(page).nth(3)), [8, 8, 16]);
   });
 
   test("puts a failure notice 24px under what came before it", async ({
@@ -144,8 +145,8 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     await expect(answer).toContainText(
       "This answer stopped before it finished.",
     );
-    // Its search, its text so far, then the notice.
-    expectGaps(await childGaps(answer), [16, 24]);
+    // A time, its search, a time, its text so far, then the notice.
+    expectGaps(await childGaps(answer), [8, 8, 16, 24]);
     // The conversation, then the alert with "Try again".
     expectGaps(await childGaps(page.locator("#chat-title + div")), [24]);
   });
@@ -270,7 +271,7 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
       { times: 1 },
     );
     await ask(page, QUESTION);
-    const working = conversation(page).getByText("Working…");
+    const working = conversation(page).getByText("Thinking", { exact: true });
     await expect(working).toBeInViewport();
 
     const scroller = page.locator("#chat-title + div");

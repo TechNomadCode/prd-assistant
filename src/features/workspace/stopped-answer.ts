@@ -1,4 +1,5 @@
 import { isToolUIPart } from "ai";
+import { isThought } from "@/features/chat/thoughts";
 import type { ChatMessage, ChatMessagePart } from "@/lib/chat";
 
 // An answer the visitor stopped keeps what it finished: its text so far, its
@@ -23,7 +24,10 @@ export function finishedOnly(messages: ChatMessage[]): ChatMessage[] {
   return messages.flatMap((message) => {
     if (message.role !== "assistant") return [message];
     const parts = message.parts.filter((part) => !unfinishedStep(part));
-    if (parts.every((part) => part.type === "step-start")) return [];
+    // A time the model thought is no reply of its own (`chat/thoughts.ts`).
+    if (parts.every((part) => part.type === "step-start" || isThought(part))) {
+      return [];
+    }
     return [{ ...message, parts }];
   });
 }

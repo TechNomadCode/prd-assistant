@@ -58,6 +58,38 @@ test.describe("chat", () => {
     await expect(conversation(page).getByRole("button")).toHaveCount(0);
   });
 
+  test("says how long the model thought before each reply, in a line that doesn't open, after a reload too", async ({
+    page,
+  }) => {
+    await openChat(page);
+    await ask(page, QUESTION);
+    await expect(conversation(page)).toContainText(FAKE_NOTE);
+
+    // The fake model searches, then replies: a wait before each.
+    const thoughts = conversation(page).getByText(/^Thought \d+s$/);
+    await expect(thoughts).toHaveCount(2);
+    const answer = conversation(page).getByRole("listitem").nth(1);
+    await expect(answer).toHaveText(
+      /^Assistant\s*Thought \d+s\s*Search “[^”]+” · passages from [^]*Thought \d+s\s*I searched the interviews/,
+    );
+    await expect(thoughts.first()).toHaveCSS("font-size", "13px");
+    await expect(thoughts.first()).toHaveCSS("line-height", "16px");
+    await expect(thoughts.first()).toHaveCSS("color", "rgb(180, 180, 180)");
+    await expect(thoughts.first().getByText("Thought")).toHaveCSS(
+      "font-weight",
+      "500",
+    );
+    await expect(conversation(page).getByRole("button")).toHaveCount(0);
+    const shown = await thoughts.allTextContents();
+
+    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+    await page.reload();
+
+    await expect(conversation(page).getByText(/^Thought \d+s$/)).toHaveText(
+      shown,
+    );
+  });
+
   test("folds searches in a row into one line that slides open to them", async ({
     page,
   }) => {
@@ -79,11 +111,26 @@ test.describe("chat", () => {
 
     await expect(line).toHaveAttribute("aria-expanded", "true");
     for (const each of await lines.all()) await expect(each).toBeVisible();
-    const [first, second] = await lines.all();
-    const gap =
-      (await second!.boundingBox())!.y - (await first!.boundingBox())!.y;
+    // The times the model thought fold with the searches, around each one.
+    const rows = page.locator(
+      `[id="${await line.getAttribute("aria-controls")}"] p`,
+    );
+    await expect(rows).toHaveText([
+      /^Thought \d+s$/,
+      /^Search “/,
+      /^Thought \d+s$/,
+      /^Search “/,
+      /^Thought \d+s$/,
+      /^Search “/,
+      /^Thought \d+s$/,
+    ]);
+    const tops = await Promise.all(
+      (await rows.all()).map(async (row) => (await row.boundingBox())!.y),
+    );
     // 28px rows, 8px apart, as opencode's (docs/decisions.md, Design, 2026-10-20).
-    expect(gap).toBe(36);
+    for (let row = 1; row < tops.length; row++) {
+      expect(tops[row]! - tops[row - 1]!).toBe(36);
+    }
 
     await line.click();
 
@@ -132,7 +179,7 @@ test.describe("chat", () => {
   });
 
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
-    test(`moves Working… while the answer is on its way, unless motion is reduced (${reducedMotion})`, async ({
+    test(`moves Thinking while the answer is on its way, unless motion is reduced (${reducedMotion})`, async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion });
@@ -149,8 +196,14 @@ test.describe("chat", () => {
       await openChat(page);
       await ask(page, QUESTION);
 
-      const working = conversation(page).getByText("Working…");
+      const working = conversation(page).getByText("Thinking", {
+        exact: true,
+      });
       await expect(working).toBeVisible();
+      // opencode's Thinking row: 13px, medium weight, 16px high.
+      await expect(working).toHaveCSS("font-size", "13px");
+      await expect(working).toHaveCSS("font-weight", "500");
+      await expect(working).toHaveCSS("line-height", "16px");
       await expect(working).toHaveCSS(
         "animation-name",
         reducedMotion === "reduce" ? "none" : "shimmer",

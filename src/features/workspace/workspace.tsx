@@ -13,6 +13,7 @@ import {
 } from "react";
 import { browser } from "react-dom";
 import { Chat, MESSAGE_BOX_ID } from "@/features/chat/chat";
+import { timeThoughts } from "@/features/chat/thoughts";
 import { PrdDocument } from "@/features/prd/prd-document";
 import {
   latestSave,
@@ -33,7 +34,18 @@ import { Intro, INTRO_TITLE_ID } from "./intro";
 import { keepConversation, restoreConversation } from "./stored-conversation";
 import { finishedOnly, unfinishedStep } from "./stopped-answer";
 
-const transport = new DefaultChatTransport<ChatMessage>({
+/** The chat's requests, with each wait for the model's reply timed. */
+class TimedTransport extends DefaultChatTransport<ChatMessage> {
+  override async sendMessages(
+    options: Parameters<DefaultChatTransport<ChatMessage>["sendMessages"]>[0],
+  ) {
+    const requested = performance.now();
+    const stream = await super.sendMessages(options);
+    return stream.pipeThrough(timeThoughts(requested));
+  }
+}
+
+const transport = new TimedTransport({
   api: "/api/chat",
   // A stopped answer goes back with only the parts it finished.
   prepareSendMessagesRequest: ({ body, id, messages, trigger, messageId }) => ({

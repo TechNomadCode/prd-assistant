@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ChatStatus } from "ai";
 import { describe, expect, it, vi } from "vitest";
 import { Conversation } from "@/features/chat/conversation";
+import type { ThoughtPart } from "@/features/chat/thoughts";
 import type { ChatMessage, SaveSectionPart, SearchNotesPart } from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
 import type { PassageMatch } from "@/lib/transcripts";
@@ -49,6 +50,11 @@ function search(
     input: { query: "notifications for new items" },
     ...extra,
   } as SearchNotesPart;
+}
+
+/** How long the model thought before a reply. */
+function thought(ms: number): ThoughtPart {
+  return { type: "data-thought", data: { ms } };
 }
 
 /** A step's line, by its whole text. */
@@ -244,14 +250,14 @@ describe("Conversation", () => {
       return container.querySelectorAll(".shimmer");
     }
 
-    it("shows Working… before the first step", () => {
+    it("shows Thinking before the first reply", () => {
       const { container } = show([question], "submitted");
 
       expect(moving(container)).toHaveLength(1);
-      expect(moving(container)[0]).toHaveTextContent(/^Working…$/);
+      expect(moving(container)[0]).toHaveTextContent(/^Thinking$/);
     });
 
-    it("moves the step in progress, with no Working…", () => {
+    it("moves the step in progress, with no Thinking", () => {
       const { container } = show(
         [
           question,
@@ -260,7 +266,7 @@ describe("Conversation", () => {
         "streaming",
       );
 
-      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
       expect(moving(container)).toHaveLength(1);
       expect(moving(container)[0]).toHaveTextContent(
         "Search “notifications for new items”…",
@@ -279,7 +285,7 @@ describe("Conversation", () => {
         "streaming",
       );
 
-      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
       expect(moving(container)).toHaveLength(1);
       expect(moving(container)[0]).toHaveTextContent(/^Used 2 searches$/);
     });
@@ -304,7 +310,7 @@ describe("Conversation", () => {
       expect(moving(container)[0]).toHaveTextContent("Search “pings”…");
     });
 
-    it("shows Working… at the end of the answer between steps, and the finished step stays still", () => {
+    it("shows Thinking at the end of the answer between steps, and the finished step stays still", () => {
       const { container } = show(
         [
           question,
@@ -316,18 +322,18 @@ describe("Conversation", () => {
       const [, assistant] = within(
         screen.getByRole("list", { name: "Conversation" }),
       ).getAllByRole("listitem");
-      expect(assistant).toHaveTextContent(/Working…$/);
+      expect(assistant).toHaveTextContent(/Thinking$/);
       expect(moving(container)).toHaveLength(1);
-      expect(moving(container)[0]).toHaveTextContent(/^Working…$/);
+      expect(moving(container)[0]).toHaveTextContent(/^Thinking$/);
     });
 
-    it("doesn't flash Working… after the answer's last words while it finishes", () => {
+    it("doesn't flash Thinking after the answer's last words while it finishes", () => {
       const { container } = show(
         [question, answer({ type: "text", text: "Henk does.", state: "done" })],
         "streaming",
       );
 
-      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
       expect(moving(container)).toHaveLength(0);
     });
 
@@ -344,8 +350,21 @@ describe("Conversation", () => {
         "streaming",
       );
 
-      expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
       expect(moving(container)).toHaveLength(0);
+    });
+
+    it("stops Thinking once the reply begins with how long it thought", () => {
+      const { container } = show(
+        [question, answer(thought(3_000))],
+        "streaming",
+      );
+
+      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+      expect(moving(container)).toHaveLength(0);
+      expect(screen.getByText("Thought").parentElement).toHaveTextContent(
+        /^Thought 3s$/,
+      );
     });
 
     it.each(["ready", "error"] as const)(
@@ -363,10 +382,81 @@ describe("Conversation", () => {
           status,
         );
 
-        expect(screen.queryByText("Working…")).not.toBeInTheDocument();
+        expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
         expect(moving(container)).toHaveLength(0);
       },
     );
+  });
+
+  describe("how long the model thought", () => {
+    const done = (toolCallId: string, query: string) =>
+      search("output-available", {
+        toolCallId,
+        input: { query },
+        output: { passages: [HENK] },
+      });
+
+    it("shows a line before each reply, which doesn't open", () => {
+      show([
+        question,
+        answer(thought(4_400), done("call-1", "pings"), thought(61_000), {
+          type: "text",
+          text: "Henk does.",
+        }),
+      ]);
+
+      const [, assistant] = within(
+        screen.getByRole("list", { name: "Conversation" }),
+      ).getAllByRole("listitem");
+      expect(assistant).toHaveTextContent(
+        /^Assistant\s*Thought 4s\s*Search “pings” · passages from Henk\s*Thought 1m 1s\s*Henk does\.$/,
+      );
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("shows none for an answer kept from before the times", () => {
+      show([question, answer(done("call-1", "pings"))]);
+
+      expect(screen.queryByText("Thought")).not.toBeInTheDocument();
+    });
+
+    it("folds the times around searches in a row with them, counting only the searches", () => {
+      show([
+        question,
+        answer(
+          thought(2_000),
+          done("call-1", "pings"),
+          thought(1_000),
+          done("call-2", "lists"),
+          thought(5_000),
+          { type: "text", text: "Henk does." },
+        ),
+      ]);
+
+      const line = screen.getByRole("button", { name: "Used 2 searches" });
+      const lines = document.getElementById(
+        line.getAttribute("aria-controls") ?? "",
+      );
+      expect(lines).toHaveTextContent(
+        /^Thought 2s\s*Search “pings” · passages from Henk\s*Thought 1s\s*Search “lists” · passages from Henk\s*Thought 5s$/,
+      );
+      expect(lines).not.toContainElement(screen.getByText("Henk does."));
+    });
+
+    it("keeps the time before a lone search or a save on a line of its own", () => {
+      show([
+        question,
+        answer(thought(2_000), done("call-1", "pings"), thought(3_000), {
+          type: "tool-saveSection",
+          toolCallId: "save-1",
+          state: "input-available",
+          input: { section: "Goals / Objectives", statements: [] },
+        } as SaveSectionPart),
+      ]);
+
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+      expect(screen.getAllByText("Thought")).toHaveLength(2);
+    });
   });
 
   it("marks an answer that broke off as unfinished", () => {
