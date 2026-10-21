@@ -112,9 +112,9 @@
 ### 17 · Copy a section, with a "Copied" check · risk: normal · status: todo
 - **Goal:** the visitor can paste one section of the PRD elsewhere.
 - **Acceptance:**
-  - Each saved section has a quiet "Copy" control beside its tally, without a border (Design, 2026-10-18). It copies the section as Markdown in the download's form (`src/features/prd/prd-markdown.ts`): the heading, the statements with their sources by name, and footnotes with the quotes, numbered within the section.
-  - After a copy, the control reads "Copied" with a check mark for two seconds, which screen readers hear. If the browser refuses the clipboard, it reads "Couldn't copy" instead.
-  - Unit tests: the copied text for a section with confirmed, unverified and visitor-decision statements, and both outcomes.
+  - Each saved section has opencode's copy button beside its tally (Design, 2026-10-21): a 24px icon button without a border, shown on a screen with hover only while the pointer is over the section or focus is inside it, always on a touch screen, with a "Copy section" label above it after the pointer rests on it. It copies the section as Markdown in the download's form (`src/features/prd/prd-markdown.ts`): the heading, the statements with their sources by name, and footnotes with the quotes, numbered within the section.
+  - After a copy, the icon is a check mark for two seconds and the button's name is "Copied", which screen readers hear. If the browser refuses the clipboard, it reads "Couldn't copy" instead.
+  - Unit tests: the copied text for a section with confirmed, unverified and visitor-decision statements, and both outcomes. End-to-end: the button hidden until the section is hovered or focused on a laptop, shown at rest on a phone, and the copied text in the clipboard.
 
 ### 18 · A designed typeface · risk: normal · status: todo
 - **Goal:** the app looks the same on every device, in a typeface chosen for it.
