@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { site, siteUrl } from "@/lib/site";
@@ -11,9 +12,15 @@ export const metadata: Metadata = {
   applicationName: site.name,
 };
 
+// Inter (SIL Open Font License 1.1), downloaded at build time and served by
+// the app itself, so the visitor's browser never asks Google for it. Its
+// fallback is a local font resized to Inter's metrics, so the text doesn't
+// jump when Inter arrives (Next.js, `next/font`, read 2026-10-21).
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="group/body flex min-h-full flex-col lg:has-[[data-workspace]]:h-dvh">
         <a
           href="#main"
