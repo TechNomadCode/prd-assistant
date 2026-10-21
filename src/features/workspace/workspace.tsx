@@ -31,8 +31,13 @@ import {
 import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
 import { breakItSuggestion, conversationStarted } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
+import { ScenarioTour } from "./scenario-tour";
 import { keepConversation, restoreConversation } from "./stored-conversation";
 import { finishedOnly, unfinishedStep } from "./stopped-answer";
+
+// `npm run dev:replay` sets it, and with it the scenario tour shows (slice 24).
+// Inlined when Next.js compiles, so no build for staging or production has it.
+const REPLAY = process.env.NEXT_PUBLIC_CHAT_REPLAY === "1";
 
 /** The chat's requests, with each wait for the model's reply timed. */
 class TimedTransport extends DefaultChatTransport<ChatMessage> {
@@ -268,6 +273,25 @@ function RestoredWorkspace() {
     focusNext.current = "intro";
   }
 
+  /** A step of the scenario tour, sent from the intro or the chat. */
+  function playScenario(words: string) {
+    if (working) return;
+    setDiscarded(false);
+    setIntroFailed(false);
+    setLeftIntro(true);
+    setCheckIn(undefined);
+    if (onIntro) focusNext.current = "workspace";
+    send(words);
+  }
+
+  const tour = REPLAY && (
+    <ScenarioTour
+      sent={[...visitorMessages.values()]}
+      working={working}
+      onPlay={playScenario}
+    />
+  );
+
   function confirmSection() {
     if (latest === undefined || next === undefined || working) return;
     setCheckIn({ section: next, fromMessage: messages.length });
@@ -290,67 +314,73 @@ function RestoredWorkspace() {
 
   if (onIntro) {
     return (
-      <Intro
-        failed={introFailed}
-        discarded={discarded}
-        quotaUsedUp={quotaUsedUp}
-        onDraft={draftFirstSection}
-        onAsk={askOwnQuestion}
-      />
+      <>
+        <Intro
+          failed={introFailed}
+          discarded={discarded}
+          quotaUsedUp={quotaUsedUp}
+          onDraft={draftFirstSection}
+          onAsk={askOwnQuestion}
+        />
+        {tour}
+      </>
     );
   }
 
   // On a laptop the chat keeps a steady width, 400 to 520px, and the PRD
   // takes the rest of the page (docs/decisions.md, Design, 2026-10-20).
   return (
-    <div
-      data-workspace
-      className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[clamp(25rem,38%,32.5rem)_minmax(0,1fr)] lg:gap-8"
-    >
-      <h1 id={WORKSPACE_TITLE_ID} tabIndex={-1} className="sr-only">
-        The chat and your PRD
-      </h1>
-      <div className="flex flex-col lg:min-h-0">
-        <Chat
-          messages={messages}
-          status={failed ? "error" : status}
-          error={error}
-          quotaUsedUp={quotaUsedUp}
-          suggestion={suggestion}
-          draft={draft}
-          onDraftChange={setDraft}
-          onSend={(text) => {
-            setCheckIn(undefined);
-            send(text);
-          }}
-          onStop={stopAnswer}
-          stopped={stopped}
-          onRetry={retry}
-          onSeeSection={seeSection}
-        />
+    <>
+      <div
+        data-workspace
+        className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[clamp(25rem,38%,32.5rem)_minmax(0,1fr)] lg:gap-8"
+      >
+        <h1 id={WORKSPACE_TITLE_ID} tabIndex={-1} className="sr-only">
+          The chat and your PRD
+        </h1>
+        <div className="flex flex-col lg:min-h-0">
+          <Chat
+            messages={messages}
+            status={failed ? "error" : status}
+            error={error}
+            quotaUsedUp={quotaUsedUp}
+            suggestion={suggestion}
+            draft={draft}
+            onDraftChange={setDraft}
+            onSend={(text) => {
+              setCheckIn(undefined);
+              send(text);
+            }}
+            onStop={stopAnswer}
+            stopped={stopped}
+            onRetry={retry}
+            onSeeSection={seeSection}
+          />
+        </div>
+        <div className="flex flex-col lg:min-h-0">
+          <PrdDocument
+            sections={sections}
+            latest={latest}
+            drafting={drafting}
+            visitorMessages={visitorMessages}
+            onStartOver={startOver}
+            checkIn={
+              // The check-in sends a message too, so it goes with the message box.
+              next === undefined || quotaUsedUp
+                ? undefined
+                : {
+                    next: checkInOpen ? checkIn.section : next,
+                    drafting: checkInOpen && working,
+                    failed: checkInOpen && status === "error",
+                    disabled: working,
+                    onConfirm: confirmSection,
+                  }
+            }
+          />
+        </div>
       </div>
-      <div className="flex flex-col lg:min-h-0">
-        <PrdDocument
-          sections={sections}
-          latest={latest}
-          drafting={drafting}
-          visitorMessages={visitorMessages}
-          onStartOver={startOver}
-          checkIn={
-            // The check-in sends a message too, so it goes with the message box.
-            next === undefined || quotaUsedUp
-              ? undefined
-              : {
-                  next: checkInOpen ? checkIn.section : next,
-                  drafting: checkInOpen && working,
-                  failed: checkInOpen && status === "error",
-                  disabled: working,
-                  onConfirm: confirmSection,
-                }
-          }
-        />
-      </div>
-    </div>
+      {tour}
+    </>
   );
 }
 

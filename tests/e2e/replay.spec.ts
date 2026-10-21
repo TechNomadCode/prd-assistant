@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { SCENARIOS } from "@/lib/scenarios";
 import { REPLAYS_FILE, type Replays } from "@/server/ai/replays";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
@@ -44,3 +45,36 @@ test("the intro's button replays a real answer with its recorded words", async (
   await expect(conversation).not.toContainText("This is the local fake model");
   await expectNoAccessibilityViolations(page);
 });
+
+// The scenario tour's steps (slice 24) answer on the same server. Its panel
+// shows only with `npm run dev:replay`, whose compile sets the flag, never in
+// this build, so the test sends a step's words itself.
+test("the tour's tables step shows its tables in the chat", async ({
+  page,
+}) => {
+  await page.goto(REPLAY_URL);
+  await page
+    .getByRole("button", { name: "Or ask your own question first" })
+    .click();
+  await expect(
+    page.getByRole("complementary", { name: "Scenario tour" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("textbox", { name: "Your message" })
+    .fill(scenarioWords("tables"));
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const conversation = page.getByRole("list", { name: "Conversation" });
+  await expect(conversation.getByRole("table")).toHaveCount(3);
+  await expect(
+    conversation.getByRole("columnheader", { name: "Wants most" }),
+  ).toBeVisible();
+  await expect(conversation).not.toContainText("| Household |");
+  await expectNoAccessibilityViolations(page);
+});
+
+function scenarioWords(id: string): string {
+  const step = SCENARIOS.find((scenario) => scenario.id === id);
+  if (!step) throw new Error(`No scenario "${id}".`);
+  return step.words;
+}
