@@ -898,6 +898,51 @@ describe("Jump to latest", () => {
     expect(jumpButton()).toBeInTheDocument();
   });
 
+  it("goes on to the new end when the conversation grows during the jump, as opened searches still sliding open do", async () => {
+    reduceMotion(false);
+    const observed: { callback: ResizeObserverCallback; target: Element }[] =
+      [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
+        observe(target: Element) {
+          observed.push({ callback: this.callback, target });
+        }
+        disconnect() {}
+      },
+    );
+    await chatWithAnAnswer();
+    const { scrollTo, scrollPaneTo, grow } = sizePane();
+    const list = screen.getByRole("list", { name: "Conversation" });
+    const reportResize = () =>
+      observed
+        .filter(({ target }) => target === list)
+        .forEach(({ callback }) =>
+          act(() => callback([], {} as ResizeObserver)),
+        );
+    scrollPaneTo(200);
+    fireEvent.click(jumpButton()!);
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      top: 1000,
+      behavior: "smooth",
+    });
+
+    // A step on the way down, then the conversation grows before the end.
+    scrollPaneTo(400);
+    grow(1400);
+    reportResize();
+
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      top: 1400,
+      behavior: "smooth",
+    });
+    expect(jumpButton()).not.toBeInTheDocument();
+  });
+
   it("jumps at once with reduced motion", async () => {
     reduceMotion(true);
     await chatWithAnAnswer();
