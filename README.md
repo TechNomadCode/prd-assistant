@@ -111,7 +111,11 @@ The local database dashboard (Supabase Studio) is at http://127.0.0.1:57323. Bef
 
 ### Replayed real answers
 
-`npm run dev:replay` shows the interface with the real model's answers, for free and without a token. It replays answers the measurement recorded on gpt-oss-120b ([`replays.json`](src/server/ai/replays.json)), each reply whole, after the time the real model took. The intro's button, the grocery delivery suggestion and the other measured requests replay; any other message gets the scripted fake's answer, at the same pace. Searches and saves still run on your machine, so the search lines show local passages, while the words come from the recording. The header says "Replaying recorded answers". To refresh the copy after a new measurement, run `npm run replays:copy -- --from docs/records/measurements/<name>` where the records are.
+`npm run dev:replay` shows the interface with the real model's answers, for free and without a token. It replays answers the measurement recorded on gpt-oss-120b ([`replays.json`](src/server/ai/replays.json)), each reply whole, after the time the real model took. The intro's button, the grocery delivery suggestion and the other measured requests replay; any other message gets the scripted fake's answer, at the same pace. Searches and saves still run on your machine, so the search lines show local passages, while the words come from the recording. The header says "Replaying recorded answers".
+
+A **scenario tour** in the corner of the page walks through every state the chat and the PRD can show, which recorded answers alone never reach: rich text and tables, folded and refused searches, a section with every kind of statement, a long wait to stop, each kind of failure and, last, the used-up daily allowance. Each step says what to watch for; "Play next" sends it. The scripted answers run through the same chat code, so their searches, saves and quote checks are real.
+
+To refresh the copy after a new measurement, run `npm run replays:copy -- --from docs/records/measurements/<name>` where the records are.
 
 ### The real chat model on your machine
 
