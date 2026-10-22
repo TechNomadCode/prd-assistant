@@ -19,6 +19,8 @@ export type PassageMatch = Passage & {
   participant: string;
   /** Cosine distance to the question: 0 is the same direction, 2 the opposite. */
   distance: number;
+  /** The reranker's relevance to the question, 0 to 1, when it ran. */
+  relevance?: number;
 };
 
 /** A passage as a citation names it, with whose answer it is. */

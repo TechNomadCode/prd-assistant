@@ -71,7 +71,7 @@ export class QuotaExceededError extends Error {
  * retries it twice, waiting at most `MAX_RETRY_WAIT_MS` between tries. The
  * requests themselves are unchanged.
  */
-function refusingQuota(inner: typeof fetch | undefined): typeof fetch {
+export function refusingQuota(inner: typeof fetch | undefined): typeof fetch {
   const refusing = async (input: RequestInfo | URL, init?: RequestInit) => {
     const response = await (inner ?? globalThis.fetch)(input, init);
     if (response.status !== 429) return response;

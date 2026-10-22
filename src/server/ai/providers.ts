@@ -3,11 +3,14 @@ import {
   type CloudflareSettings,
 } from "./cloudflare.ts";
 import { createCloudflareEmbedder } from "./cloudflare-embedder.ts";
+import { createCloudflareReranker } from "./cloudflare-reranker.ts";
 import type { ChatModel } from "./chat-model.ts";
 import type { Embedder } from "./embedder.ts";
 import { createFakeChatModel } from "./fake-chat-model.ts";
 import { createFakeEmbedder } from "./fake-embedder.ts";
+import { createFakeReranker } from "./fake-reranker.ts";
 import { createReplayChatModel, loadReplays } from "./replay-chat-model.ts";
+import type { Reranker } from "./reranker.ts";
 
 // AI_PROVIDER picks the implementation: "fake" on development machines and in
 // CI, "cloudflare" on staging and production. AI_CHAT_PROVIDER, when set, picks
@@ -38,6 +41,18 @@ export function createEmbedder(settings: ProviderSettings): Embedder {
       return createFakeEmbedder();
     case "cloudflare":
       return createCloudflareEmbedder(requireCloudflare(settings));
+    default:
+      throw unknownProvider(settings.provider);
+  }
+}
+
+/** The search's reranker, from the same provider as its embedder. */
+export function createReranker(settings: ProviderSettings): Reranker {
+  switch (settings.provider) {
+    case "fake":
+      return createFakeReranker();
+    case "cloudflare":
+      return createCloudflareReranker(requireCloudflare(settings));
     default:
       throw unknownProvider(settings.provider);
   }

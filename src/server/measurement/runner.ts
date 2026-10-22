@@ -6,6 +6,7 @@ import type { CheckedSection } from "../../lib/prd.ts";
 import { tally } from "../../lib/prd.ts";
 import type { ChatModel } from "../ai/chat-model.ts";
 import type { Embedder } from "../ai/embedder.ts";
+import type { Reranker } from "../ai/reranker.ts";
 import { measureAnswer, type MeasuredAnswer } from "./answer.ts";
 import {
   appendLedger,
@@ -109,6 +110,11 @@ export type BatchEnvironment = {
   chatModel(fetch: typeof globalThis.fetch): ChatModel;
   /** The search's embedder, its HTTP calls through `fetch`. */
   embedder(fetch: typeof globalThis.fetch): Embedder;
+  /**
+   * The search's reranker, its HTTP calls through `fetch`. Tests leave it out
+   * unless they test it, and the search then returns the five closest.
+   */
+  reranker?(fetch: typeof globalThis.fetch): Reranker;
   /** Which embedder `embedder` returns, without building it. */
   search: { kind: "fake" | "real"; model: string };
   /** What `writeRecord` refuses and hides. */
@@ -559,10 +565,16 @@ async function sendPlanned({
       `The search's copy: embedded ${embedded} passages, ${round(spend.neurons)} neurons (an upper bound).`,
     );
   }
-  const sources = copySources(copy, embedder);
+  const reranker = env.reranker?.(meter.fetch(env.fetch));
+  const sources = copySources(copy, embedder, reranker);
   const search = {
     kind: env.search.kind,
     passagesFingerprint: copy.fingerprint,
+    ...(reranker
+      ? {
+          reranker: { model: reranker.model, threshold: reranker.threshold },
+        }
+      : {}),
   };
 
   const skipped: PlannedRun[] = [];

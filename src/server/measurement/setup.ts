@@ -15,6 +15,8 @@ export type SearchSetup = {
   kind: "fake" | "real";
   /** Of the passages the search ranks, so a change in the notes shows. */
   passagesFingerprint: string;
+  /** The reranker and its threshold, when the search reranks. */
+  reranker?: { model: string; threshold: number };
 };
 
 export type RunSetup = {

@@ -247,7 +247,7 @@ export function setupValues(runs: ScoredRun[]): Map<SetupPart, Set<string>> {
     add("code", codeValue(setup.code));
     add(
       "search",
-      `${setup.search.kind} (passages ${setup.search.passagesFingerprint.slice(0, 12)})`,
+      `${setup.search.kind} (passages ${setup.search.passagesFingerprint.slice(0, 12)})${setup.search.reranker ? `, reranked by ${setup.search.reranker.model} at ${setup.search.reranker.threshold}` : ""}`,
     );
     add(
       "libraries",

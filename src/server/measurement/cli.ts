@@ -4,9 +4,30 @@ import { parseArgs, parseEnv } from "node:util";
 import { PROVIDER_KEY_FILE } from "../../lib/env-guard.ts";
 import { createCloudflareChatModel } from "../ai/cloudflare.ts";
 import { createCloudflareEmbedder } from "../ai/cloudflare-embedder.ts";
+import { createCloudflareReranker } from "../ai/cloudflare-reranker.ts";
 import { createFakeChatModel } from "../ai/fake-chat-model.ts";
 import { createFakeEmbedder } from "../ai/fake-embedder.ts";
-import { EMBEDDING_MODEL } from "../ai/models.ts";
+import { createFakeReranker } from "../ai/fake-reranker.ts";
+import { embeddingTokenBound } from "../ai/embedding-input.ts";
+import { EMBEDDING_MODEL, RERANK_MODEL } from "../ai/models.ts";
+import { RERANK_CANDIDATES } from "../search.ts";
+import {
+  appendLedger,
+  createMeter,
+  RATES,
+  readLedger,
+  totals,
+} from "./budget.ts";
+import {
+  CALIBRATION,
+  calibrationTokenBound,
+  recordedQueries,
+  savePairs,
+  scorePairs,
+  type CalibrationPair,
+} from "./calibrate.ts";
+import { acquireLock } from "./lock.ts";
+import { makeCopy, readNotes } from "./passages.ts";
 import { MEASUREMENTS_DIR } from "./records.ts";
 import { gitIn, writeReport } from "./report.ts";
 import { REQUESTS, findRequest, type RequestName } from "./requests.ts";
@@ -159,6 +180,7 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
       chatModel: () =>
         createFakeChatModel({ chunkDelayInMs: 0, failedMessages: new Set() }),
       embedder: () => createFakeEmbedder(),
+      reranker: () => createFakeReranker(),
       search: { kind: "fake", model: createFakeEmbedder().model },
       secrets: {},
       // No neurons to protect, so no pause between requests either.
@@ -180,6 +202,7 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
       root: join(process.cwd(), MEASUREMENTS_DIR),
       chatModel: unavailable,
       embedder: unavailable,
+      reranker: unavailable,
       search: { kind: "real", model: EMBEDDING_MODEL },
       secrets: {},
     };
@@ -190,6 +213,7 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
     root: join(process.cwd(), MEASUREMENTS_DIR),
     chatModel: (fetch) => createCloudflareChatModel({ ...settings, fetch }),
     embedder: (fetch) => createCloudflareEmbedder({ ...settings, fetch }),
+    reranker: (fetch) => createCloudflareReranker({ ...settings, fetch }),
     search: { kind: "real", model: EMBEDDING_MODEL },
     secrets: { token: settings.apiToken, accountId: settings.accountId },
   };
@@ -213,9 +237,105 @@ async function report(argv: string[]): Promise<number> {
   return 0;
 }
 
+/**
+ * `npm run measure -- --calibrate-rerank [--plan]`: the real reranker's scores
+ * on our own pairs, for its threshold (`calibrate.ts`). It says what it sends
+ * and its most neurons first; `--plan` stops there.
+ */
+async function calibrate(argv: string[]): Promise<number> {
+  const plan = argv.includes("--plan");
+  const root = join(process.cwd(), MEASUREMENTS_DIR);
+  const notesDir = join(process.cwd(), "notes");
+  const ledgerFile = join(root, "spend.jsonl");
+  const queries = await recordedQueries(root);
+  const notes = await readNotes(notesDir, EMBEDDING_MODEL);
+  const most =
+    (calibrationTokenBound(queries, notes) * RATES.rerankInput +
+      queries.reduce((sum, query) => sum + embeddingTokenBound(query), 0) *
+        RATES.embeddingInput) /
+    1_000_000;
+  const sofar = totals(await readLedger(ledgerFile), new Date());
+  console.log(
+    `The reranker's calibration: ${queries.length} recorded searches, each with its ${RERANK_CANDIDATES} candidates, to ${RERANK_MODEL}; at most ${Math.ceil(most)} neurons.`,
+  );
+  console.log(
+    `So far today (UTC): ${Math.round(sofar.day)} neurons; this month: ${Math.round(sofar.month)}.`,
+  );
+  if (plan) {
+    console.log("Plan only: nothing was sent.");
+    return 0;
+  }
+  if (process.env.npm_lifecycle_event !== "measure") {
+    throw new Error(
+      "The calibration on the real reranker runs only as `npm run measure`, after the environment guard.",
+    );
+  }
+  const settings = readToken(readFileSync(PROVIDER_KEY_FILE, "utf8"));
+  const lock = acquireLock();
+  const meter = createMeter({ cap: most * 1.5 });
+  try {
+    const embedder = createCloudflareEmbedder({
+      ...settings,
+      fetch: meter.fetch(),
+    });
+    const reranker = createCloudflareReranker({
+      ...settings,
+      fetch: meter.fetch(),
+    });
+    const { copy, embedded } = await makeCopy({
+      notesDir,
+      file: join(root, "passages.json"),
+      embedder,
+    });
+    if (embedded > 0) {
+      throw new Error(
+        "The passages' copy was out of date; run a measurement first, which records its cost.",
+      );
+    }
+    meter.startAnswer();
+    let pairs: CalibrationPair[];
+    try {
+      pairs = await scorePairs(queries, copy, { embedder, reranker });
+    } catch (error) {
+      await appendLedger(ledgerFile, {
+        time: new Date().toISOString(),
+        measurement: CALIBRATION,
+        what: "the reranker's calibration",
+        outcome: "not run",
+        spend: meter.answer().spend,
+      });
+      throw error;
+    }
+    const { spend } = meter.answer();
+    await appendLedger(ledgerFile, {
+      time: new Date().toISOString(),
+      measurement: CALIBRATION,
+      what: "the reranker's calibration",
+      outcome: "counted",
+      spend,
+    });
+    const file = await savePairs(root, reranker, pairs);
+    for (const query of queries) {
+      const best = pairs
+        .filter((pair) => pair.query === query)
+        .sort((a, b) => b.relevance - a.relevance)
+        .slice(0, 5)
+        .map((pair) => `${pair.passage} ${pair.relevance.toFixed(3)}`);
+      console.log(`${JSON.stringify(query)}: ${best.join(", ")}`);
+    }
+    console.log(
+      `${pairs.length} pairs, ${Math.round(spend.neurons * 100) / 100} neurons; saved in ${file}.`,
+    );
+    return 0;
+  } finally {
+    lock.release();
+  }
+}
+
 export async function main(argv: string[]): Promise<number> {
   try {
     if (argv[0] === "--report") return await report(argv.slice(1));
+    if (argv[0] === "--calibrate-rerank") return await calibrate(argv.slice(1));
     const { fake, ...options } = parseOptions(argv);
     const result = await runBatch(options, environment(fake, options.planOnly));
     return result.stopped ? 1 : 0;
