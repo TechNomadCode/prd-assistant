@@ -104,6 +104,18 @@ const MAX_OUTPUT_TOKENS = 4096;
 /** At most this many messages in one conversation. */
 export const MAX_MESSAGES = 200;
 
+/**
+ * At most this many characters of a conversation, counted as they reach the
+ * model: every part except our two tools' outputs, which reach it cut down
+ * (`forEarlierAnswers`, `checkReport`). Each model call resends them, so this
+ * bounds what a forged conversation costs; a full PRD of nine sections is
+ * about 40,000 (estimated 2026-10-22 from the baseline's first section).
+ */
+export const MAX_CONVERSATION_LENGTH = 100_000;
+
+/** At most this many characters of text in one of the assistant's messages. */
+export const MAX_ANSWER_LENGTH = 8_000;
+
 // A drafted section's limits: roomy for a model, tight for a forged request.
 const MAX_STATEMENTS = 40;
 const MAX_STATEMENT_LENGTH = 1000;
@@ -422,10 +434,26 @@ export async function readChatRequest(body: unknown): Promise<ChatMessage[]> {
   }
 
   const messages = validated.data;
+  const length = messages
+    .flatMap((message) => message.parts)
+    .reduce((sum, part) => sum + modelLength(part), 0);
+  if (length > MAX_CONVERSATION_LENGTH) {
+    throw new ChatRequestError(
+      `The conversation is too long: the assistant reads up to ${MAX_CONVERSATION_LENGTH} characters of it.`,
+    );
+  }
   for (const message of messages) {
     if (message.role === "system") {
       throw new ChatRequestError(
         "The conversation can't change the assistant's instructions.",
+      );
+    }
+    if (
+      message.role === "assistant" &&
+      textOf(message).length > MAX_ANSWER_LENGTH
+    ) {
+      throw new ChatRequestError(
+        `An answer in the conversation is too long: the assistant's answers hold up to ${MAX_ANSWER_LENGTH} characters.`,
       );
     }
     if (message.role !== "user") continue;
@@ -446,6 +474,18 @@ export async function readChatRequest(body: unknown): Promise<ChatMessage[]> {
     );
   }
   return messages;
+}
+
+/**
+ * A part's characters as the model reads them: a search's or a save's output
+ * doesn't count, since only its ids or its check report reach the model.
+ */
+function modelLength(part: ChatMessage["parts"][number]): number {
+  if (part.type === "text") return part.text.length;
+  if (part.type === "tool-searchNotes" || part.type === "tool-saveSection") {
+    return JSON.stringify({ ...part, output: undefined }).length;
+  }
+  return JSON.stringify(part).length;
 }
 
 /** The visitor's own messages, which their quotes are checked against. */

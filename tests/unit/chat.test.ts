@@ -16,8 +16,11 @@ import {
   createFakeChatModel,
   FAKE_FAILURES,
 } from "@/server/ai/fake-chat-model";
+import { POST } from "@/app/api/chat/route";
 import {
   ChatRequestError,
+  MAX_ANSWER_LENGTH,
+  MAX_CONVERSATION_LENGTH,
   MAX_MESSAGES,
   readChatRequest,
   streamAnswer,
@@ -1396,6 +1399,32 @@ describe("reading a chat request", () => {
     await expect(readChatRequest({ messages })).resolves.toEqual(messages);
   });
 
+  it("counts a search's passages apart from the conversation's length, since only their ids reach the model", async () => {
+    const longSearch: ChatMessage = {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-searchNotes",
+          toolCallId: "call-1",
+          state: "output-available",
+          input: { query: "pings" },
+          output: { passages: Array.from({ length: 500 }, () => HENK) },
+        },
+      ],
+    };
+    const messages = [
+      visitor("Who wants pings?"),
+      longSearch,
+      visitor("And who doesn't?", "visitor-2"),
+    ];
+
+    expect(JSON.stringify(messages).length).toBeGreaterThan(
+      MAX_CONVERSATION_LENGTH,
+    );
+    await expect(readChatRequest({ messages })).resolves.toEqual(messages);
+  });
+
   it.each([
     ["a body that isn't an object", "hello", /isn't a conversation/],
     ["no conversation", {}, /isn't a conversation/],
@@ -1447,6 +1476,35 @@ describe("reading a chat request", () => {
       "a visitor message over the length limit",
       { messages: [visitor("a".repeat(MAX_MESSAGE_LENGTH + 1))] },
       /A message is too long/,
+    ],
+    [
+      "a conversation over its length limit",
+      {
+        messages: Array.from(
+          {
+            length:
+              Math.floor(MAX_CONVERSATION_LENGTH / MAX_MESSAGE_LENGTH) + 1,
+          },
+          (_, index) =>
+            visitor("a".repeat(MAX_MESSAGE_LENGTH), `visitor-${index}`),
+        ),
+      },
+      /The conversation is too long: the assistant reads up to 100000 characters/,
+    ],
+    [
+      "an answer over its length limit",
+      {
+        messages: [
+          visitor("Hi"),
+          {
+            id: "assistant-1",
+            role: "assistant",
+            parts: [{ type: "text", text: "a".repeat(MAX_ANSWER_LENGTH + 1) }],
+          },
+          visitor("And?", "visitor-2"),
+        ],
+      },
+      /An answer in the conversation is too long/,
     ],
     [
       "the assistant's message last",
@@ -1545,5 +1603,19 @@ describe("reading a chat request", () => {
 
     await expect(reading).rejects.toThrow(ChatRequestError);
     await expect(reading).rejects.toThrow(message);
+  });
+});
+
+describe("the chat's endpoint", () => {
+  const post = (body: string) =>
+    POST(new Request("http://localhost/api/chat", { method: "POST", body }));
+
+  it("refuses a body over 300,000 characters before reading it", async () => {
+    const over = await post("x".repeat(300_001));
+
+    expect(over.status).toBe(413);
+    expect(await over.text()).toBe("The conversation is too long to send.");
+    // At the limit the body is read, and this one isn't JSON.
+    expect((await post("x".repeat(300_000))).status).toBe(400);
   });
 });
