@@ -58,6 +58,14 @@ export const CAP_FACTOR = 1.5;
 /** After a per-minute refusal, the batch waits this long before the next answer. */
 export const PER_MINUTE_PAUSE_MS = 60_000;
 
+/**
+ * Between two answers, a real batch waits this long, as a visitor reads a
+ * reply before writing again, so a batch is less dense than back-to-back
+ * answers (the owner, 2026-10-22: to see whether dense batches bring
+ * Cloudflare's early refusals, KI-10).
+ */
+export const ANSWER_PAUSE_MS = 10_000;
+
 /** The live site's limit for one answer (`maxDuration` on the chat route). */
 export const LIVE_SITE_SECONDS = 60;
 
@@ -590,6 +598,9 @@ async function sendPlanned({
       continue;
     }
     checkRunName({ request: request.name, run });
+    if (answers.length > 0 && env.search.kind === "real") {
+      await sleep(ANSWER_PAUSE_MS);
+    }
 
     const messages = await conversationFor(request, start ?? null);
     const recorder = createRecorder();

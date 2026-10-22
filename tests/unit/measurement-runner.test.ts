@@ -29,6 +29,7 @@ import {
   readLedger,
   totals,
   BudgetExceededError,
+  RATES,
   type LedgerEntry,
 } from "@/server/measurement/budget";
 import { parseOptions, readToken } from "@/server/measurement/cli";
@@ -48,6 +49,7 @@ import {
 } from "@/server/measurement/passages";
 import { findRequest, REQUESTS } from "@/server/measurement/requests";
 import {
+  ANSWER_PAUSE_MS,
   runBatch,
   type BatchEnvironment,
   type BatchOptions,
@@ -88,8 +90,9 @@ function chatReply(message: object, finishReason = "stop") {
   });
 }
 
-/** 2,400 input and 120 output tokens at gpt-oss-120b's rates. */
-const NEURONS_PER_REPLY = (2400 * 31_818 + 120 * 68_182) / 1_000_000;
+/** 2,400 input and 120 output tokens at the chat model's rates. */
+const NEURONS_PER_REPLY =
+  (2400 * RATES.chatInput + 120 * RATES.chatOutput) / 1_000_000;
 
 const toolCall = (name: string, args: object) =>
   chatReply(
@@ -329,7 +332,8 @@ describe("the meter", () => {
     let clock = 0;
     const waits: number[] = [];
     const meter = createMeter({
-      cap: 100,
+      // More than one reply, less than two.
+      cap: 1.5 * NEURONS_PER_REPLY,
       spacingMs: 1000,
       now: () => clock,
       sleep: async (ms) => {
@@ -400,14 +404,15 @@ describe("the meter", () => {
   });
 
   it("raises the cap when more answers can go", async () => {
-    const meter = createMeter({ cap: 50, spacingMs: 0 });
+    // Less than one reply.
+    const meter = createMeter({ cap: NEURONS_PER_REPLY / 2, spacingMs: 0 });
     const metered = meter.fetch(
       replaying([() => text("One."), () => text("Two.")]).fetch,
     );
     await metered("https://example.test/v1/chat/completions");
     expect(meter.passed()).toBe(true);
 
-    meter.raiseCap(100);
+    meter.raiseCap(NEURONS_PER_REPLY);
 
     expect(meter.passed()).toBe(false);
     await metered("https://example.test/v1/chat/completions");
@@ -750,6 +755,24 @@ describe("a batch", () => {
     expect(lines).toContain(
       "Nothing to send: every run from 1 to 1 of A, D has a record.",
     );
+  });
+
+  it("waits between two answers of a real batch, as a visitor reads a reply, and not before the first", async () => {
+    const waits: number[] = [];
+    const env = {
+      ...cloudflareEnv([...FIRST_SECTION, ...FIRST_SECTION]),
+      sleep: async (ms: number) => {
+        waits.push(ms);
+      },
+    };
+
+    const result = await runBatch(options({ runs: 2 }), env);
+
+    expect(result.answers.map(({ outcome }) => outcome.kind)).toEqual([
+      "counted",
+      "counted",
+    ]);
+    expect(waits).toEqual([ANSWER_PAUSE_MS]);
   });
 
   it("counts an answer whose refusal the AI SDK's retry recovered from, and keeps the refusal", async () => {

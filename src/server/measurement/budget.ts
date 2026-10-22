@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { embeddingTokenBound } from "../ai/embedding-input.ts";
-import { RERANK_MODEL } from "../ai/models.ts";
+import { CHAT_MODEL, RERANK_MODEL } from "../ai/models.ts";
 
 // Careful spending (src/server/AGENTS.md, the budget): every call to
 // Cloudflare goes through the meter, which counts the neurons as replies come
@@ -11,13 +11,29 @@ import { RERANK_MODEL } from "../ai/models.ts";
 // lives in a ledger, one line per answer, for the day's and the month's totals.
 
 /**
- * Neurons per million tokens: gpt-oss-120b's input and output, and
- * bge-large-en-v1.5's input (https://developers.cloudflare.com/workers-ai/platform/pricing/,
- * read 2026-10-19; docs/decisions.md, External services).
+ * Neurons per million input and output tokens of each chat model measured
+ * (https://developers.cloudflare.com/workers-ai/platform/pricing/, gpt-oss-120b
+ * read 2026-10-19, gpt-oss-20b 2026-10-22; docs/decisions.md, External services).
+ */
+const CHAT_RATES: Record<string, { input: number; output: number }> = {
+  "@cf/openai/gpt-oss-120b": { input: 31_818, output: 68_182 },
+  "@cf/openai/gpt-oss-20b": { input: 18_182, output: 27_273 },
+};
+
+const chatRates = CHAT_RATES[CHAT_MODEL];
+if (!chatRates) {
+  throw new Error(
+    `The meter has no rates for ${CHAT_MODEL}: add them from Cloudflare's pricing page.`,
+  );
+}
+
+/**
+ * Neurons per million tokens: the chat model's input and output, and
+ * bge-large-en-v1.5's input (the same page, read 2026-10-19).
  */
 export const RATES = {
-  chatInput: 31_818,
-  chatOutput: 68_182,
+  chatInput: chatRates.input,
+  chatOutput: chatRates.output,
   embeddingInput: 18_582,
   /** bge-reranker-base's input (the same page, read 2026-10-22). */
   rerankInput: 283,
@@ -368,10 +384,9 @@ export function totals(
 /**
  * What the next answer to a request is expected to cost: the mean of its
  * counted answers in the first of `prefer` that has any (the measurement
- * itself, then the one it's compared with), since a change can move the cost
- * (`reasoning-high` cost about twice `prompt-v5`'s, 2026-10-21); otherwise the
- * mean of its counted answers so far, or the estimate's figure before there
- * are any at all.
+ * itself, then the one it's compared with), since a change can move the cost;
+ * otherwise the mean of its counted answers so far, or the estimate's figure
+ * before there are any at all.
  */
 export function expectedNeurons(
   request: { name: string; continues: string | null },
