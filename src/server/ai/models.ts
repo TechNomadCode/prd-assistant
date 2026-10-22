@@ -3,9 +3,9 @@
 // also re-embeds every passage.
 
 /**
- * gpt-oss-120b since 2026-10-18; gpt-oss-20b before, which skipped writing
- * rules and once saved nothing on staging. Both take the same request
- * format on Cloudflare.
+ * gpt-oss-120b, the larger of OpenAI's two open-weight models on Cloudflare
+ * (`docs/decisions.md`, External services). gpt-oss-20b takes the same
+ * request format, and the measurement's meter has rates for both.
  */
 export const CHAT_MODEL = "@cf/openai/gpt-oss-120b";
 export const EMBEDDING_MODEL = "@cf/baai/bge-large-en-v1.5";

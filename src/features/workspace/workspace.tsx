@@ -32,7 +32,7 @@ import {
 } from "@/lib/prd";
 import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
 import { cn } from "@/lib/utils";
-import { breakItSuggestion, conversationStarted } from "./disclosure";
+import { conversationStarted, offeredSuggestion } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
 import { ScenarioTour } from "./scenario-tour";
 import { keepConversation, restoreConversation } from "./stored-conversation";
@@ -151,7 +151,7 @@ function RestoredWorkspace() {
   const sections = useMemo(() => savedSections(messages), [messages]);
   const latest = latestSave(sections)?.section.section;
   const next = firstUndrafted(new Set(sections.keys()));
-  const suggestion = useMemo(() => breakItSuggestion(messages), [messages]);
+  const suggestion = useMemo(() => offeredSuggestion(messages), [messages]);
   const visitorMessages = useMemo(
     () =>
       new Map(

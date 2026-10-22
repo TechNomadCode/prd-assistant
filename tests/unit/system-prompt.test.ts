@@ -26,6 +26,8 @@ const FINGERPRINTS: Record<number, string> = {
   5: "314da5d9d1f1b37ea272e028f785dbe6d1696ff6647f2991f60781d42b50699a",
   // Version 5 with the reranked search: up to five passages, or none.
   6: "c2b255d792e946dbb750a9b06dd168cba8c7e99fabc850fb3475742dba8ece33",
+  // Only what the app and the product description need, for a small model.
+  7: "5520c44f8bdbb30a1cb66408a73882fe7501425e1bb3415854074533b0b56780",
 };
 
 /** The toolkit template's nine sections, in its order. */
@@ -160,11 +162,15 @@ describe("the system prompt", () => {
     ["draft before asking", "Draft before you ask."],
     [
       "ask only what the interviews don't say",
-      "Ask only what the interviews don't say.",
+      "Ask only what the interviews don't say",
     ],
     [
-      "explain once that the answer becomes the visitor's decision",
-      "The first time you ask, explain in one sentence that the interviews don't cover this, so the product manager's answer will be recorded as their own decision.",
+      "the answers become the visitor's decision",
+      "The product manager's answers are recorded as their own decision.",
+    ],
+    [
+      "a claim no passage makes becomes the visitor's decision",
+      `save it as their decision, citing their message ("The product manager wants ..."), never as something the households asked for`,
     ],
     [
       "never ask the interview questions again",
@@ -181,7 +187,7 @@ describe("the system prompt", () => {
     ["interpretations are marked as such", 'starts with "Interpretation:"'],
     [
       "unsupported assumptions become open questions",
-      "is never written as a finding or a requirement: it becomes an open question",
+      "becomes an open question, never a finding or a requirement",
     ],
     [
       "the citation format for an interview",
@@ -206,7 +212,7 @@ describe("the system prompt", () => {
     ],
     [
       "say what the check found, then check in",
-      "your reply says in a sentence or two what the check found, then checks in (rule 8)",
+      "your reply says in a sentence or two what the check found, then checks in (rule 7)",
     ],
     [
       "earlier searches show only ids, so search again to quote",

@@ -16,8 +16,9 @@ import { providerSettings, readSearchEnv } from "./env.ts";
 // staging and production), and the database ranks the passages by closeness.
 // A reranker can then read the question with each of the closest and keep
 // those relevant enough, best first, as Cloudflare's AI Search and Haystack's
-// rankers do; it's off, since bge-reranker-base neither separated nor ordered
-// our passages better (`src/server/AGENTS.md`, *The reranker*).
+// rankers do. It's off: in a calibration on our passages, bge-reranker-base
+// neither separated relevant from unrelated passages nor ordered them
+// (`src/server/AGENTS.md`, *The reranker*).
 
 /** Longer input is usually a whole message, which blurs what to look for. */
 export const MAX_QUERY_LENGTH = 500;

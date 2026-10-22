@@ -282,8 +282,7 @@ export function Chat({
           )}
         >
           <p id="suggestion-title" className="text-sm text-muted-foreground">
-            Now try to break it. Send a claim that nobody in the interviews
-            made:
+            Suggestion:
           </p>
           <Button
             variant="outline"
