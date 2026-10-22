@@ -406,6 +406,38 @@ describe("answering in the chat", () => {
     });
   });
 
+  it("tells the model plainly when no passage is about its search", async () => {
+    const { model, calls } = modelReplying(
+      searchFor("dark mode"),
+      reply("None of the six interviews mentions dark mode."),
+    );
+
+    await answer(
+      [visitor("Users asked for a dark mode.")],
+      model,
+      async () => [],
+    );
+
+    const toolMessage = calls[1]?.prompt.at(-1);
+    expect(toolMessage).toEqual({
+      role: "tool",
+      content: [
+        expect.objectContaining({
+          type: "tool-result",
+          toolName: "searchNotes",
+          output: {
+            type: "json",
+            value: {
+              passages: [],
+              searchesLeft: 2,
+              note: "No passage in the six interviews is about this.",
+            },
+          },
+        }),
+      ],
+    });
+  });
+
   it("tells the model after each search how many it has left, and after the last to save or write", async () => {
     const { model, calls } = modelSearchingWhileItCan();
 

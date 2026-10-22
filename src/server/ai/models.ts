@@ -10,6 +10,14 @@
 export const CHAT_MODEL = "@cf/openai/gpt-oss-120b";
 export const EMBEDDING_MODEL = "@cf/baai/bge-large-en-v1.5";
 
+/**
+ * The search's second step: a cross-encoder that reads the question and each
+ * candidate passage together and scores how relevant the passage is, as
+ * Cloudflare's AI Search reranks with it (`src/server/AGENTS.md`, *The
+ * reranker*).
+ */
+export const RERANK_MODEL = "@cf/baai/bge-reranker-base";
+
 /** bge-large-en-v1.5 returns 1024 numbers; `passages.embedding` matches it. */
 export const EMBEDDING_DIMENSIONS = 1024;
 

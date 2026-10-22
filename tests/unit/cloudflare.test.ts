@@ -7,7 +7,8 @@ import {
   QuotaExceededError,
 } from "@/server/ai/cloudflare";
 import { createCloudflareEmbedder } from "@/server/ai/cloudflare-embedder";
-import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
+import { createCloudflareReranker } from "@/server/ai/cloudflare-reranker";
+import { CHAT_MODEL, EMBEDDING_MODEL, RERANK_MODEL } from "@/server/ai/models";
 import { streamAnswer } from "@/server/chat";
 
 // The Cloudflare adapter against a recorded fetch: the requests it sends and
@@ -676,5 +677,84 @@ describe("the chat when Cloudflare refuses", () => {
       QuotaExceededError,
     );
     expect(sent).toHaveLength(1);
+  });
+});
+
+describe("the Cloudflare reranker", () => {
+  /** Cloudflare's reply format for bge-reranker-base: each score by index. */
+  const rerankReply = (response: { id: number; score: number }[]) => () =>
+    Response.json({ result: { response }, success: true, errors: [] });
+
+  function reranker(fetch: typeof globalThis.fetch) {
+    return createCloudflareReranker({
+      accountId: ACCOUNT,
+      apiToken: "test-token",
+      fetch,
+    });
+  }
+
+  it("sends the question and every text to the pinned model, and reads each score by its index", async () => {
+    const { sent, fetch } = recordingFetch(
+      rerankReply([
+        { id: 1, score: 2 },
+        { id: 0, score: -1 },
+      ]),
+    );
+
+    const relevance = await reranker(fetch).rank("dark mode", [
+      "Black on white or white on black.",
+      "Same route every week.",
+    ]);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.url).toBe(
+      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/ai/run/${RERANK_MODEL}`,
+    );
+    expect(sent[0]?.headers.get("authorization")).toBe("Bearer test-token");
+    expect(sent[0]?.body).toEqual({
+      query: "dark mode",
+      contexts: [
+        { text: "Black on white or white on black." },
+        { text: "Same route every week." },
+      ],
+      top_k: 2,
+    });
+    // The model's logits, mapped to 0 to 1 by the sigmoid.
+    expect(relevance[0]).toBeCloseTo(1 / (1 + Math.E));
+    expect(relevance[1]).toBeCloseTo(1 / (1 + Math.exp(-2)));
+  });
+
+  it("sends nothing for no texts", async () => {
+    const { sent, fetch } = recordingFetch(rerankReply([]));
+
+    await expect(reranker(fetch).rank("dark mode", [])).resolves.toEqual([]);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("fails when a text comes back without a score", async () => {
+    const { fetch } = recordingFetch(rerankReply([{ id: 0, score: 1 }]));
+
+    await expect(
+      reranker(fetch).rank("lists", ["One.", "Two."]),
+    ).rejects.toThrow("Cloudflare's reranker scored 1 of 2 texts.");
+  });
+
+  it("stops at the daily quota without retrying", async () => {
+    const { sent, fetch } = recordingFetch(quota4006);
+
+    await expect(
+      reranker(fetch).rank("lists", ["One."]),
+    ).rejects.toBeInstanceOf(QuotaExceededError);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("fails with Cloudflare's status on any other error", async () => {
+    const { fetch } = recordingFetch(() =>
+      Response.json({ errors: [{ code: 5007 }] }, { status: 400 }),
+    );
+
+    await expect(reranker(fetch).rank("lists", ["One."])).rejects.toThrow(
+      /^Cloudflare's reranker answered 400/,
+    );
   });
 });

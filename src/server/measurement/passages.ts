@@ -8,6 +8,7 @@ import {
 } from "../../lib/transcripts.ts";
 import type { Embedder } from "../ai/embedder.ts";
 import { embeddingTokenBound } from "../ai/embedding-input.ts";
+import type { Reranker } from "../ai/reranker.ts";
 import type { ChatDependencies } from "../chat.ts";
 import { contentHash, embeddingInput } from "../notes/load-notes.ts";
 import { parseInterview } from "../notes/parse-interview.ts";
@@ -205,6 +206,7 @@ export function rankPassages(
 export function copySources(
   copy: PassageCopy,
   embedder: Embedder,
+  reranker?: Reranker,
 ): Omit<ChatDependencies, "model"> {
   return {
     search: (query) =>
@@ -212,6 +214,7 @@ export function copySources(
         embedder,
         findPassages: async (embedding, count) =>
           rankPassages(copy.passages, embedding, count),
+        ...(reranker ? { reranker } : {}),
       }),
     findPassages: async (ids): Promise<SourcePassage[]> => {
       const wanted = new Set(ids);

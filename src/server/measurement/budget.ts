@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { embeddingTokenBound } from "../ai/embedding-input.ts";
+import { RERANK_MODEL } from "../ai/models.ts";
 
 // Careful spending (src/server/AGENTS.md, the budget): every call to
 // Cloudflare goes through the meter, which counts the neurons as replies come
@@ -18,6 +19,8 @@ export const RATES = {
   chatInput: 31_818,
   chatOutput: 68_182,
   embeddingInput: 18_582,
+  /** bge-reranker-base's input (the same page, read 2026-10-22). */
+  rerankInput: 283,
 } as const;
 
 /**
@@ -37,6 +40,8 @@ export type Spend = {
   outputTokens: number;
   /** Cloudflare reports no tokens for embeddings: the loader's upper bound. */
   embeddingTokenBound: number;
+  /** The reranker's input, an upper bound (`rerankTokenBound`); absent at 0. */
+  rerankTokenBound?: number;
   neurons: number;
 };
 
@@ -55,6 +60,10 @@ function add(total: Spend, more: Spend): void {
   total.inputTokens += more.inputTokens;
   total.outputTokens += more.outputTokens;
   total.embeddingTokenBound += more.embeddingTokenBound;
+  if (more.rerankTokenBound) {
+    total.rerankTokenBound =
+      (total.rerankTokenBound ?? 0) + more.rerankTokenBound;
+  }
   total.neurons += more.neurons;
 }
 
@@ -76,6 +85,25 @@ export function embeddingSpend(tokenBound: number): Spend {
     embeddingTokenBound: tokenBound,
     neurons: (tokenBound * RATES.embeddingInput) / 1_000_000,
   };
+}
+
+export function rerankSpend(tokenBound: number): Spend {
+  return {
+    ...noSpend(),
+    rerankTokenBound: tokenBound,
+    neurons: (tokenBound * RATES.rerankInput) / 1_000_000,
+  };
+}
+
+/**
+ * The most tokens a rerank request can hold: bge-reranker-base reads the
+ * question and each text as one pair, and its SentencePiece pieces are at
+ * least one character each, spaces included, so a pair never has more tokens
+ * than its characters plus its four markers (<s> … </s></s> … </s>).
+ */
+export function rerankTokenBound(query: string, texts: string[]): number {
+  const length = (text: string) => [...text].length;
+  return texts.reduce((sum, text) => sum + length(query) + length(text) + 4, 0);
 }
 
 /**
@@ -203,9 +231,11 @@ export function createMeter({
 
         const url = input instanceof Request ? input.url : String(input);
         const request = `${url} ${typeof init?.body === "string" ? init.body : ""}`;
+        const reranking = url.endsWith(`/ai/run/${RERANK_MODEL}`);
         if (url.endsWith("/embeddings")) {
           count(embeddingSpend(embeddingBound(init?.body)));
         }
+        if (reranking) count(rerankSpend(rerankBound(init?.body)));
         const response = await inner(input, init);
         const body = parsed(await response.clone().text());
         if (response.ok) {
@@ -218,8 +248,9 @@ export function createMeter({
         const usage = (body as { usage?: Record<string, unknown> } | null)
           ?.usage;
         if (
-          typeof usage?.prompt_tokens === "number" ||
-          typeof usage?.completion_tokens === "number"
+          !reranking &&
+          (typeof usage?.prompt_tokens === "number" ||
+            typeof usage?.completion_tokens === "number")
         ) {
           count(
             chatSpend(
@@ -263,6 +294,21 @@ function embeddingBound(body: RequestInit["body"]): number {
       typeof text === "string" ? sum + embeddingTokenBound(text) : sum,
     0,
   );
+}
+
+/** The upper bound of a rerank request's tokens, from what it sends. */
+function rerankBound(body: RequestInit["body"]): number {
+  if (typeof body !== "string") return 0;
+  const { query, contexts } = (parsed(body) ?? {}) as {
+    query?: unknown;
+    contexts?: unknown;
+  };
+  if (typeof query !== "string" || !Array.isArray(contexts)) return 0;
+  const texts = contexts.flatMap((context: unknown) => {
+    const text = (context as { text?: unknown } | null)?.text;
+    return typeof text === "string" ? [text] : [];
+  });
+  return rerankTokenBound(query, texts);
 }
 
 function parsed(text: string): unknown {

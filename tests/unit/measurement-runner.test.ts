@@ -20,7 +20,7 @@ import { createCloudflareChatModel } from "@/server/ai/cloudflare";
 import type { Embedder } from "@/server/ai/embedder";
 import { createFakeChatModel } from "@/server/ai/fake-chat-model";
 import { createFakeEmbedder } from "@/server/ai/fake-embedder";
-import { CHAT_MODEL } from "@/server/ai/models";
+import { CHAT_MODEL, RERANK_MODEL } from "@/server/ai/models";
 import { ChatRequestError } from "@/server/chat";
 import {
   classifyRefusal,
@@ -426,6 +426,35 @@ describe("the meter", () => {
 
     expect(meter.batch().embeddingTokenBound).toBeGreaterThan(0);
     expect(meter.batch().chatCalls).toBe(0);
+  });
+
+  it("counts a rerank request by its question and texts, never as a chat call", async () => {
+    const meter = createMeter({ cap: 100, spacingMs: 0 });
+    const metered = meter.fetch((async () =>
+      Response.json({
+        result: { response: [{ id: 0, score: 1 }] },
+        usage: { prompt_tokens: 9999 },
+      })) as typeof fetch);
+
+    await metered(
+      `https://api.cloudflare.com/client/v4/accounts/x/ai/run/${RERANK_MODEL}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          query: "dark mode",
+          contexts: [{ text: "Black on white." }, { text: "Coffee." }],
+        }),
+      },
+    );
+
+    // Each pair: the question's 9 characters, the text's, and 4 markers.
+    const bound = 9 + 15 + 4 + (9 + 7 + 4);
+    expect(meter.batch()).toMatchObject({
+      chatCalls: 0,
+      inputTokens: 0,
+      rerankTokenBound: bound,
+    });
+    expect(meter.batch().neurons).toBeCloseTo((bound * 283) / 1_000_000);
   });
 
   it("totals the UTC day and month, and expects what earlier answers cost", () => {

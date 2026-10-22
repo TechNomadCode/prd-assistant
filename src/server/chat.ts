@@ -70,6 +70,13 @@ import {
  */
 const MAX_SEARCHES = 3;
 
+/**
+ * What the model reads when the reranker kept no passage: said plainly, as
+ * Anthropic advises for a search with no results ("No results found.") and as
+ * Cloudflare's AI Search does by not answering from nothing.
+ */
+const NOTHING_RELEVANT = "No passage in the six interviews is about this.";
+
 /** What the model reads with the passages of an answer's last search. */
 const LAST_SEARCH =
   "That was your last search for this reply. Save the section, or write your reply, from the passages you have.";
@@ -120,6 +127,7 @@ const passageMatchSchema = z.object({
   question: z.string(),
   answer: z.string(),
   distance: z.number(),
+  relevance: z.number().optional(),
 }) satisfies z.ZodType<PassageMatch>;
 
 const searchNotesOutput = z.object({
@@ -234,7 +242,7 @@ function createTools(
   return {
     searchNotes: tool({
       description:
-        "Searches the six interviews. Returns the five passages closest in meaning to the query, closest first: each is the researcher's question and one interviewee's whole answer. They are candidates, so some may not be about the query at all.",
+        "Searches the six interviews. Returns up to five passages about the query, most relevant first: each is the researcher's question and one interviewee's whole answer. When no passage is about the query, it returns none and says so.",
       inputSchema: searchNotesInput,
       outputSchema: searchNotesOutput,
       async execute({ query }, { toolCallId }) {
@@ -254,6 +262,10 @@ function createTools(
       // and how many searches it has left.
       toModelOutput: ({ toolCallId, output }) => {
         const left = searchesLeft.get(toolCallId) ?? 0;
+        const notes = [
+          ...(output.passages.length === 0 ? [NOTHING_RELEVANT] : []),
+          ...(left === 0 ? [LAST_SEARCH] : []),
+        ];
         return {
           type: "json",
           value: {
@@ -264,7 +276,7 @@ function createTools(
               answer: passage.answer,
             })),
             searchesLeft: left,
-            ...(left === 0 ? { note: LAST_SEARCH } : {}),
+            ...(notes.length > 0 ? { note: notes.join(" ") } : {}),
           },
         };
       },

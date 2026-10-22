@@ -3,24 +3,37 @@ import { z } from "zod";
 import type { PassageMatch } from "@/lib/transcripts";
 import type { Embedder } from "./ai/embedder.ts";
 import { EMBEDDING_DIMENSIONS } from "./ai/models.ts";
-import { createEmbedder } from "./ai/providers.ts";
+import { createEmbedder, createReranker } from "./ai/providers.ts";
+import type { Reranker } from "./ai/reranker.ts";
+import { embeddingInput } from "./notes/load-notes.ts";
 import { createReadClient } from "./db/clients.ts";
 import { findClosestPassages } from "./db/search.ts";
 import { providerSettings, readSearchEnv } from "./env.ts";
 
-// The interview search: a question in, the passages closest in meaning out,
-// each with the interviewee's name and the researcher's question. It embeds
-// the question with the passages' model (fake locally and in CI, Cloudflare
-// Workers AI on staging and production), then the database ranks the passages.
+// The interview search: a question in, the passages about it out, each with
+// the interviewee's name and the researcher's question. It embeds the question
+// with the passages' model (fake locally and in CI, Cloudflare Workers AI on
+// staging and production), the database ranks the passages by closeness, then
+// a reranker reads the question with each of the closest and keeps those
+// relevant enough, best first: retrieve, rerank, threshold, as Cloudflare's AI
+// Search and Haystack's rankers do (`src/server/AGENTS.md`, *The reranker*).
 
 /** Longer input is usually a whole message, which blurs what to look for. */
 export const MAX_QUERY_LENGTH = 500;
 
 /**
- * How many passages one search returns: always the five closest, even when
- * none of them is close. `distance` says how close each one came.
+ * The most passages one search returns. Without a reranker, always the five
+ * closest, even when none of them is close; `distance` says how close each
+ * one came.
  */
 export const SEARCH_RESULT_COUNT = 5;
+
+/**
+ * How many of the closest passages the reranker reads: about half of the 42,
+ * for under a neuron a search. Retrieving more than are returned is the
+ * pattern Anthropic's contextual retrieval and Cloudflare's AI Search follow.
+ */
+export const RERANK_CANDIDATES = 20;
 
 export const searchQuerySchema = z
   .string()
@@ -45,9 +58,14 @@ export class SearchQueryError extends Error {
 export type SearchDependencies = {
   embedder: Embedder;
   findPassages(embedding: number[], count: number): Promise<PassageMatch[]>;
+  /** Tests leave it out unless they test it: the five closest, as before. */
+  reranker?: Reranker;
 };
 
-/** The passages closest to `query`, closest first. */
+/**
+ * The passages about `query`, most relevant first: with a reranker, at most
+ * five that reach its threshold, maybe none; without one, the five closest.
+ */
 export async function searchInterviews(
   query: string,
   dependencies?: SearchDependencies,
@@ -59,9 +77,29 @@ export async function searchInterviews(
     );
   }
 
-  const { embedder, findPassages } = dependencies ?? connect();
+  const { embedder, findPassages, reranker } = dependencies ?? connect();
   const [embedding] = await embedder.embed([parsed.data]);
-  return findPassages(checked(embedding), SEARCH_RESULT_COUNT);
+  if (!reranker) return findPassages(checked(embedding), SEARCH_RESULT_COUNT);
+
+  const candidates = await findPassages(checked(embedding), RERANK_CANDIDATES);
+  // The text the passages were embedded from: the researcher's question, then
+  // the answer, as Haystack's rankers put a document's fields before its text.
+  const relevance = await reranker.rank(
+    parsed.data,
+    candidates.map((passage) =>
+      embeddingInput(passage.question, passage.answer),
+    ),
+  );
+  if (relevance.length !== candidates.length) {
+    throw new Error(
+      `The reranker scored ${relevance.length} of ${candidates.length} passages.`,
+    );
+  }
+  return candidates
+    .map((passage, index) => ({ ...passage, relevance: relevance[index]! }))
+    .filter((passage) => passage.relevance >= reranker.threshold)
+    .sort((a, b) => b.relevance - a.relevance || a.distance - b.distance)
+    .slice(0, SEARCH_RESULT_COUNT);
 }
 
 /**
@@ -85,13 +123,18 @@ function checked(embedding: number[] | undefined): number[] {
   return embedding;
 }
 
-/** The real dependencies, from the settings: the read key and the embedder. */
+/**
+ * The real dependencies, from the settings: the read key, the embedder and
+ * the reranker.
+ */
 function connect(): SearchDependencies {
   const env = readSearchEnv();
   const client = createReadClient(env);
+  const settings = providerSettings(env);
   return {
-    embedder: createEmbedder(providerSettings(env)),
+    embedder: createEmbedder(settings),
     findPassages: (embedding, count) =>
       findClosestPassages(client, embedding, count),
+    reranker: createReranker(settings),
   };
 }
