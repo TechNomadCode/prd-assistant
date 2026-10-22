@@ -9,7 +9,7 @@
 
 **Main hypothesis:** the chosen free model, guided by the app's prompts and its two tools (`searchNotes`, `saveSection`), writes PRD sections that pass the citation check on all five fixed quality-check requests.
 - Ref: PRD Goals (every statement is checked in code) and Success Metrics (quality check).
-- **Measured, not a gate:** the quality check reports which requests pass, and the README says so. Only the grocery delivery request has to pass before launch.
+- **Measured, not a gate:** the quality check reports which requests pass. Only the grocery delivery request has to pass before launch.
 - **If the model fails a rule,** it may be tuned with measured changes, one at a time; what still fails is reported. The chat runs on gpt-oss-120b. Never loosen the citation check.
 
 **Second hypothesis:** a reviewer gets a cited section, with its citations checked, within 2 minutes of opening the demo.
@@ -43,7 +43,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
   - drafting before asking, with questions only where the transcripts are silent
   - nine sections drafted one at a time and confirmed by the user
   - each step shown as one line, searches in a row folded into one
-  - the suggestion to try to break it, after the first section
+  - a suggested request, after the first section
   - the demo notice under the chat box, and the link for engineers
 
   (PRD: Chat)
@@ -61,7 +61,7 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 - Token usage logged per answer. The quality check prints the total (PRD: Token usage).
 - Quota used up: the input is hidden, and a message links to the recording and the repository (PRD: Free quota used up).
 - Versioned system prompts built from the toolkit's PRD prompt and traceability rules (PRD: System prompts).
-- The quality check: five fixed requests on the development machine, five runs each, including an answer from the visitor, the live suggestion to break it and a harder dark mode trap. It measures, and the README reports what passes; only the grocery delivery request has to pass before launch (PRD: Quality check).
+- The quality check: five fixed requests on the development machine, five runs each, including an answer from the visitor, a grocery delivery claim and a harder dark mode trap. It measures; only the grocery delivery request has to pass before launch (PRD: Quality check).
 - Fake and real providers behind interfaces, with a word-overlap fake embedder (PRD: Providers).
 - Rate limit: 30 messages per visitor per day, with hashed IP addresses kept only for the limit window. Security headers and `noindex` (PRD: Non-Functional Requirements).
 - README: RAG design, citation check, tokens per PRD, screen recording, deploying your own copy (PRD: README).
@@ -93,5 +93,5 @@ An engineer looking at an AI project can't tell whether its output is grounded o
 
 ## Initial success metrics
 
-- **Main hypothesis:** the quality check passes all five requests with the chosen free model; the README reports how many do. The grocery delivery request passes before launch.
+- **Main hypothesis:** the quality check passes all five requests with the chosen free model. The grocery delivery request passes before launch.
 - **Second hypothesis:** the owner times the path from opening the demo to a saved, checked, cited section at under 2 minutes, on staging and production.

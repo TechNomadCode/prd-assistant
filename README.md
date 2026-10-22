@@ -14,23 +14,11 @@ Next.js · TypeScript · Vercel AI SDK · gpt-oss-120b on Cloudflare Workers AI 
 
 ## The story
 
-You've just become the product manager of a shared grocery list app. A researcher has interviewed six households for you. They're fictional, and you can read every interview in the app:
+You're the product manager of a shared grocery list app, and a researcher has interviewed six fictional households. Click **Draft the first section**: the assistant searches the interviews and writes a PRD (product requirements document) beside the chat, one section at a time. Every statement names whose words back it, and a click on a name opens that person's answer with the quote highlighted. The PRD survives a reload and downloads as Markdown.
 
-- Maya and Tom message each other "eggs?" all day, and by six it's buried under photos.
-- Henk wants his phone to ping him every single time his daughter Ineke adds something to the list.
-- Daan, father of three, uninstalled an app after two days for doing exactly that.
+**The catch.** Language models paraphrase, and sometimes they make things up. So the app's own code, not the model, checks every quote word for word against what that person said, and shows any quote that doesn't match. A request no interview backs, such as adding grocery delivery, is marked *Your decision, not from the interviews.*
 
-Your job is a PRD, a product requirements document: what the app must do, and why. You click **Draft the first section**.
-
-The assistant searches the interviews, and you watch each search as one line, such as *Search “notifications” · Henk, Daan*. Then it writes the section as short statements, each ending with whose words back it. Click a name, and that person's answer opens with the quoted words highlighted. The document grows beside the chat, section by section. It drafts first and asks you only what the interviews don't say.
-
-**The catch most AI tools skip.** Language models paraphrase, and sometimes they make things up. A PRD that says "users want X" when nobody did sends a team building the wrong thing. So before you see a section, the app's own code compares every quote, word for word, with what that person actually said. A quote that doesn't match isn't hidden or quietly fixed: it's written out under its statement, with the reason.
-
-**Then the app invites you to break it:** *"Users asked for grocery delivery. Add it to the PRD."* Nobody said that. The assistant is told never to invent: it should say that no one asked for it. If you want it in anyway, your own message becomes its source, and the PRD marks the statement *Your decision, not from the interviews.* That label comes from the code, from what the statement cites, never from the model's say-so.
-
-**What the check can't do** is prove that a real quote is read fairly. Henk says "Black on white or white on black, I don't mind" about the screen. A statement claiming Henk asked for a dark mode could cite that and pass. That's why every quote is one click from its statement, and why the AI's behaviour is [measured](#measuring-the-ais-behaviour) over many runs instead of assumed.
-
-When you're done, the PRD is still there after a reload. You can download it as Markdown, or copy one section at a time.
+The check proves a quote is real, not that it's read fairly, which is why every quote is one click from its statement.
 
 ## What's worth a look
 
@@ -39,7 +27,7 @@ When you're done, the PRD is still there after a reload. You can download it as 
 | **Retrieval, built by hand** | Interviews cut into passages of one question and one answer, embedded, and searched with one SQL function in Postgres with pgvector. No separate vector database or RAG framework. | [`search.sql`](supabase/schemas/search.sql), [`search.ts`](src/server/search.ts) |
 | **Tool calling with limits** | The model decides when to search and when to save. The app caps it at three searches, then allows only saving, then takes the tools away so it replies. | [`chat.ts`](src/server/chat.ts) |
 | **AI output checked in code** | Every quote is checked against the cited person's answer, never the interviewer's question or the assistant's own words. | [`citations.ts`](src/server/citations.ts) |
-| **AI behaviour, measured** | Fixed requests, five runs each on the real model, scored on the product's rules. A change ships only if it beats the baseline on a one-sided Fisher's exact test and no other rule gets worse. | [`measurement/`](src/server/measurement/) |
+| **AI behaviour, measured** | Fixed requests, five runs each on the real model, scored on the product's rules. A change is compared with the baseline on a one-sided Fisher's exact test, and any other rule that gets worse is flagged. | [`measurement/`](src/server/measurement/) |
 | **Failures in plain sight** | A broken or cut-off answer stays on screen marked unfinished. A used-up daily AI allowance and a busy provider each get their own message. | [`cloudflare.ts`](src/server/ai/cloudflare.ts), [`quota.tsx`](src/features/workspace/quota.tsx) |
 | **Safe by default** | Runs locally with no accounts or keys. A guard stops every command that points at a hosted database or holds a stray key. Every table starts closed to the public API. | [`env-guard.ts`](src/lib/env-guard.ts), [`supabase/AGENTS.md`](supabase/AGENTS.md) |
 | **Tested in four layers** | Unit, integration, SQL and end-to-end tests. CI runs on every pull request, and every merge deploys to staging. | [`tests/`](tests/), [`.github/workflows/`](.github/workflows/) |
@@ -47,7 +35,7 @@ When you're done, the PRD is still there after a reload. You can download it as 
 ## Status
 
 - **Built:** everything in the story, running on a private staging site (Vercel, Supabase in Frankfurt, Cloudflare Workers AI on its free plan).
-- **In progress:** measuring the AI's behaviour. First a baseline of the current setup, then one measured change at a time, until the grocery delivery request passes reliably. The final numbers will go here.
+- **Measured:** the AI's behaviour, on fixed requests against a baseline ([how](#measuring-the-ais-behaviour)).
 - **Before launch:** a per-visitor message limit, so one visitor can't use up the free daily AI allowance; the public demo; and a short screen recording here.
 
 The [product description](docs/product/prd.md), its [scope](docs/product/mvp.md), the [decisions](docs/decisions.md) and the [build plan](docs/plan.md) are all in the repository.
@@ -79,7 +67,7 @@ The app's read key may read the passages but not the vectors, so `search_passage
 
 The chat runs on the [Vercel AI SDK](https://ai-sdk.dev): the browser posts the conversation to [`/api/chat`](src/app/api/chat/route.ts), and the server streams the answer back ([`chat.ts`](src/server/chat.ts)).
 
-- **Two tools.** OpenAI's open-weight `gpt-oss-120b` runs on Cloudflare Workers AI through its OpenAI-compatible endpoint, with `searchNotes` and `saveSection`. The model decides when to search and what for. After three searches the app stops offering the search, because gpt-oss otherwise kept searching until it ran out of calls; once a section is saved, it offers no tools, so the model replies.
+- **Two tools.** OpenAI's open-weight `gpt-oss-120b` runs on Cloudflare Workers AI through its OpenAI-compatible endpoint, with `searchNotes` and `saveSection`. The model decides when to search and what for. After three searches the app stops offering the search; once a section is saved, it offers no tools, so the model replies.
 - **Whole replies.** Streamed, Cloudflare sends gpt-oss's tool calls as reasoning text without the tool's name. So the app asks for whole replies and passes each one on in one piece ([`cloudflare.ts`](src/server/ai/cloudflare.ts)). While the model thinks, the chat says so and then shows how long it took.
 - **The instructions.** The system prompt is the PRD prompt from my [AI Product Development Toolkit](https://github.com/TechNomadCode/AI-Product-Development-Toolkit), adapted and versioned in [`system-prompt.ts`](src/server/prompts/system-prompt.ts): nine sections, a check-in before each, draft first and ask only what the interviews don't say, never invent, show both sides of a contradiction. Changing the text needs a new version: a test compares its fingerprint with the one recorded for that version.
 - **Tokens.** The server logs the tokens each answer used. The model's reasoning never goes back to it with later messages, and earlier searches go back as passage ids and names only, so a long conversation doesn't resend every passage it ever found.
@@ -92,14 +80,13 @@ The model never decides whether a quote is real. It saves each section with `sav
 1. **Against the right words.** An interview quote is checked against the answer of the passage it cites, read from the database. The interviewer's question never counts, and neither does another answer, even by the same person. A quote of your words is checked against the messages you sent, never the assistant's.
 2. **Exact, within reason.** A quote passes when it has the same words in the same order as its source, ignoring letter case, spacing, the style of quote marks and punctuation at its ends. It must match whole words: "ink" isn't in "drink". A changed word, a dropped comma or a gap in the middle fails.
 3. **Nothing hidden.** Each statement ends with its sources by name, such as "Maya, Daan" or "You, in this chat". Whatever the check objects to is written out under the statement: an unverified quote with its reason, or "No quote backs this statement." A statement backed only by your own messages reads "Your decision, not from the interviews." ([`prd.ts`](src/lib/prd.ts)).
-4. **The model hears the result:** the counts, every unverified quote and every statement that cites nothing, so its reply can say so and offer a fix.
+4. **The model hears the result:** the counts, every unverified quote and every statement that cites nothing, so its reply can say what the check found.
 
 ### Measuring the AI's behaviour
 
 The model answers differently every time, so one good answer proves little. `npm run measure` sends fixed requests to the real model, five runs each, for six answers: the first section, the disagreement about notifications, a gap in the interviews and your answer to it, and the grocery delivery and dark mode claims. Each run is scored on the product's rules: every quote passes, every statement has a source, the gap is asked about instead of invented, both sides of the disagreement show, and no statement about grocery delivery or dark mode cites an interviewee.
 
-A change, such as a new prompt, records its expected effect before it runs and is compared with the baseline. It ships only if it beats the baseline on its rule (a one-sided Fisher's exact test at 5%) and no other rule drops by two runs or more. Every run's full record is kept, and the command stays within a budget it prints before sending anything, since the free plan allows 10,000 neurons a day.
-
+A change, such as a new prompt, records its expected effect before it runs and is compared with the baseline: a one-sided Fisher's exact test at 5% on its rule, and a flag on any other rule that drops by two runs or more. Every run's full record is kept, and the command stays within a budget it prints before sending anything, since the free plan allows 10,000 neurons a day.
 ## Run it on your machine
 
 You need Node.js 24 (see `.nvmrc`), Docker Desktop running, Git and the [gitleaks](https://github.com/gitleaks/gitleaks#installing) secret scanner. `npm run doctor` checks them all.
@@ -117,7 +104,7 @@ The local database dashboard (Supabase Studio) is at http://127.0.0.1:57323. Bef
 
 ### Replayed real answers
 
-`npm run dev:replay` shows the interface with the real model's answers, for free and without a token. It replays answers the measurement recorded on gpt-oss-120b ([`replays.json`](src/server/ai/replays.json)), each reply whole, after the time the real model took. The intro's button, the grocery delivery suggestion and the other measured requests replay; any other message gets the scripted fake's answer, at the same pace. Searches and saves still run on your machine, so the search lines show local passages, while the words come from the recording. The header says "Replaying recorded answers".
+`npm run dev:replay` shows the interface with the real model's answers, for free and without a token. It replays answers the measurement recorded on gpt-oss-120b ([`replays.json`](src/server/ai/replays.json)), each reply whole, after the time the real model took. The intro's button and the other measured requests replay, and the scenario tour plays the grocery delivery claim; any other message, the grocery delivery suggestion included, gets the scripted fake's answer, at the same pace. Searches and saves still run on your machine, so the search lines show local passages, while the words come from the recording. The header says "Replaying recorded answers".
 
 A **scenario tour** in the corner of the page walks through every state the chat and the PRD can show, which recorded answers alone never reach: rich text and tables, folded and refused searches, a section with every kind of statement, a long wait to stop, each kind of failure and, last, the used-up daily allowance. Each step says what to watch for; "Play next" sends it. The scripted answers run through the same chat code, so their searches, saves and quote checks are real.
 
@@ -131,7 +118,7 @@ To watch the real model live, with a Cloudflare token of your own:
 2. Create `.env.development.local` in the project folder (that exact name, with no `.txt` ending, saved as UTF-8) with two lines: `CLOUDFLARE_ACCOUNT_ID=<the account ID>` and `CLOUDFLARE_API_TOKEN=<the token>`. Only `next dev` and the measurement read that file, and Git ignores it.
 3. Run `npm run dev:real` instead of `npm run dev`.
 
-The search still runs on the fake embedder, because the local passages carry its vectors, so the passages that come back differ from staging. Every message spends neurons from the free daily allowance that staging and production share: 10,000 a day, and a first section costs about 310. Every other command except the measurement keeps the fakes, and the environment guard refuses the token anywhere but that file.
+The search still runs on the fake embedder, because the local passages carry its vectors, so the passages that come back differ from staging. Every message spends neurons from the free daily allowance that staging and production share: 10,000 a day. Every other command except the measurement keeps the fakes, and the environment guard refuses the token anywhere but that file.
 
 ### Running the measurement
 
