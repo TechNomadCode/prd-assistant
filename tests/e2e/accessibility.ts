@@ -5,11 +5,12 @@ type Held = Window & { heldMotion?: MutationObserver };
 
 /** Fails with the list of WCAG 2.2 A and AA violations axe finds on the page. */
 export async function expectNoAccessibilityViolations(page: Page) {
-  // What arrives fades in as it sharpens (`.arrive`, slice 25), as do words
-  // that just arrived (`.word-enter`, slice 16), and axe would measure the
-  // contrast of that passing moment, so it reads the page settled: every
-  // animation that ends is finished at once, the ones running now and, while
-  // axe reads, the ones that start as an answer keeps arriving. The moving
+  // What arrives fades in as it sharpens (`.arrive`, slice 25), as do the
+  // words of a reply (`.word-arrive`, slice 26) and the pop-over as it grows,
+  // and axe would measure the contrast of that passing moment, so it reads
+  // the page settled: every animation and transition that ends is finished at
+  // once, the ones running now and, while axe reads, the ones that start as
+  // an answer keeps arriving. The moving
   // band (`.shimmer`) never ends, and can't be finished. A
   // `MutationObserver` runs before the next paint, and `finish()` jumps an
   // animation to its end (MDN, `Animation.finish` and `MutationObserver`,

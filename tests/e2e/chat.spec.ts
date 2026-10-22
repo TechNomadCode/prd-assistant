@@ -5,6 +5,7 @@ import {
   STORED_FORMAT,
 } from "@/features/workspace/stored-conversation";
 import { expectNoAccessibilityViolations } from "./accessibility";
+import { arrivals, recordArrivals } from "./motion";
 
 // The chat on the home page, with the scripted fake model. It searches with
 // the visitor's own words and quotes the closest passage, or, asked for a
@@ -106,6 +107,14 @@ test.describe("chat", () => {
     await expect(line).toHaveAttribute("aria-expanded", "false");
     await expect(lines).toHaveCount(3);
     for (const each of await lines.all()) await expect(each).toBeHidden();
+    // Its triangle turns as the lines slide, on the curve of what changes in
+    // place (src/app/globals.css, Motion).
+    const triangle = line.locator("svg");
+    await expect(triangle).toHaveCSS("transition-duration", "0.4s");
+    await expect(triangle).toHaveCSS(
+      "transition-timing-function",
+      "cubic-bezier(0.65, 0, 0.35, 1)",
+    );
 
     await line.click();
 
@@ -219,24 +228,38 @@ test.describe("chat", () => {
   }
 
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
-    test(`fades the answer's words in as they arrive, unless motion is reduced, and not after a reload (${reducedMotion})`, async ({
+    test(`brings the answer's words in one after another as they arrive, unless motion is reduced, then plain again, and not after a reload (${reducedMotion})`, async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion });
+      await recordArrivals(page, ".word-arrive");
       await openChat(page);
       await ask(page, QUESTION);
       await expect(conversation(page)).toContainText(FAKE_NOTE);
 
-      // The fake model sends a word at a time, so its words fade in by groups.
-      const fading = conversation(page).locator(".word-enter");
+      const words = await arrivals(page);
       if (reducedMotion === "reduce") {
-        await expect(fading).toHaveCount(0);
+        expect(words).toEqual([]);
       } else {
-        expect(await fading.count()).toBeGreaterThan(1);
-        await expect(fading.first()).toHaveCSS("animation-name", "word-enter");
-        await expect(fading.first()).toHaveCSS("animation-duration", "0.18s");
-        await expect(fading.last()).toHaveCSS("opacity", "1");
+        // The fake model sends a word at a time, so its words come one by
+        // one, or a few together should a busy page gather many.
+        expect(words.length).toBeGreaterThan(10);
+        for (const word of words) {
+          expect(word.text).toMatch(/^\S(.*\S)?$/);
+          expect(word.animation).toBe("word-arrive");
+          expect(word.duration).toBe("0.3s");
+        }
       }
+      // Then plain again, as tests and screen readers read it: no word apart
+      // from the others, one text node per run.
+      await expect(conversation(page).locator(".word-arrive")).toHaveCount(0);
+      const reply = conversation(page).locator("p", { hasText: FAKE_NOTE });
+      await expect(reply.locator("span")).toHaveCount(0);
+      expect(
+        await reply.evaluate((paragraph) =>
+          [...paragraph.childNodes].map((node) => node.nodeName),
+        ),
+      ).toEqual(["#text"]);
 
       // Kept once the answer has ended.
       await expect
@@ -248,7 +271,57 @@ test.describe("chat", () => {
         .toContain(FAKE_NOTE);
       await page.reload();
       await expect(conversation(page)).toContainText(FAKE_NOTE);
-      await expect(fading).toHaveCount(0);
+      expect(await arrivals(page)).toEqual([]);
+    });
+  }
+
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`draws a search's plain lines together into the folded line as the next search joins them, unless motion is reduced (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await recordArrivals(page, ".fold-closes, .fold-settles");
+      await openChat(page);
+      await ask(page, `${QUESTION} ${FAKE_SEARCH_AGAIN}`);
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+
+      const folded = await arrivals(page);
+      if (reducedMotion === "reduce") {
+        expect(folded).toEqual([]);
+      } else {
+        // The lines that showed: the time before the first search, the
+        // search, and maybe the time before the second, which came with it.
+        const lines = folded.find(({ classes }) =>
+          classes.includes("fold-closes"),
+        );
+        expect(lines?.animation).toBe("fold-closes");
+        const texts = lines?.children.map(({ text }) => text) ?? [];
+        expect(texts[0]).toMatch(/^Thought \d+s$/);
+        expect(texts[1]).toBe(
+          `Search “${QUESTION}” · passages from Sofia, Maya, Henk and Daan`,
+        );
+        expect(texts.slice(2)).toEqual(
+          texts.length > 2 ? [expect.stringMatching(/^Thought \d+s$/)] : [],
+        );
+        for (const line of lines?.children ?? []) {
+          expect(line.animation).toBe("fold-leaves");
+        }
+        const line = folded.find(({ classes }) =>
+          classes.includes("fold-settles"),
+        );
+        expect(line?.text).toBe("Used 2 searches");
+        expect(line?.animation).toBe("fold-settles");
+        expect(line?.delay).toBe("0.265s");
+      }
+
+      // Then only the folded line, in its place and still.
+      await expect(conversation(page).locator(".fold-closes")).toHaveCount(0);
+      const line = conversation(page).getByRole("button", {
+        name: "Used 3 searches",
+      });
+      await expect(line).toHaveCSS("position", "static");
+      await expect(line).toHaveCSS("opacity", "1");
+      await expect(line).toHaveCSS("transform", "none");
     });
   }
 

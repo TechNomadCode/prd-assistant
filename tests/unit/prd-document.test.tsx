@@ -291,6 +291,19 @@ describe("the PRD", () => {
         /^users asked for grocery delivery$/,
       );
     });
+
+    // Its highlight sweeps in as it opens (`.quote-mark` in globals.css,
+    // slice 26), which a new element does each time; jsdom runs no
+    // animation, so tests/e2e/prd.spec.ts checks the sweep itself.
+    it("shows its passages anew each time a name opens it, so their highlights sweep in again", () => {
+      showPrd();
+
+      const first = open(0, "Henk").querySelector("mark");
+      expect(first).toHaveClass("quote-mark");
+      const again = open(0, "Henk").querySelector("mark");
+      expect(again).toHaveClass("quote-mark");
+      expect(again).not.toBe(first);
+    });
   });
 
   describe("the check-in", () => {

@@ -43,6 +43,45 @@ async function draftFirstSection(page: Page, extra = "") {
   await expect(conversation(page)).toContainText(FAKE_NOTE);
 }
 
+type Recording = Window & { moves?: string[] };
+
+/**
+ * Records, from the page's first load on, each transition the source
+ * pop-over starts and each animation its quotes start, by the property or
+ * the animation's name; they last under a second.
+ */
+async function recordMoves(page: Page) {
+  await page.addInitScript(() => {
+    const moves: string[] = [];
+    (window as Recording).moves = moves;
+    // The pop-over itself or its quotes, not its backdrop.
+    const popover = (event: TransitionEvent | AnimationEvent) =>
+      event.target instanceof Element &&
+      event.pseudoElement === "" &&
+      (event.target.id === "source-popover" ||
+        (event.target.tagName === "MARK" &&
+          event.target.closest("#source-popover") !== null));
+    document.addEventListener(
+      "transitionrun",
+      (event) => {
+        if (popover(event)) moves.push(`transitionrun ${event.propertyName}`);
+      },
+      true,
+    );
+    document.addEventListener(
+      "animationstart",
+      (event) => {
+        if (popover(event)) moves.push(`animationstart ${event.animationName}`);
+      },
+      true,
+    );
+  });
+}
+
+function moves(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as Recording).moves ?? []);
+}
+
 test.describe("the PRD", () => {
   test("shows all nine sections from the start, none drafted yet", async ({
     page,
@@ -164,6 +203,107 @@ test.describe("the PRD", () => {
       await page.mouse.click(5, 300);
       await expect(popover).toBeHidden();
     });
+
+    test("opens anew by another name clicked while it's open, under that name", async ({
+      page,
+    }) => {
+      await draftFirstSection(page);
+      await statements(page, INTRODUCTION).first().getByRole("button").click();
+      const popover = page.getByRole("dialog");
+      await expect(popover).toBeVisible();
+      const yours = statements(page, INTRODUCTION)
+        .last()
+        .getByRole("button", { name: "You, in this chat" });
+
+      await yours.click();
+
+      await expect(
+        page.getByRole("dialog", { name: "You, in this chat" }),
+      ).toBeVisible();
+      // Under the name that opened it, 6px apart, its right edge at the
+      // name's (`position-area: bottom span-left`), once it has settled.
+      await expect
+        .poll(async () => {
+          const name = (await yours.boundingBox())!;
+          const box = (await popover.boundingBox())!;
+          return [
+            Math.round(box.y - (name.y + name.height)),
+            Math.round(box.x + box.width - (name.x + name.width)),
+          ];
+        })
+        .toEqual([6, 0]);
+    });
+
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      test(`grows from its name and closes the same way, its quote's highlight sweeping in, unless motion is reduced (${reducedMotion})`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ reducedMotion });
+        await recordMoves(page);
+        await draftFirstSection(page);
+        const name = statements(page, INTRODUCTION).first().getByRole("button");
+
+        await name.click();
+
+        const popover = page.getByRole("dialog");
+        await expect(popover).toBeVisible();
+        const mark = popover.locator("mark");
+        if (reducedMotion === "reduce") {
+          await expect(mark).toHaveCSS("background-size", "100% 100%");
+          await page.keyboard.press("Escape");
+          await expect(popover).toBeHidden();
+          expect(await moves(page)).toEqual([]);
+          return;
+        }
+        // A scale and a fade on the pop-over's spring, then the sweep.
+        await expect.poll(() => moves(page)).toContain("animationstart sweep");
+        const opened = await moves(page);
+        expect(opened.slice(0, 2).sort()).toEqual([
+          "transitionrun opacity",
+          "transitionrun scale",
+        ]);
+        expect(opened.slice(2)).toEqual(["animationstart sweep"]);
+        await expect(popover).toHaveCSS("transition-duration", "0.5s");
+        await expect(mark).toHaveCSS("animation-duration", "0.8s");
+        await expect(mark).toHaveCSS("animation-delay", "0.4s");
+        // It grew from the name: from the point of its top edge under it,
+        // measured once it has settled.
+        await expect
+          .poll(() =>
+            popover.evaluate(
+              (element) => element.getAnimations({ subtree: true }).length,
+            ),
+          )
+          .toBe(0);
+        const origin = await popover.evaluate((element) =>
+          getComputedStyle(element).transformOrigin.split(" ").map(parseFloat),
+        );
+        const from = (await name.boundingBox())!;
+        const box = (await popover.boundingBox())!;
+        expect(origin[1]).toBe(0);
+        expect(
+          Math.abs(box.x + origin[0]! - (from.x + from.width / 2)),
+        ).toBeLessThanOrEqual(1);
+
+        await page.keyboard.press("Escape");
+
+        // Shut the same way, still on top until it's done.
+        await expect
+          .poll(() => moves(page))
+          .toEqual(expect.arrayContaining(["transitionrun display"]));
+        expect((await moves(page)).slice(3).sort()).toEqual([
+          "transitionrun display",
+          "transitionrun opacity",
+          "transitionrun overlay",
+          "transitionrun scale",
+        ]);
+        await expect(popover).toBeHidden();
+        await expect(page.locator("#source-popover")).toHaveCSS(
+          "display",
+          "none",
+        );
+      });
+    }
   });
 
   test.describe("the check-in", () => {
@@ -509,6 +649,10 @@ test.describe("the PRD", () => {
 
       const popover = page.getByRole("dialog");
       await expect(popover).toBeVisible();
+      // It grows as it opens (slice 26), so it's measured once it has.
+      await popover.evaluate((element) => {
+        for (const animation of element.getAnimations()) animation.finish();
+      });
       const size = await popover.boundingBox();
       expect(size!.width).toBeGreaterThan(340);
       await expectNoAccessibilityViolations(page);

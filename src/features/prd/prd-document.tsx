@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CopySection } from "./copy-section";
 import { downloadPrd, PRODUCT, VISITOR_DECISION } from "./prd-markdown";
-import { SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
+import { openFrom, SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
 
 /** The check-in under the latest saved section. */
 export type CheckIn = {
@@ -63,7 +63,14 @@ export function PrdDocument({
   onStartOver: () => void;
 }) {
   const [source, setSource] = useState<StatementSource>();
+  const [opened, setOpened] = useState(0);
   const changes = useChanges(sections);
+  // The name's own click shows the pop-over once this has run.
+  function openSource(next: StatementSource, name: HTMLElement) {
+    setSource(next);
+    setOpened((count) => count + 1);
+    openFrom(name);
+  }
   const downloadArrives = useArrival(sections.size > 0);
   // The check-in shows under the latest section; under a new one, it arrives.
   const checkInArrives = useArrival(
@@ -163,7 +170,7 @@ export function PrdDocument({
                               ? undefined
                               : { change: changed, order: index }
                           }
-                          onOpenSource={setSource}
+                          onOpenSource={openSource}
                         />
                       ))}
                     </ul>
@@ -189,7 +196,11 @@ export function PrdDocument({
         </article>
       </div>
 
-      <SourcePopover source={source} visitorMessages={visitorMessages} />
+      <SourcePopover
+        source={source}
+        opened={opened}
+        visitorMessages={visitorMessages}
+      />
     </section>
   );
 }
@@ -268,7 +279,8 @@ function Statement({
   statement: CheckedStatement;
   /** How many times its section changed, and its place in the section. */
   arrival: { change: number; order: number } | undefined;
-  onOpenSource: (source: StatementSource) => void;
+  /** Opens the pop-over for a source, from its name. */
+  onOpenSource: (source: StatementSource, name: HTMLElement) => void;
 }) {
   const sources = sourcesOf(statement);
   const unverified = statement.citations.filter(
@@ -293,7 +305,7 @@ function Statement({
                   type="button"
                   popoverTarget={SOURCE_POPOVER_ID}
                   popoverTargetAction="show"
-                  onClick={() => onOpenSource(source)}
+                  onClick={(event) => onOpenSource(source, event.currentTarget)}
                   className="underline decoration-dotted underline-offset-4 hover:text-foreground"
                 >
                   {source.name}
