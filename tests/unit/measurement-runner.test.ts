@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import {
   appendFile,
   cp,
@@ -909,6 +909,42 @@ describe("a batch", () => {
 
     lines = [];
     await runBatch(options({ runs: 2, planOnly: true }), cloudflareEnv([]));
+    expect(lines).toContain(
+      "  Sent again, since they couldn't count before: A-1.",
+    );
+  });
+
+  it("counts a degenerate reply as not run, goes on, and sends that run again in a later batch", async () => {
+    // As Cloudflare sent it twice (transport D-3, reasoning-high E-2).
+    const env = cloudflareEnv([
+      () =>
+        chatReply({ role: "assistant", content: "!".repeat(4096) }, "length"),
+    ]);
+
+    const result = await runBatch(options(), env);
+
+    expect(result.stopped).toBeNull();
+    expect(result.answers).toEqual([
+      {
+        request: "A",
+        run: 1,
+        outcome: { kind: "not run", reason: "degenerate reply" },
+      },
+    ]);
+    expect(env.sent).toHaveLength(1);
+    expect(existsSync(join(folder, "baseline", today(), "A-1.json"))).toBe(
+      false,
+    );
+    expect(
+      readdirSync(join(folder, "baseline", "not-run", today())),
+    ).toHaveLength(1);
+    expect((await ledgerOf()).at(-1)).toMatchObject({
+      what: "A-1",
+      outcome: "not run",
+    });
+
+    lines = [];
+    await runBatch(options({ planOnly: true }), cloudflareEnv([]));
     expect(lines).toContain(
       "  Sent again, since they couldn't count before: A-1.",
     );

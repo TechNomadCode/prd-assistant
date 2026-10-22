@@ -1,5 +1,9 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { simulateStreamingMiddleware, wrapLanguageModel } from "ai";
+import {
+  simulateStreamingMiddleware,
+  wrapLanguageModel,
+  type LanguageModelMiddleware,
+} from "ai";
 import type { ChatModel } from "./chat-model.ts";
 import { CHAT_MODEL } from "./models.ts";
 
@@ -188,6 +192,55 @@ function asWorkersAiProvider(body: Record<string, unknown>) {
 }
 
 /**
+ * A reply that isn't one: no tool call, cut off at the output limit, its text
+ * nearly all one character. Cloudflare sent 4,096 "!" and no reasoning twice
+ * (`reasoning-high` E-2 on 2026-10-21, `transport` D-3 on 2026-10-22, both at
+ * the output limit). Thrown before the text reaches anyone, so the chat shows
+ * its usual error with "Try again", and the measurement counts the answer as
+ * not run.
+ */
+export class DegenerateReplyError extends Error {
+  constructor(length: number, character: string) {
+    super(
+      `Cloudflare's reply was ${length} characters, nearly all "${character}", cut off at the output limit.`,
+    );
+    this.name = "DegenerateReplyError";
+  }
+}
+
+/** How much of the text one character may fill before the reply is refused. */
+const DEGENERATE_SHARE = 0.95;
+
+/** Refuses a degenerate reply (`DegenerateReplyError`); passes on the rest. */
+const refusingDegenerateReplies: LanguageModelMiddleware = {
+  specificationVersion: "v4",
+  async wrapGenerate({ doGenerate }) {
+    const result = await doGenerate();
+    if (
+      result.finishReason.unified !== "length" ||
+      result.content.some((part) => part.type === "tool-call")
+    ) {
+      return result;
+    }
+    const text = [
+      ...result.content
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join(""),
+    ];
+    if (text.length === 0) return result;
+    const counts = new Map<string, number>();
+    for (const character of text) {
+      counts.set(character, (counts.get(character) ?? 0) + 1);
+    }
+    const [character, count] = [...counts].reduce((most, next) =>
+      next[1] > most[1] ? next : most,
+    );
+    if (count < DEGENERATE_SHARE * text.length) return result;
+    throw new DegenerateReplyError(text.length, character);
+  },
+};
+
+/**
  * The chat model, asked for whole replies. Streamed, Cloudflare sends
  * gpt-oss's tool calls as reasoning text without the tool's name and ends
  * with "stop", so the search never runs (seen on staging, 2026-10-17). A
@@ -199,6 +252,9 @@ export function createCloudflareChatModel(
 ): ChatModel {
   return wrapLanguageModel({
     model: createCloudflare(settings).chatModel(CHAT_MODEL),
-    middleware: simulateStreamingMiddleware(),
+    // The last middleware is wrapped directly around the model
+    // (https://ai-sdk.dev/docs/reference/ai-sdk-core/wrap-language-model), so
+    // each whole reply is checked before it becomes a stream.
+    middleware: [simulateStreamingMiddleware(), refusingDegenerateReplies],
   });
 }

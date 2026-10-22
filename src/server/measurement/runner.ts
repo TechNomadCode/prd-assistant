@@ -320,12 +320,14 @@ async function capturingLogs<T>(
 
 /**
  * How the answer ended: "not run" when a quota, busy or per-minute refusal
- * was never recovered by a retry, or the cap cut it off. A refusal the AI
- * SDK's retry got past leaves a whole answer, which counts; the record keeps
- * every refusal either way.
+ * was never recovered by a retry, a model call ended with a degenerate reply
+ * (`DegenerateReplyError`, `ai/cloudflare.ts`), or the cap cut it off. A
+ * refusal the AI SDK's retry got past leaves a whole answer, which counts; the
+ * record keeps every refusal either way.
  */
 function outcomeOf(
   unrecovered: Refusal[],
+  degenerate: boolean,
   stoppedAtCap: boolean,
 ): Outcome & { refusal?: Refusal["kind"] } {
   const refusal = unrecovered.find((one) => one.kind !== "other");
@@ -338,6 +340,7 @@ function outcomeOf(
     }[refusal.kind];
     return { kind: "not run", reason: why, refusal: refusal.kind };
   }
+  if (degenerate) return { kind: "not run", reason: "degenerate reply" };
   if (stoppedAtCap) {
     return { kind: "not run", reason: "the batch passed its cap partway" };
   }
@@ -606,6 +609,10 @@ async function sendPlanned({
     const { spend, refusals, unrecovered, stoppedAtCap } = meter.answer();
     let outcome: Outcome & { refusal?: Refusal["kind"] } = outcomeOf(
       unrecovered,
+      // The recorder keeps the error's name.
+      measured.modelCalls.some(
+        (call) => call.error?.name === "DegenerateReplyError",
+      ),
       stoppedAtCap,
     );
     const time = new Date(measured.answer.startedAt);

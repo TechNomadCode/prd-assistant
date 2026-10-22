@@ -4,6 +4,7 @@ import { z } from "zod";
 import { DEMO_BUSY, QUOTA_USED_UP } from "@/lib/chat";
 import {
   createCloudflareChatModel,
+  DegenerateReplyError,
   QuotaExceededError,
 } from "@/server/ai/cloudflare";
 import { createCloudflareEmbedder } from "@/server/ai/cloudflare-embedder";
@@ -677,6 +678,101 @@ describe("the chat when Cloudflare refuses", () => {
       QuotaExceededError,
     );
     expect(sent).toHaveLength(1);
+  });
+});
+
+/**
+ * Cloudflare's whole reply of 4,096 "!", as recorded in the measurement's
+ * records (local): only the id, the time, the prompt's tokens and the neurons
+ * differ between the two.
+ */
+function degenerateReply(
+  id: string,
+  created: number,
+  promptTokens: number,
+  neurons: number,
+) {
+  return () =>
+    Response.json({
+      id,
+      object: "chat.completion",
+      created,
+      model: CHAT_MODEL,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            refusal: null,
+            annotations: null,
+            audio: null,
+            function_call: null,
+            reasoning: null,
+            reasoning_content: null,
+            content: "!".repeat(4096),
+          },
+          logprobs: null,
+          finish_reason: "length",
+          stop_reason: null,
+          token_ids: null,
+          routed_experts: null,
+        },
+      ],
+      usage: {
+        prompt_tokens: promptTokens,
+        completion_tokens: 4096,
+        total_tokens: promptTokens + 4096,
+        prompt_tokens_details: { cached_tokens: 0 },
+        neurons,
+      },
+    });
+}
+
+describe("the chat when Cloudflare's reply is degenerate", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    [
+      "transport D-3's first call, 2026-10-22",
+      degenerateReply("id-1792629162692", 1792629162, 2682, 364.6085205078125),
+    ],
+    [
+      "reasoning-high E-2's fourth call, 2026-10-21",
+      degenerateReply("id-1792605486100", 1792605486, 5815, 464.2943115234375),
+    ],
+  ])(
+    "shows the usual error instead of the reply, without retrying: %s",
+    async (_, reply) => {
+      vi.spyOn(console, "info").mockImplementation(() => {});
+      const failed = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { sent, model } = replaying([reply, reply, reply]);
+
+      expect(await answerTo(model)).toEqual({
+        text: "",
+        errors: ["The assistant couldn't finish its answer."],
+      });
+      expect(sent).toHaveLength(1);
+      expect(failed).toHaveBeenCalledWith(
+        "The chat model failed:",
+        expect.any(DegenerateReplyError),
+      );
+    },
+  );
+
+  it("passes on a reply cut off at the limit when its text is words", async () => {
+    const { model } = chatModel(
+      chatReply(
+        { role: "assistant", content: "The overview covers who!!!!" },
+        "length",
+      ),
+    );
+
+    const result = streamText({ model, prompt: "Hi" });
+
+    expect(await result.text).toBe("The overview covers who!!!!");
+    expect(await result.finishReason).toBe("length");
   });
 });
 
