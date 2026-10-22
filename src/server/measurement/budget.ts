@@ -321,19 +321,28 @@ export function totals(
 
 /**
  * What the next answer to a request is expected to cost: the mean of its
- * counted answers so far, or the estimate's figure before there are any.
+ * counted answers in the first of `prefer` that has any (the measurement
+ * itself, then the one it's compared with), since a change can move the cost
+ * (`reasoning-high` cost about twice `prompt-v5`'s, 2026-10-21); otherwise the
+ * mean of its counted answers so far, or the estimate's figure before there
+ * are any at all.
  */
 export function expectedNeurons(
   request: { name: string; continues: string | null },
   entries: LedgerEntry[],
+  prefer: (string | undefined)[] = [],
 ): number {
   const counted = entries.filter(
     (entry) => entry.request === request.name && entry.outcome === "counted",
   );
-  if (counted.length > 0) {
+  const basis =
+    prefer
+      .filter((name) => name !== undefined)
+      .map((name) => counted.filter((entry) => entry.measurement === name))
+      .find((own) => own.length > 0) ?? counted;
+  if (basis.length > 0) {
     return (
-      counted.reduce((sum, entry) => sum + entry.spend.neurons, 0) /
-      counted.length
+      basis.reduce((sum, entry) => sum + entry.spend.neurons, 0) / basis.length
     );
   }
   if (request.name === "A") return FIRST_GUESS.A;
