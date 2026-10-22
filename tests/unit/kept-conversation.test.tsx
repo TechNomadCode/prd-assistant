@@ -311,6 +311,26 @@ describe("the home page after a reload", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("brings everything back still: the chat and the PRD, the conversation, the failure notice, the suggestion, the check-in and the download", () => {
+    keepConversation({ messages: DRAFTED, interrupted: true, stopped: [] });
+    render(<Workspace />);
+
+    expect(
+      screen.getByRole("button", { name: "Try again" }).parentElement,
+    ).toHaveRole("alert");
+    expect(
+      screen.getByRole("group", { name: /try to break it/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Looks right/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download as Markdown" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".arrive")).toBeNull();
+    expect(document.querySelector(".tick-draws")).toBeNull();
+  });
+
   it("doesn't light up the sections it brings back, nor roll the count", () => {
     keepConversation({ messages: DRAFTED, interrupted: false, stopped: [] });
     render(<Workspace />);

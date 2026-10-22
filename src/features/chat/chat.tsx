@@ -8,10 +8,12 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { useArrival } from "@/components/arrival";
 import { Button } from "@/components/ui/button";
 import { QuotaNotice } from "@/features/workspace/quota";
 import { DEMO_BUSY, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
 import type { SectionName } from "@/lib/prd";
+import { cn } from "@/lib/utils";
 import { Conversation } from "./conversation";
 
 /** Within this many pixels of the bottom, the chat counts as following. */
@@ -30,10 +32,29 @@ function scrollToEnd(element: HTMLElement) {
 }
 
 /**
+ * Takes the chat to its end as laid out. What arrives rises in from a few
+ * pixels lower (`.arrive`), and while it does the pane's scroll height counts
+ * those pixels too: following that, the chat went past its end and then sank
+ * back, the whole conversation with it, as the newest line settled, instead
+ * of the line rising into place. Offsets leave transforms out.
+ */
+function followEnd(element: HTMLElement) {
+  let end = 0;
+  for (const child of element.children) {
+    if (child instanceof HTMLElement && child.offsetHeight > 0) {
+      end = Math.max(end, child.offsetTop + child.offsetHeight);
+    }
+  }
+  element.scrollTop = end - element.clientHeight;
+}
+
+/**
  * The chat with the assistant: the conversation, which scrolls on its own,
  * and under it a suggested message, when there is one, and the message box.
  * Once the day's free AI allocation is used up, the conversation stays to
  * read, and a notice takes the place of the suggestion and the message box.
+ * What appears after the chat showed arrives (`useArrival`): the failure
+ * notice, the suggestion, the allocation's notice and Jump to latest.
  */
 export function Chat({
   messages,
@@ -81,13 +102,16 @@ export function Chat({
 
   const working = status === "submitted" || status === "streaming";
   const canSend = !working && draft.trim() !== "";
+  const failed = status === "error" && !quotaUsedUp;
+  const offered = quotaUsedUp ? undefined : suggestion;
+  const failureArrives = useArrival(failed);
+  const quotaArrives = useArrival(quotaUsedUp);
+  const suggestionArrives = useArrival(offered);
 
   // The chat follows the newest message, unless the visitor scrolled up.
   useLayoutEffect(() => {
     const element = scroller.current;
-    if (element && following.current) {
-      element.scrollTop = element.scrollHeight;
-    }
+    if (element && following.current) followEnd(element);
   }, [messages, status]);
 
   // It keeps following when it gets shorter: the message box growing with
@@ -96,7 +120,7 @@ export function Chat({
     const element = scroller.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
-      if (following.current) element.scrollTop = element.scrollHeight;
+      if (following.current) followEnd(element);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -191,10 +215,13 @@ export function Chat({
         Chat with the assistant
       </h2>
 
+      {/* 8px of room on the left, as far as its margin pulls it out, so
+          what moves past the start of a line, as a saved line's tick
+          pulsing, isn't cut off where the pane scrolls. */}
       <div
         ref={scroller}
         onScroll={noteScroll}
-        className="relative space-y-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3"
+        className="relative space-y-6 lg:-ml-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3 lg:pl-2"
       >
         <Conversation
           messages={messages}
@@ -203,10 +230,13 @@ export function Chat({
           onSeeSection={onSeeSection}
         />
 
-        {status === "error" && !quotaUsedUp && (
+        {failed && (
           <div
             role="alert"
-            className="space-y-3 border-l-2 border-foreground py-1 pl-4"
+            className={cn(
+              "space-y-3 border-l-2 border-foreground py-1 pl-4",
+              failureArrives && "arrive arrive-block",
+            )}
           >
             <p>
               {error?.message === DEMO_BUSY
@@ -223,13 +253,14 @@ export function Chat({
             in it, so it comes after the newest message in the tab order. It
             takes no room: no height, and its -24px cancels the space-y gap
             it gives the item before it. A phone's chat doesn't scroll on its
-            own, so it never shows there. */}
+            own, so it never shows there. It never shows as the chat mounts,
+            so it always arrives. */}
         {awayFromEnd && (
           <div className="sticky bottom-0 -mt-6 hidden h-0 lg:block">
             <Button
               variant="outline"
               onClick={jumpToLatest}
-              className="absolute bottom-3 left-1/2 h-8 -translate-x-1/2 bg-background px-3 hover:bg-bubble"
+              className="arrive absolute bottom-3 left-1/2 h-8 -translate-x-1/2 bg-background px-3 hover:bg-bubble"
             >
               Jump to latest
             </Button>
@@ -237,13 +268,18 @@ export function Chat({
         )}
       </div>
 
-      {quotaUsedUp && <QuotaNotice />}
+      {quotaUsedUp && (
+        <QuotaNotice className={cn(quotaArrives && "arrive arrive-block")} />
+      )}
 
-      {suggestion !== undefined && !quotaUsedUp && (
+      {offered !== undefined && (
         <div
           role="group"
           aria-labelledby="suggestion-title"
-          className="space-y-2"
+          className={cn(
+            "space-y-2",
+            suggestionArrives && "arrive arrive-block",
+          )}
         >
           <p id="suggestion-title" className="text-sm text-muted-foreground">
             Now try to break it. Send a claim that nobody in the interviews
@@ -252,10 +288,10 @@ export function Chat({
           <Button
             variant="outline"
             disabled={working}
-            onClick={() => sendSuggestion(suggestion)}
+            onClick={() => sendSuggestion(offered)}
             className="h-auto min-h-10 justify-start py-2 text-left"
           >
-            {suggestion}
+            {offered}
           </Button>
         </div>
       )}

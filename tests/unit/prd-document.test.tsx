@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { COPY_OUTCOME_MS } from "@/features/prd/copy-section";
 import { PrdDocument, type CheckIn } from "@/features/prd/prd-document";
@@ -355,6 +362,29 @@ describe("the PRD", () => {
         screen.getByText("That answer didn't finish. Try again."),
       ).toBeVisible();
     });
+
+    it("arrives under a section saved after the PRD showed, and when it comes back, but not as the PRD showed with it", () => {
+      const GOALS: CheckedSection = {
+        section: "Goals / Objectives",
+        statements: [{ text: "Fewer double purchases.", citations: [] }],
+      };
+      const block = () =>
+        screen.getByRole("button", { name: /^Looks right/ }).parentElement;
+      const { rerender } = showPrd({ checkIn: checkIn() });
+      expect(block()).not.toHaveClass("arrive");
+
+      const next = checkIn({ next: "Target Audience / User Personas" });
+      const both = sectionsOf(INTRODUCTION, GOALS);
+      rerender(prdOf({ sections: both, checkIn: next }));
+      expect(block()).toHaveClass("arrive", "arrive-block");
+      expect(block()?.closest("section")?.getAttribute("aria-labelledby")).toBe(
+        "prd-goals-objectives",
+      );
+
+      rerender(prdOf({ sections: both, checkIn: { ...next, drafting: true } }));
+      rerender(prdOf({ sections: both, checkIn: { ...next, failed: true } }));
+      expect(block()).toHaveClass("arrive");
+    });
   });
 
   describe("what just changed", () => {
@@ -411,6 +441,67 @@ describe("the PRD", () => {
       // A new highlight, so its fade starts again.
       expect(highlight("Goals / Objectives")).toBeInTheDocument();
       expect(highlight("Goals / Objectives")).not.toBe(first);
+    });
+
+    it("brings in a section's statements one after another once it's saved, but not those of the sections it opened with", () => {
+      const { rerender } = showPrd();
+      expect(document.querySelector(".arrive")).toBeNull();
+
+      const TWO: CheckedSection = {
+        ...GOALS,
+        statements: [
+          ...GOALS.statements,
+          { text: "Planning takes five minutes.", citations: [] },
+        ],
+      };
+      rerender(prdOf({ sections: sectionsOf(INTRODUCTION, TWO) }));
+
+      const [first, second] = statements("Goals / Objectives");
+      expect(first).toHaveClass("arrive", "arrive-block");
+      expect(first!.style.getPropertyValue("--order")).toBe("0");
+      expect(second!.style.getPropertyValue("--order")).toBe("1");
+      for (const statement of statements("Introduction / Overview")) {
+        expect(statement).not.toHaveClass("arrive");
+      }
+    });
+
+    it("brings them in again with each change, without remounting what may have focus, and not when nothing changed", () => {
+      const { rerender } = showPrd({ sections: sectionsOf() });
+      rerender(prdOf({ sections: sectionsOf(GOALS) }));
+      const [statement] = statements("Goals / Objectives");
+      expect(statement).toHaveClass("arrive");
+      expect(statement).not.toHaveAttribute("data-again");
+
+      const changed = (text: string): CheckedSection => ({
+        ...GOALS,
+        statements: [{ text, citations: [] }],
+      });
+      rerender(prdOf({ sections: sectionsOf(changed("No double buys.")) }));
+      expect(statements("Goals / Objectives")[0]).toBe(statement);
+      expect(statement).toHaveAttribute("data-again");
+
+      rerender(
+        prdOf({
+          sections: sectionsOf(structuredClone(changed("No double buys."))),
+        }),
+      );
+      expect(statement).toHaveAttribute("data-again");
+
+      rerender(prdOf({ sections: sectionsOf(changed("None at all.")) }));
+      expect(statements("Goals / Objectives")[0]).toBe(statement);
+      expect(statement).not.toHaveAttribute("data-again");
+    });
+
+    it("brings in the download once a section is saved, but not as the PRD showed with it", () => {
+      const download = () =>
+        screen.getByRole("button", { name: "Download as Markdown" });
+      const { rerender } = showPrd({ sections: sectionsOf() });
+      rerender(prdOf({ sections: sectionsOf(GOALS) }));
+      expect(download()).toHaveClass("arrive");
+
+      cleanup();
+      showPrd();
+      expect(download()).not.toHaveClass("arrive");
     });
 
     it("lights up a section saved again after Start over cleared it", () => {

@@ -16,12 +16,14 @@ import { isThought, type ThoughtPart } from "./thoughts";
  * 2026-10-20). The lines slide open (`.fold` in `src/app/globals.css`) and
  * are inert while closed, so screen readers and the keyboard skip them. The
  * times the model thought around the searches fold with them, as opencode
- * folds its reasoning, and the count counts only the searches.
+ * folds its reasoning, and the count counts only the searches. Its lines
+ * arrive as plain ones do, while they're folded too.
  */
 export function SearchRun({
   parts,
   stopped = false,
   moving = false,
+  arriving = false,
   className,
 }: {
   parts: Array<SearchNotesPart | ThoughtPart>;
@@ -29,6 +31,8 @@ export function SearchRun({
   stopped?: boolean;
   /** The line in progress carries the moving band (`.shimmer`). */
   moving?: boolean;
+  /** Its answer came in after the chat showed. */
+  arriving?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -68,12 +72,18 @@ export function SearchRun({
           <div className="flex flex-col gap-2 pt-1">
             {parts.map((part, index) =>
               isThought(part) ? (
-                <ThoughtLine key={index} part={part} className="leading-7" />
+                <ThoughtLine
+                  key={index}
+                  part={part}
+                  arriving={arriving}
+                  className="leading-7"
+                />
               ) : (
                 <SearchStep
                   key={part.toolCallId}
                   part={part}
                   stopped={stopped}
+                  arriving={arriving}
                   className="leading-7"
                 />
               ),

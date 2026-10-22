@@ -292,6 +292,23 @@ describe("RichText as it arrives", () => {
     expect(now).not.toContain("Who needs");
   });
 
+  it("brings in a table's box as a block once the table takes shape, but not a table that was there before", () => {
+    const table = "| Persona | Needs |\n|---|---|\n| Maya | Lists |";
+    const { container, rerender } = render(
+      <RichText text="Who needs what:" arriving />,
+    );
+    expect(container.querySelector(".arrive")).toBeNull();
+
+    rerender(<RichText text={`Who needs what:\n\n${table}`} arriving />);
+    expect(within(container).getByRole("table").parentElement).toHaveClass(
+      "arrive",
+      "arrive-block",
+    );
+
+    const before = render(<RichText text={table} />);
+    expect(before.container.querySelector(".arrive")).toBeNull();
+  });
+
   it("fades in inline code as one", () => {
     const { container, rerender } = render(<RichText text="Run it" arriving />);
     const before = spans(container);

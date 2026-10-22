@@ -19,6 +19,68 @@
   --bubble: #262626;
 }
 
+/*
+ * Motion, after the README's demo video (docs/decisions.md, Design,
+ * 2026-10-22; its project's `src/ui/motion.ts` and `src/Showcase.tsx`, made at
+ * 30 frames a second and at about twice the app's size, so its distances and
+ * blurs are halved where they're used). Every animation in the app takes its
+ * curve and its length from here.
+ */
+:root {
+  /* Its two eases: what arrives settles on the first, and what changes in
+     place (a count, a highlight, a tick drawing) turns on the second. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* How long its springs take to settle, as Remotion's `measureSpring` says:
+     small pieces (damping 16, mass 0.7, stiffness 120), the pop-over (15,
+     0.6, 140) and larger panes (18, 0.9, 90). */
+  --spring-small-duration: 0.4s;
+  --spring-popover-duration: 0.5s;
+  --spring-pane-duration: 0.77s;
+  /* Its durations, with its frames. */
+  --duration-quick: 0.13s; /* 4: a fade that only acknowledges */
+  --duration-roll: 0.27s; /* 8: a count rolling */
+  /* 12: something arriving (its lines take 10, its statements 14) */
+  --duration-arrive: 0.4s;
+  --duration-stagger: 0.2s; /* 6: between things arriving one by one */
+  /* 34: a glow that rises in 6 and fades in 26 */
+  --duration-highlight: 1.13s;
+}
+
+/*
+ * Its springs (Remotion's `spring()`), sampled from Remotion 4.0.538's own
+ * code into `linear()`, within 0.004, over the lengths above. What arrives
+ * fades in on a curve of its own, as the video's things do: its opacity is
+ * the motion's progress times 1.4, so it's whole once the motion is 71% done
+ * and only the blur still settles (times 1.3 for a pane, 1.5 for the
+ * pop-over). One curve a line, as there's no reading them stop by stop.
+ */
+/* prettier-ignore */
+:root {
+  --ease-out-fade: linear(0, 0.0943 1.1%, 0.1844 2.2%, 0.2701 3.3%, 0.3476 4.35%, 0.4209 5.4%, 0.4899 6.45%, 0.5546 7.5%, 0.6179 8.6%, 0.6768 9.7%, 0.7315 10.8%, 0.7843 11.95%, 0.8329 13.1%, 0.9223 15.5%, 1 18%, 1);
+  --spring-small: linear(0, 0.0049 1.95%, 0.0194 4%, 0.0437 6.2%, 0.0781 8.6%, 0.1161 10.85%, 0.164 13.4%, 0.4431 26.95%, 0.5174 30.8%, 0.5818 34.4%, 0.65 38.6%, 0.7098 42.75%, 0.7627 46.95%, 0.8087 51.2%, 0.8519 55.95%, 0.8889 60.95%, 0.9197 66.2%, 0.945 71.8%, 0.9649 77.8%, 0.9801 84.35%, 0.9911 91.65%, 1);
+  --spring-small-fade: linear(0, 0.0076 2.05%, 0.0311 4.3%, 0.0703 6.7%, 0.1263 9.35%, 0.1816 11.6%, 0.2503 14.15%, 0.5782 25.45%, 0.7321 31.1%, 0.8096 34.2%, 0.8793 37.2%, 0.9446 40.25%, 1 43.1%, 1);
+  --spring-popover: linear(0, 0.0058 1.45%, 0.0239 3.05%, 0.055 4.8%, 0.0989 6.7%, 0.1418 8.3%, 0.1946 10.1%, 0.4215 17.3%, 0.522 20.65%, 0.6174 24.15%, 0.6988 27.55%, 0.7656 30.8%, 0.8219 34.05%, 0.8703 37.45%, 0.9101 40.95%, 0.9454 45.05%, 0.9722 49.45%, 0.9915 54.3%, 1.0039 59.75%, 1.0097 65.2%, 1.0114 71.8%, 1);
+  --spring-popover-fade: linear(0, 0.0024 0.75%, 0.0092 1.5%, 0.021 2.3%, 0.0369 3.1%, 0.084 4.85%, 0.1502 6.75%, 0.2148 8.35%, 0.2965 10.2%, 0.6207 17.05%, 0.7591 20.1%, 0.8889 23.2%, 1 26.15%, 1);
+  --spring-pane: linear(0, 0.005 1.35%, 0.0202 2.8%, 0.0459 4.4%, 0.0834 6.2%, 0.1628 9.35%, 0.3599 16.4%, 0.4517 19.85%, 0.5411 23.55%, 0.6179 27.15%, 0.6819 30.6%, 0.7383 34.15%, 0.7877 37.85%, 0.8302 41.7%, 0.872 46.45%, 0.9064 51.6%, 0.9339 57.2%, 0.9555 63.45%, 0.9716 70.4%, 0.9832 78.45%, 0.9911 88%, 1);
+  --spring-pane-fade: linear(0, 0.0052 1.2%, 0.0212 2.5%, 0.0481 3.9%, 0.0856 5.4%, 0.1361 7.1%, 0.2029 9.1%, 0.4536 16%, 0.5535 18.85%, 0.6343 21.3%, 0.7064 23.65%, 0.7942 26.8%, 0.8717 29.95%, 0.9403 33.15%, 1 36.4%, 1);
+}
+
+/* Without `linear()` (before Chrome 113, Firefox 112 and Safari 17.2, MDN's
+   compatibility data, read 2026-10-22 through Context7), everything settles
+   on the ease-out instead. */
+@supports not (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-out-fade: var(--ease-out);
+    --spring-small: var(--ease-out);
+    --spring-small-fade: var(--ease-out);
+    --spring-popover: var(--ease-out);
+    --spring-popover-fade: var(--ease-out);
+    --spring-pane: var(--ease-out);
+    --spring-pane-fade: var(--ease-out);
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -35,6 +97,9 @@
   --radius-control: 0.25rem;
   /* The workspace's page: wider than 1280px, so the PRD gets its full page. */
   --container-workspace: 100rem;
+  /* Tailwind's transitions, such as a button's hover, on the motion above. */
+  --default-transition-duration: var(--duration-quick);
+  --default-transition-timing-function: var(--ease-in-out);
 }
 
 html {
@@ -88,12 +153,12 @@ body {
 }
 
 /*
- * The lines a folded line opens to slide open and shut in about 0.35s, like
- * opencode's spring without bounce: the one grid row grows from 0fr to 1fr.
- * Closed, they're hidden once the slide has ended. With reduced motion they
- * show and hide at once. The box that clips them is positioned, so it clips
- * their screen readers' labels too (`sr-only` is absolute): placed against
- * the chat's pane instead, they stretched it below its last line while the
+ * The lines a folded line opens to slide open and shut as something arriving
+ * does, without bounce: the one grid row grows from 0fr to 1fr. Closed,
+ * they're hidden once the slide has ended. With reduced motion they show and
+ * hide at once. The box that clips them is positioned, so it clips their
+ * screen readers' labels too (`sr-only` is absolute): placed against the
+ * chat's pane instead, they stretched it below its last line while the
  * folded line was the answer's last.
  */
 .fold {
@@ -116,13 +181,13 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   .fold {
     transition:
-      grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0s 0.35s;
+      grid-template-rows var(--duration-arrive) var(--ease-out),
+      visibility 0s var(--duration-arrive);
   }
 
   .fold[data-open] {
     transition:
-      grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      grid-template-rows var(--duration-arrive) var(--ease-out),
       visibility 0s;
   }
 }
@@ -148,16 +213,189 @@ body {
 }
 
 /*
+ * What appears after the page has shown arrives as in the video: it rises a
+ * few pixels, sharpens from a slight blur and fades in, then stays still: two
+ * animations, its motion and its fade, each on its own curve. The classes go
+ * only on what mounts after the page loaded (`useArrival` in
+ * `src/components/arrival.ts`, and the conversation's own record of what it
+ * showed with), so what a reload brings back is there at once. `--order`
+ * counts things that arrive one after another, and `data-again` starts an
+ * arrival again by switching to copies of its keyframes, so nothing remounts.
+ * `backwards` holds the first frame through a delay, and nothing stays once
+ * it has run. Text and names are there from the start, for tests and screen
+ * readers alike. With reduced motion everything is there at once.
+ */
+/* Each arrival's own: a pane's would otherwise pass on to what arrives in it. */
+@property --arrive-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --arrive-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0.3125rem;
+}
+
+@property --arrive-scale {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --arrive-blur {
+  syntax: "*";
+  inherits: false;
+  initial-value: 4px;
+}
+
+@property --order {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .arrive {
+    animation-name: arrive, arrive-fade;
+    animation-duration: var(--duration-arrive);
+    animation-timing-function: var(--ease-out), var(--ease-out-fade);
+    animation-delay: calc(var(--order) * var(--duration-stagger));
+    animation-fill-mode: backwards;
+  }
+
+  .arrive[data-again] {
+    animation-name: arrive-again, arrive-fade-again;
+  }
+
+  /* A block, such as a table or a statement, rises a little further. */
+  .arrive-block {
+    --arrive-y: 0.5rem;
+  }
+
+  /* A search slides in from the left, fading as it moves, as the video's
+     do. */
+  .arrive-search {
+    --arrive-x: -0.9375rem;
+    --arrive-y: 0;
+    --arrive-blur: 3px;
+    animation-timing-function: var(--ease-out);
+  }
+
+  /* The visitor's message springs up from its corner. */
+  .arrive-message {
+    --arrive-y: 0.8125rem;
+    --arrive-scale: 0.9;
+    transform-origin: 100% 100%;
+    animation-duration: var(--spring-small-duration);
+    animation-timing-function: var(--spring-small), var(--spring-small-fade);
+  }
+
+  /* The chat and the PRD when the intro gives way to them. */
+  .arrive-pane {
+    --arrive-y: 0.5625rem;
+    animation-duration: var(--spring-pane-duration);
+    animation-timing-function: var(--spring-pane), var(--spring-pane-fade);
+  }
+}
+
+@keyframes arrive {
+  from {
+    transform: translate(var(--arrive-x), var(--arrive-y))
+      scale(var(--arrive-scale));
+    filter: blur(var(--arrive-blur));
+  }
+}
+
+@keyframes arrive-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes arrive-again {
+  from {
+    transform: translate(var(--arrive-x), var(--arrive-y))
+      scale(var(--arrive-scale));
+    filter: blur(var(--arrive-blur));
+  }
+}
+
+@keyframes arrive-fade-again {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * The tick before a saved section's line (`chat/section-step.tsx`), the
+ * video's check: its circle draws itself from the top in 12 frames, the tick
+ * from frame 8 in 10, and one ring pulses out from frame 10 in 18, growing
+ * 7px all round as it fades. Only on a line that arrives; brought back after
+ * a reload, or with reduced motion, it's simply there.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .tick-draws circle,
+  .tick-draws path {
+    stroke-dasharray: var(--length);
+    animation: tick-draw var(--duration-arrive) var(--ease-in-out) backwards;
+  }
+
+  .tick-draws circle {
+    --length: 41;
+  }
+
+  .tick-draws path {
+    --length: 9;
+    animation-duration: 0.33s;
+    animation-delay: 0.27s;
+  }
+
+  .tick-draws::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--foreground);
+    border-radius: 50%;
+    opacity: 0;
+    animation: tick-ring 0.6s var(--ease-out) 0.33s;
+  }
+}
+
+@keyframes tick-draw {
+  from {
+    stroke-dashoffset: var(--length);
+  }
+}
+
+@keyframes tick-ring {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.875);
+  }
+}
+
+/*
  * A PRD section just saved, or saved again with different statements: a soft
- * highlight behind it that fades to the page in about two seconds, with no
- * border. A fade isn't motion, so it shows with reduced motion too.
+ * highlight behind it, with no border, that glows as a statement does in the
+ * video, rising in 6 frames, then fading to the page from its 8th to its
+ * 34th. A fade isn't motion, so it shows with reduced motion too.
  */
 .just-changed {
-  animation: just-changed 2s ease-in both;
+  animation: just-changed var(--duration-highlight) var(--ease-in-out) both;
 }
 
 @keyframes just-changed {
   from {
+    background-color: transparent;
+  }
+  17.65%,
+  23.53% {
     background-color: rgb(255 255 255 / 0.1);
   }
   to {
@@ -185,12 +423,12 @@ body {
     display: block;
     position: absolute;
     inset: 0;
-    animation: roll-out-up 0.3s ease-out both;
+    animation: roll-out-up var(--duration-roll) var(--ease-in-out) both;
   }
 
   .roll-in {
     display: inline-block;
-    animation: roll-in-up 0.3s ease-out both;
+    animation: roll-in-up var(--duration-roll) var(--ease-in-out) both;
   }
 
   .roll[data-direction="down"] .roll-out {
@@ -229,10 +467,10 @@ body {
 /*
  * The small label above a section's copy button (opencode's tooltip, as CSS):
  * it shows 4px above the button once the pointer has rested on it for 0.4s,
- * in 0.12s, and closes when the button is pressed (`data-pressed`, until the
- * pointer leaves). It's held open to say "Couldn't copy". A fade, so it runs
- * with reduced motion too. The button's own name says the same to screen
- * readers, so the label is hidden from them.
+ * in a quick fade, and closes when the button is pressed (`data-pressed`,
+ * until the pointer leaves). It's held open to say "Couldn't copy". A fade,
+ * so it runs with reduced motion too. The button's own name says the same to
+ * screen readers, so the label is hidden from them.
  */
 .copy-tip {
   position: absolute;
@@ -252,8 +490,8 @@ body {
   opacity: 0;
   visibility: hidden;
   transition:
-    opacity 0.12s,
-    visibility 0s 0.12s;
+    opacity var(--duration-quick) var(--ease-in-out),
+    visibility 0s var(--duration-quick);
 }
 
 @media (hover: hover) {
@@ -261,7 +499,7 @@ body {
     opacity: 1;
     visibility: visible;
     transition:
-      opacity 0.12s 0.4s,
+      opacity var(--duration-quick) var(--ease-in-out) 0.4s,
       visibility 0s 0.4s;
   }
 }
@@ -270,7 +508,7 @@ body {
   opacity: 1;
   visibility: visible;
   transition:
-    opacity 0.12s,
+    opacity var(--duration-quick) var(--ease-in-out),
     visibility 0s;
 }
 

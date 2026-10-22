@@ -21,18 +21,24 @@ export function ThinkingLine({ className }: { className?: string }) {
   );
 }
 
-/** How long the model thought before a reply, as "Thought 8s". */
+/**
+ * How long the model thought before a reply, as "Thought 8s". In an answer
+ * that came in after the chat showed, it arrives.
+ */
 export function ThoughtLine({
   part,
+  arriving = false,
   className,
 }: {
   part: ThoughtPart;
+  arriving?: boolean;
   className?: string;
 }) {
   return (
     <p
       className={cn(
         "text-[0.8125rem] leading-4 text-muted-foreground",
+        arriving && "arrive",
         className,
       )}
     >

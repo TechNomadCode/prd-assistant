@@ -252,6 +252,78 @@ test.describe("chat", () => {
     });
   }
 
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`brings in the visitor's message and each line of the answer, the saved line's tick drawing itself, unless motion is reduced, and nothing after a reload (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await openChat(page);
+      await ask(page, "Draft the first section.");
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+
+      const moving = (name: string) =>
+        reducedMotion === "reduce" ? "none" : name;
+      const asked = conversation(page).locator(":scope > li").first();
+      const search = conversation(page).getByText(/^Search “/);
+      const saved = conversation(page).locator("p", {
+        hasText: /^Saved Introduction \/ Overview/,
+      });
+      await expect(asked).toHaveCSS(
+        "animation-name",
+        moving("arrive, arrive-fade"),
+      );
+      await expect(
+        conversation(page)
+          .getByText(/^Thought \d+s$/)
+          .first(),
+      ).toHaveCSS("animation-name", moving("arrive, arrive-fade"));
+      await expect(search).toHaveCSS(
+        "animation-name",
+        moving("arrive, arrive-fade"),
+      );
+      await expect(saved).toHaveCSS(
+        "animation-name",
+        moving("arrive, arrive-fade"),
+      );
+      // The tick draws its circle, then itself.
+      await expect(saved.locator("circle")).toHaveCSS(
+        "animation-name",
+        moving("tick-draw"),
+      );
+      await expect(saved.locator("path")).toHaveCSS(
+        "animation-name",
+        moving("tick-draw"),
+      );
+      if (reducedMotion === "no-preference") {
+        await expect(asked).toHaveCSS("animation-duration", /^0\.4s/);
+        await expect(search).toHaveCSS("animation-duration", /^0\.4s/);
+      }
+      // Then still, sharp and whole, the tick drawn.
+      for (const line of [asked, search, saved]) {
+        await expect(line).toHaveCSS("opacity", "1");
+        await expect(line).toHaveCSS("transform", "none");
+        await expect(line).toHaveCSS("filter", "none");
+      }
+      await expect(saved.locator("circle")).toHaveCSS(
+        "stroke-dashoffset",
+        "0px",
+      );
+
+      // Kept once the answer has ended, and brought back still.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => localStorage.getItem("prd-assistant:conversation") ?? "",
+          ),
+        )
+        .toContain(FAKE_NOTE);
+      await page.reload();
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+      await expect(conversation(page).locator(".arrive")).toHaveCount(0);
+      await expect(saved.locator("circle")).toHaveCSS("animation-name", "none");
+    });
+  }
+
   test("stops an answer with Stop, keeping what the visitor typed and the focus, and the chat goes on, after a reload too", async ({
     page,
   }) => {

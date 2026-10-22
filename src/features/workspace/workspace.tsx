@@ -10,8 +10,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from "react";
 import { browser } from "react-dom";
+import { useArrival } from "@/components/arrival";
 import { Chat, MESSAGE_BOX_ID } from "@/features/chat/chat";
 import { timeThoughts } from "@/features/chat/thoughts";
 import { PrdDocument } from "@/features/prd/prd-document";
@@ -29,6 +31,7 @@ import {
   type SectionName,
 } from "@/lib/prd";
 import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
+import { cn } from "@/lib/utils";
 import { breakItSuggestion, conversationStarted } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
 import { ScenarioTour } from "./scenario-tour";
@@ -140,6 +143,9 @@ function RestoredWorkspace() {
   const [introFailed, setIntroFailed] = useState(false);
 
   const onIntro = !leftIntro && !conversationStarted(messages);
+  // The chat and the PRD arrive when the intro gives way to them, not when
+  // the page opens on them with a kept conversation.
+  const panesArrive = useArrival(!onIntro);
   const working = status === "submitted" || status === "streaming";
   const failed = status === "error" || (interrupted && status === "ready");
   const sections = useMemo(() => savedSections(messages), [messages]);
@@ -329,6 +335,11 @@ function RestoredWorkspace() {
 
   // On a laptop the chat keeps a steady width, 400 to 520px, and the PRD
   // takes the rest of the page (docs/decisions.md, Design, 2026-10-20).
+  // Arriving, the PRD follows the chat a beat later.
+  const pane = cn(
+    "flex flex-col lg:min-h-0",
+    panesArrive && "arrive arrive-pane",
+  );
   return (
     <>
       <div
@@ -338,7 +349,7 @@ function RestoredWorkspace() {
         <h1 id={WORKSPACE_TITLE_ID} tabIndex={-1} className="sr-only">
           The chat and your PRD
         </h1>
-        <div className="flex flex-col lg:min-h-0">
+        <div className={pane}>
           <Chat
             messages={messages}
             status={failed ? "error" : status}
@@ -357,7 +368,10 @@ function RestoredWorkspace() {
             onSeeSection={seeSection}
           />
         </div>
-        <div className="flex flex-col lg:min-h-0">
+        <div
+          className={pane}
+          style={panesArrive ? ({ "--order": 1 } as CSSProperties) : undefined}
+        >
           <PrdDocument
             sections={sections}
             latest={latest}

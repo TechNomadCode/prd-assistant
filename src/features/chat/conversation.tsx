@@ -75,8 +75,9 @@ function activityOf(parts: ShownPart[]): Activity {
  * reply follows a line with how long the model thought before it. An
  * answer that broke off stays visible, marked as unfinished, until it's
  * retried or replaced. An answer the visitor stopped keeps what it finished
- * and says so. The text of an answer that came in after the chat showed
- * fades in as it arrives.
+ * and says so. What came in after the chat showed arrives (`.arrive` in
+ * `src/app/globals.css`): the visitor's message springs up from its corner,
+ * each line rises in as it appears, and the text fades in.
  */
 export function Conversation({
   messages,
@@ -92,7 +93,7 @@ export function Conversation({
   onSeeSection?: (section: SectionName) => void;
 }) {
   // The messages the chat showed with, such as a conversation brought back
-  // after a reload: their text is there already, so it doesn't fade in.
+  // after a reload: they're there already, so nothing in them arrives.
   const [shownAtFirst] = useState(
     () => new Set(messages.map((message) => message.id)),
   );
@@ -114,6 +115,7 @@ export function Conversation({
       className="[&>[data-role=user]+[data-role=assistant]]:mt-4 [&>li+li]:mt-8"
     >
       {messages.map((message, index) => {
+        const arriving = !shownAtFirst.has(message.id);
         if (message.role === "user") {
           // Stopped before its answer's first part arrived.
           const stoppedEarly =
@@ -123,7 +125,10 @@ export function Conversation({
             <Fragment key={message.id}>
               <li
                 data-role="user"
-                className="ml-auto w-fit max-w-[85%] rounded-(--radius-control) bg-bubble px-3 py-2"
+                className={cn(
+                  "ml-auto w-fit max-w-[85%] rounded-(--radius-control) bg-bubble px-3 py-2",
+                  arriving && "arrive arrive-message",
+                )}
               >
                 <p className="sr-only">You</p>
                 <p className="leading-relaxed whitespace-pre-wrap">
@@ -131,7 +136,12 @@ export function Conversation({
                 </p>
               </li>
               {stoppedEarly && (
-                <AssistantMessage parts={[]} unfinished={false} stopped />
+                <AssistantMessage
+                  parts={[]}
+                  arriving={arriving}
+                  unfinished={false}
+                  stopped
+                />
               )}
             </Fragment>
           );
@@ -141,7 +151,7 @@ export function Conversation({
           <AssistantMessage
             key={message.id}
             parts={shownParts(message)}
-            arriving={!shownAtFirst.has(message.id)}
+            arriving={arriving}
             unfinished={status === "error" && message === last}
             stopped={question?.role === "user" && stopped.has(question.id)}
             activity={message === last ? activity : undefined}
@@ -242,7 +252,7 @@ function AssistantMessage({
   onSeeSection,
 }: {
   parts: ShownPart[];
-  /** The answer came in after the chat showed: its text fades in. */
+  /** The answer came in after the chat showed: its lines arrive. */
   arriving?: boolean;
   unfinished: boolean;
   /** The visitor stopped this answer. */
@@ -254,6 +264,7 @@ function AssistantMessage({
   if (parts.length === 0 && !stopped) return null;
   const movingStep = typeof activity === "object" ? activity.step : undefined;
   const lastPart = parts.at(-1);
+  const arrive = arriving && "arrive";
   return (
     <li data-role="assistant">
       <p className="sr-only">Assistant</p>
@@ -270,6 +281,7 @@ function AssistantMessage({
               parts={laid.run}
               stopped={stopped}
               moving={moving}
+              arriving={arriving}
               className={space}
             />
           );
@@ -277,7 +289,14 @@ function AssistantMessage({
         const { part, first: index } = laid;
         const step = cn(space, moving && "shimmer");
         if (isThought(part)) {
-          return <ThoughtLine key={index} part={part} className={space} />;
+          return (
+            <ThoughtLine
+              key={index}
+              part={part}
+              arriving={arriving}
+              className={space}
+            />
+          );
         }
         switch (part.type) {
           case "text":
@@ -295,6 +314,7 @@ function AssistantMessage({
                 key={part.toolCallId}
                 part={part}
                 stopped={stopped}
+                arriving={arriving}
                 className={step}
               />
             );
@@ -304,6 +324,7 @@ function AssistantMessage({
                 key={part.toolCallId}
                 part={part}
                 stopped={stopped}
+                arriving={arriving}
                 onSee={onSeeSection}
                 className={step}
               />
@@ -312,7 +333,7 @@ function AssistantMessage({
             return (
               <p
                 key={part.toolCallId}
-                className={cn("text-sm text-muted-foreground", space)}
+                className={cn("text-sm text-muted-foreground", space, arrive)}
               >
                 {failedStep(part.toolName)} didn&apos;t work. {part.errorText}
               </p>
@@ -323,12 +344,18 @@ function AssistantMessage({
         <ThinkingLine className={lastPart?.type === "text" ? "mt-4" : "mt-2"} />
       )}
       {unfinished && (
-        <p className="mt-6 text-sm font-medium">
+        <p className={cn("mt-6 text-sm font-medium", arrive)}>
           This answer stopped before it finished.
         </p>
       )}
       {stopped && (
-        <p className={cn("text-sm font-medium", parts.length > 0 && "mt-6")}>
+        <p
+          className={cn(
+            "text-sm font-medium",
+            parts.length > 0 && "mt-6",
+            arrive,
+          )}
+        >
           You stopped this answer.
         </p>
       )}

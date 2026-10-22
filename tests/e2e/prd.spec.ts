@@ -243,7 +243,7 @@ test.describe("the PRD", () => {
       await page.emulateMedia({ reducedMotion });
       await draftFirstSection(page);
       const pane = page.locator(".bg-page");
-      // Each number the count rolls in, as it appears: it's gone 0.3s later,
+      // Each number the count rolls in, as it appears: it's gone 0.27s later,
       // or stays still with reduced motion, as the first section's 1 does.
       await page.evaluate(() => {
         const seen: { text: string; animation: string }[] = [];
@@ -275,9 +275,9 @@ test.describe("the PRD", () => {
 
       const goals = page.getByRole("region", { name: /^Goals \/ Objectives/ });
       const highlight = goals.locator(".just-changed");
-      // The fade runs with reduced motion too: it doesn't move.
+      // The glow runs with reduced motion too: it doesn't move.
       await expect(highlight).toHaveCSS("animation-name", "just-changed");
-      await expect(highlight).toHaveCSS("animation-duration", "2s");
+      await expect(highlight).toHaveCSS("animation-duration", "1.13s");
       await expect(highlight).toHaveCSS("border-top-width", "0px");
       await expect(prd(page)).toContainText("2 of 9 sections");
       expect(
@@ -299,6 +299,45 @@ test.describe("the PRD", () => {
       await expect(statements(page, GOALS)).not.toHaveCount(0);
       await expect(prd(page).locator(".just-changed")).toHaveCount(0);
       await expect(prd(page).locator(".roll")).toHaveCount(0);
+    });
+  }
+
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`brings in a saved section's statements one after another, and the check-in, unless motion is reduced, and nothing after a reload (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await draftFirstSection(page);
+
+      const items = statements(page, INTRODUCTION);
+      const checkIn = page.getByRole("button", { name: /^Looks right/ });
+      const arriving =
+        reducedMotion === "reduce" ? "none" : "arrive, arrive-fade";
+      await expect(items).toHaveCount(4);
+      for (const item of await items.all()) {
+        await expect(item).toHaveCSS("animation-name", arriving);
+      }
+      await expect(checkIn.locator("..")).toHaveCSS("animation-name", arriving);
+      if (reducedMotion === "no-preference") {
+        // 0.2s apart, as the video's statements are.
+        for (const [index, delay] of ["0s", "0.2s", "0.4s", "0.6s"].entries()) {
+          await expect(items.nth(index)).toHaveCSS(
+            "animation-delay",
+            new RegExp(`^${delay.replace(".", "\\.")}`),
+          );
+        }
+      }
+      // Then still, sharp and whole.
+      for (const item of [items.first(), items.last()]) {
+        await expect(item).toHaveCSS("opacity", "1");
+        await expect(item).toHaveCSS("transform", "none");
+        await expect(item).toHaveCSS("filter", "none");
+      }
+
+      await expect(checkIn).toBeEnabled();
+      await page.reload();
+      await expect(items).toHaveCount(4);
+      await expect(prd(page).locator(".arrive")).toHaveCount(0);
     });
   }
 

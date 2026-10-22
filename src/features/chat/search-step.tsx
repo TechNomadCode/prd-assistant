@@ -9,16 +9,21 @@ const SHOWN_QUERY_LENGTH = 80;
  * One search the assistant ran, as a plain line that doesn't open, the way
  * opencode's desktop app shows a search tool: "Search" in medium weight, then
  * the query and what came of it in grey (docs/decisions.md, Design,
- * 2026-10-20). The passages the PRD quotes open from its source names.
+ * 2026-10-20). The passages the PRD quotes open from its source names. A
+ * search that comes in slides in from the left as it arrives, as in the
+ * README's video, and stays the same line as it finishes.
  */
 export function SearchStep({
   part,
   stopped = false,
+  arriving = false,
   className,
 }: {
   part: SearchNotesPart;
   /** Its answer was stopped, so a search still running never finished. */
   stopped?: boolean;
+  /** Its answer came in after the chat showed. */
+  arriving?: boolean;
   className?: string;
 }) {
   const result = outcome(part, stopped);
@@ -35,6 +40,7 @@ export function SearchStep({
         // One line, cut off with an ellipsis, as opencode's; a failure keeps
         // its whole reason.
         part.state !== "output-error" && "truncate",
+        arriving && "arrive arrive-search",
         className,
       )}
     >
