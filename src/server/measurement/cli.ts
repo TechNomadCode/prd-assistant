@@ -256,7 +256,7 @@ async function calibrate(argv: string[]): Promise<number> {
     1_000_000;
   const sofar = totals(await readLedger(ledgerFile), new Date());
   console.log(
-    `The reranker's calibration: ${queries.length} recorded searches, each with its ${RERANK_CANDIDATES} candidates, to ${RERANK_MODEL}; at most ${Math.ceil(most)} neurons.`,
+    `The reranker's calibration: ${queries.length} recorded searches, each with its ${Math.min(RERANK_CANDIDATES, notes.length)} candidates, to ${RERANK_MODEL}; at most ${Math.ceil(most)} neurons.`,
   );
   console.log(
     `So far today (UTC): ${Math.round(sofar.day)} neurons; this month: ${Math.round(sofar.month)}.`,
