@@ -7,21 +7,16 @@
 
 ### Measurement lane
 - **Where:** this folder, the main checkout. Port 3000 (`app`, `app-real`). The only lane that runs `measure`, `measure:fake` or `dev:real`, and the only one that edits `src/lib/suggestions.ts`, `src/server/measurement/`, `src/server/prompts/`, `notes/` or `docs/records/measurements/`. The measurement itself doesn't use the local database (it ranks its own copy of the passages); a browser check with `app` or `app-real` does, so it can fail while the build lane resets the database.
-- **Doing:** slice 9d, settling the AI's behaviour, on Cloudflare's Free plan. The baseline (9c) is done: prompt version 3 on gpt-oss-120b, five runs of each request, 2026-10-19 and 2026-10-20 (`npm run measure:report -- --name baseline`, from the local records). The code under test is on `feat/tune-ai` (from `main`, unpushed): each measurement's own cost estimate, prompt version 6 (version 3 cut by a quarter, an unsupported claim saved as the product manager's own decision, the search as it now works), the searches left in each search result, the transport as Cloudflare's own provider sends it, and the reranker, calibrated and switched off on `fix/ai-review-findings` (2026-10-22). The support check waits on `feat/support-check`, on top of it.
-- **What still applies from 2026-10-19 to 2026-10-22** (the evidence is in `docs/records/`, local; the rest is disposable):
-  - One fault is ours, not the model's: the search always returns five passages, a near miss first, with nothing saying none is relevant. The reranker meant to fix it didn't: bge-reranker-base neither separated nor ordered our passages, so it's off and the search returns the five closest again (`src/server/AGENTS.md`, *The reranker*). The reasoning passed back between calls was read on every call, under `reasoning_content` too, so no earlier comparison is blurred by it (corrected 2026-10-22 after the independent review; *Judging the model's behaviour*).
-  - Grocery delivery (D) passed 5 of 5 on gpt-oss-120b at reasoning high, against 3 of 5 in the baseline, not yet beyond chance. Dark mode (E) stayed at about 1 of 5 through every change: the model, and a second call checking it, read Henk's "Black on white or white on black, I don't mind" as a request for dark mode.
-  - Reasoning high costs about 480 neurons an answer against about 300, took 2 of 10 answers past the live site's 60 seconds, and is the only setting where Cloudflare answered with 4,096 "!" (2 of about 48 calls), now refused and counted "not run" (`fix/ai-review-findings`).
+- **Doing:** nothing. Slice 9d is closed (the owner, 2026-10-22; `docs/decisions.md`): the chat stays on gpt-oss-120b, now with system prompt version 7, and the suggestion after the first section is a plain request. Why not gpt-oss-20b, and what the audit of 2026-10-22 found still unfixed: `docs/records/ai-audit-2026-10-22.md` (local). All of it is on `feat/lean-chat` (from `main` at aebf8a6), waiting for the owner's push and merge. No results go into any document the repository publishes: the README and the notes describe how the AI is checked and measured, never how it scored (the owner, 2026-10-22). The records stay in `docs/records/` (local).
 - **Next:**
-  1. The reviewer's four fixes are on `fix/ai-review-findings` (from `feat/tune-ai`, unpushed; `verify` passed 2026-10-22): the reasoning check corrected, degenerate replies refused, the conversation's size bounded, and the reranker calibrated (2,310 pairs and 327 hand labels), read as Cloudflare sends it and switched off (`docs/decisions.md`, 2026-10-22). Done; waiting for the push.
-  2. The lean setup (`docs/decisions.md`, 2026-10-22), gpt-oss-20b at its default reasoning on `feat/lean-gpt-oss-20b` (from `fix/ai-review-findings`), measured as `lean-20b` on the full set in one batch at the owner's word (2026-10-22): 25 of 30 runs, then the quota. Against the baseline (the report, local): D 3 of 4 against 3 of 5 (not beyond chance), E 3 of 4 against 0 of 5 (p = 0.048), read by hand too: the claim saved as the product manager's decision, citing the chat; no other rule dropped by two runs; about 250 neurons an answer against about 500; 1 of 25 past 60 seconds. Four parts of the setup differ (model, prompt, tools, code), so no single change gets the credit. Left: B-5, C1-5, C2-5, D-5, E-5 (about 1,200 neurons), sent by the same command after 00:00 UTC.
-  3. Then the README's numbers from `lean-20b`, and 9d done, unless the last runs change the picture; if D or E falls back, add gpt-oss-120b, then reasoning high, then the support check, one at a time, keeping only what measurably helps.
+  1. Once `feat/lean-chat` is merged: pull `main`, tag every commit the records name that isn't on `main` (`measured/<id>`), and, on the owner's yes, drop `feat/tune-ai`, `fix/ai-review-findings`, `feat/lean-gpt-oss-20b` and `docs/review-fixes-state`, whose content is on `main` or replaced. `feat/support-check` stays for a later try.
+  2. Tuning resumes only on the owner's word, from what staging shows.
 - **Lean notes** (the owner, 2026-10-22; this lane only): this section, the measurement's parts of `src/server/AGENTS.md` and the lane's decisions hold only what a later session needs to test, fix or decide: the current state, the lessons that still apply, the next steps. Replace what's outdated instead of adding to it; one line of evidence at most, with the details in `docs/records/` (local).
 - **Each batch:** `--plan` first, then real runs only, never a probe; a refused request costs nothing, and the planned batch is sent again on the owner's word or after 00:00 UTC. The agent decides the batches within the day (`docs/decisions.md`, 2026-10-21). Plan updates go on a documents-only branch from `main`.
 - **Before each batch after a merge of the build lane:** read that merge's diff of `src/server` and `src/lib`. If it changed what the model receives (the prompt, the tools' descriptions and schemas, the generation settings, how messages and earlier answers reach the model, the search) or the transport (`src/server/ai/cloudflare.ts`, which slice 8a may change), stop and tell the owner before sending anything. The 9d comparisons list such merges as code differences; read the file list before trusting that warning.
 - **Measured commits** are tagged `measured/<id>` here, since rebases leave them on no branch (`src/server/AGENTS.md`, *The measurement*).
 - **Unverified:** why Cloudflare refuses below the limit (KI-10).
-- **Waiting on the owner:** sending Cloudflare's support the refusals' request ids (in the not-run records); pushing `fix/ai-review-findings`, then `feat/lean-gpt-oss-20b` on top of it, and this plan's branch.
+- **Waiting on the owner:** pushing `feat/lean-chat`, its pull request (text given on 2026-10-22) and the merge, then trying it on staging; sending Cloudflare's support the refusals' request ids (in the not-run records).
 
 ### Build lane
 - **Where:** its own worktree per piece, on a branch from an up-to-date `main`. If the session isn't in a worktree yet (`git worktree list` shows its folder as the main checkout, not under `.claude/worktrees/`), it creates one before touching anything, and never checks out a branch in the main folder, where the measurement lane works. Claude Code's worktree option puts it under `.claude/worktrees/`; run `npm ci` there first. A worktree made with `git worktree add` gets no `.env.local`: run `npm run env:local` there, or the end-to-end tests find no interviews. Its browser check uses `app-build` in `.claude/launch.json` (port 3200), never `app` or `app-real`, which are the measurement lane's on port 3000. It never runs `measure`, `measure:fake` or `dev:real`, never edits the measurement lane's files above, and changes code in `src/server` only where its piece needs it, never what the model receives (listed above); its pull request says which `src/server` files it changed and why.
@@ -64,7 +59,7 @@
 
 ### 6 · The PRD beside the chat · risk: normal · status: done (4a2ca18)
 
-### 7 · Intro screen and the try-to-break-it suggestion · risk: normal · status: done (eebbacf)
+### 7 · Intro screen and the suggestion after the first section · risk: normal · status: done (eebbacf)
 
 ### 8a · The quota message · risk: normal · status: done (5267952)
 
@@ -81,12 +76,7 @@
 
 ### 9c · Scoring, the report and the baseline · risk: normal · status: done (281a557; the baseline recorded on 2026-10-20)
 
-### 9d · Settle the AI's behaviour · risk: normal · status: in progress
-- **Goal:** before launch, the grocery delivery request passes reliably and the other rules are as good as measured changes make them, on the Free plan.
-- **Acceptance:**
-  - Free checks first (`src/server/AGENTS.md`, *Judging the model's behaviour*). Then one change at a time (the prompt, the tools, the flow, the search budget, how hard the model reasons), each with its expected effect written down first and measured over five runs of the grocery delivery request, about a day's allocation; the full set of requests, five runs each, runs again only for the change meant to ship (`docs/decisions.md`, External services, 2026-10-19).
-  - A change ships only if it beats the baseline on its rule and no other rule drops by two runs or more; it then becomes the new baseline.
-  - It stops when the grocery delivery request passes reliably (*Deferred*: what that means) or the owner stops it. The README reports the final numbers with their date and setup.
+### 9d · Settle the AI's behaviour · risk: normal · status: done (closed by the owner on 2026-10-22: gpt-oss-120b with system prompt version 7, on `feat/lean-chat`; its id on `main` goes here after the merge)
 
 ### 10 · Keep the PRD after a reload, and download it · risk: normal · status: done (826a711)
 

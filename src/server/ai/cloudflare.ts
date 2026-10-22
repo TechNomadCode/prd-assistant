@@ -193,11 +193,11 @@ function asWorkersAiProvider(body: Record<string, unknown>) {
 
 /**
  * A reply that isn't one: no tool call, cut off at the output limit, its text
- * nearly all one character. Cloudflare sent 4,096 "!" and no reasoning twice
- * (`reasoning-high` E-2 on 2026-10-21, `transport` D-3 on 2026-10-22, both at
- * the output limit). Thrown before the text reaches anyone, so the chat shows
- * its usual error with "Try again", and the measurement counts the answer as
- * not run.
+ * nearly all one character. Cloudflare has sent such replies: a run of "!"
+ * up to the output limit, with no reasoning (replayed in
+ * `tests/unit/cloudflare.test.ts`). Thrown before the text reaches anyone, so
+ * the chat shows its usual error with "Try again", and the measurement counts
+ * the answer as not run.
  */
 export class DegenerateReplyError extends Error {
   constructor(length: number, character: string) {

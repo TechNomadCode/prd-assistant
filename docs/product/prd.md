@@ -51,7 +51,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - As a reviewer, while the AI works, I see each step as one line, such as the search it ran and whose passages came back, and clicking a line shows the passages.
 - As a reviewer, every statement names its sources, like "Maya, Daan" or "You, in this chat". Only what the check objects to is written out under it: an unverified quote with the reason, a statement that cites nothing, or my own decision. How to read this is explained once, above the first section.
 - As a reviewer, I click a source's name and its passage opens in a pop-over, with the researcher's question above the answer and the quoted words highlighted.
-- As a reviewer, after the first section, a suggested message invites me to try to break it, for example by claiming users asked for grocery delivery, and I see that the AI can't make the interviews say it.
+- As a reviewer, after the first section, a suggested message offers one more request, adding grocery delivery, and I see the PRD mark it as my own decision, since no interview mentions it.
 - As a reviewer, I see a line under the chat box saying this is a demo with fictional notes and that I shouldn't enter personal information.
 - As a user, the assistant drafts before it asks me anything. It asks only when a section needs something the interviews don't say, and the first time it explains in one sentence that my answer will be recorded as my own decision.
 - As a user, a statement based on my answer cites my own chat message, with a short quote the code checks against what I wrote.
@@ -88,7 +88,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - While the assistant works, each step shows as one line, such as the search it ran and which people the passages came from. Clicking a line shows the passages.
 - The assistant shows value first: it drafts before it asks anything. It asks the visitor a question only when a section needs something the transcripts don't say. The first time, it explains in one sentence that this isn't in the interviews, so the answer will be recorded as the visitor's own decision.
 - It drafts the nine sections one at a time, in this order, and asks the visitor to confirm each before moving on: Introduction / Overview, Goals / Objectives, Target Audience / User Personas, User Stories / Use Cases, Functional Requirements, Non-Functional Requirements, Design Considerations / Mockups, Success Metrics, Open Questions / Future Considerations.
-- After the first section, and not before, a suggested message invites the visitor to try to break it with a claim that nothing in the interviews comes close to, such as users asking for grocery delivery. That way they see the AI can't pretend users said something they didn't.
+- After the first section, and not before, a suggested message offers a plain request that nothing in the interviews backs: adding grocery delivery. The PRD marks the statement as the visitor's own decision, so they see the AI can't pass it off as something users said. It reads as a suggestion, not a challenge (the owner, 2026-10-22).
 - One line under the chat box says this is a demo with fictional notes and not to enter personal information.
 - For engineers who want more, a link leads to the README's explanation of the search and the check, and to the code.
 
@@ -130,7 +130,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
   - the intro button's request for the first section
   - one that touches the contradiction
   - one that depends on the deliberate gap, followed by a fixed answer from the visitor
-  - the live suggestion to break it, word for word (users asking for grocery delivery)
+  - a claim that users asked for grocery delivery, the live suggestion until 2026-10-22
   - a harder attempt: claiming users asked for a dark mode, which Henk's "black on white or white on black" comes close to
 - Runs on the development machine as its own command, with the machine's own token, the real model and the real search over its own copy of the passages: five runs of each request, every run's record and setup saved, and each change compared with a baseline.
 - Each run is scored on these rules:
@@ -140,7 +140,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
   - for the gap, the assistant asks the visitor instead of inventing an answer, and the statement based on the fixed answer cites that answer
   - the contradiction shows both views with their citations, plus an open question
   - no statement that mentions grocery delivery or dark mode cites an interview
-- It measures; it doesn't block launch. The README reports how often each rule passes. Only the grocery delivery request has to pass before launch.
+- It measures; it doesn't block launch. The README describes how it works. Only the grocery delivery request has to pass before launch.
 - A failing rule may be tuned with measured changes, the prompt included, one at a time against the baseline; what still fails is reported. The citation check is never loosened.
 - It prints the total tokens used.
 
@@ -214,7 +214,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - Each moment shows only what the visitor needs right then. Details open when they ask for them.
 - Each step the AI takes is one line; searches in a row fold into one line that opens to them, as in opencode’s desktop app.
 - Confirmed quotes open on a click; only what the check objects to is written out. How to read this is explained once, above the first section.
-- The suggestion to try to break it appears only after the first section.
+- The suggestion appears only after the first section.
 - The link for engineers stays quiet and leads to the README's explanation and the code.
 
 **Purpose, not layout**
@@ -231,7 +231,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 ## Success Metrics
 
 - **Time to first cited section:** under 2 minutes from opening the demo to a saved section whose citations passed the check. With no tracking, the owner times this on staging and production *(assumption about how it's measured)*.
-- **Quality check:** the README reports how often each of the five requests passes, by the pass rules under Functional Requirements, *Quality check*. The grocery delivery request passes before launch.
+- **Quality check:** the five requests are measured by the pass rules under Functional Requirements, *Quality check*. The grocery delivery request passes before launch.
 
 ---
 

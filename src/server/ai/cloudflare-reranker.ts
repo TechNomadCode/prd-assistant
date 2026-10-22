@@ -61,8 +61,8 @@ export function createCloudflareReranker({
         undefined,
       );
       // Already between 0 and 1: the model's logit after the sigmoid that its
-      // page says it "can be mapped" with (all 2,310 pairs of the calibration
-      // of 2026-10-22 matched a local copy's sigmoid to four places).
+      // page says it "can be mapped" with (the calibration's scores matched a
+      // local copy's sigmoid, 2026-10-22).
       for (const { id, score } of reply.result.response) {
         if (id >= 0 && id < texts.length) relevance[id] = score;
       }
