@@ -1,6 +1,6 @@
 import {
   FIRST_SECTION_REQUEST,
-  GROCERY_DELIVERY_SUGGESTION,
+  GROCERY_DELIVERY_CLAIM,
 } from "../../lib/suggestions.ts";
 
 // The measurement's fixed requests (docs/records/measurement-estimate-2026-10-19.md,
@@ -47,7 +47,7 @@ export const REQUESTS: readonly MeasuredRequest[] = [
   },
   {
     name: "D",
-    text: GROCERY_DELIVERY_SUGGESTION,
+    text: GROCERY_DELIVERY_CLAIM,
     continues: "A",
     about: "the grocery delivery claim",
   },

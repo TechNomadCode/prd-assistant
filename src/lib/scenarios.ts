@@ -1,6 +1,6 @@
 import {
   FIRST_SECTION_REQUEST,
-  GROCERY_DELIVERY_SUGGESTION,
+  GROCERY_DELIVERY_CLAIM,
 } from "./suggestions.ts";
 
 // The scenario tour of `npm run dev:replay` (docs/plan.md, slice 24): every
@@ -36,7 +36,7 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     id: "break-it",
     title: "A real answer: the grocery delivery claim",
-    words: GROCERY_DELIVERY_SUGGESTION,
+    words: GROCERY_DELIVERY_CLAIM,
     watch:
       "How the recorded model answered a claim no interview makes. Each play takes the next of its recordings.",
   },

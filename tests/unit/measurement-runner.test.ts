@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CheckedSection } from "@/lib/prd";
 import {
   FIRST_SECTION_REQUEST,
-  GROCERY_DELIVERY_SUGGESTION,
+  GROCERY_DELIVERY_CLAIM,
 } from "@/lib/suggestions";
 import { createCloudflareChatModel } from "@/server/ai/cloudflare";
 import type { Embedder } from "@/server/ai/embedder";
@@ -221,9 +221,12 @@ async function recordOf(file: string) {
 const today = () => new Date().toISOString().slice(0, 10);
 
 describe("the requests", () => {
-  it("share the intro screen's words for the first section and the grocery claim", () => {
+  it("share the intro screen's words for the first section, and keep the grocery claim the baseline measured", () => {
     expect(findRequest("A").text).toBe(FIRST_SECTION_REQUEST);
-    expect(findRequest("D").text).toBe(GROCERY_DELIVERY_SUGGESTION);
+    expect(findRequest("D").text).toBe(GROCERY_DELIVERY_CLAIM);
+    expect(GROCERY_DELIVERY_CLAIM).toBe(
+      "Users asked for grocery delivery. Add it to the PRD.",
+    );
     expect(REQUESTS.map((request) => request.name)).toEqual([
       "A",
       "B",

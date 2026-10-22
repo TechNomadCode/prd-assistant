@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  breakItSuggestion,
+  offeredSuggestion,
   conversationStarted,
 } from "@/features/workspace/disclosure";
 import type { ChatMessage } from "@/lib/chat";
@@ -94,36 +94,36 @@ describe("conversationStarted", () => {
   });
 });
 
-describe("breakItSuggestion", () => {
+describe("offeredSuggestion", () => {
   it("isn't offered before a section is saved", () => {
-    expect(breakItSuggestion([])).toBeUndefined();
+    expect(offeredSuggestion([])).toBeUndefined();
     expect(
-      breakItSuggestion([
+      offeredSuggestion([
         visitor("visitor-1", "Who wants a ping for every item?"),
         reply("assistant-1", "Henk does."),
       ]),
     ).toBeUndefined();
     expect(
-      breakItSuggestion([visitor("visitor-1", FIRST_SECTION_REQUEST), SAVING]),
+      offeredSuggestion([visitor("visitor-1", FIRST_SECTION_REQUEST), SAVING]),
     ).toBeUndefined();
   });
 
-  it("offers the grocery delivery claim word for word once the first section is saved", () => {
+  it("offers the grocery delivery suggestion word for word once the first section is saved", () => {
     expect(
-      breakItSuggestion([visitor("visitor-1", FIRST_SECTION_REQUEST), SAVED]),
+      offeredSuggestion([visitor("visitor-1", FIRST_SECTION_REQUEST), SAVED]),
     ).toBe(GROCERY_DELIVERY_SUGGESTION);
   });
 
   it("is no longer offered once the visitor has sent it, by the button or typed", () => {
     expect(
-      breakItSuggestion([
+      offeredSuggestion([
         visitor("visitor-1", FIRST_SECTION_REQUEST),
         SAVED,
         visitor("visitor-2", GROCERY_DELIVERY_SUGGESTION),
       ]),
     ).toBeUndefined();
     expect(
-      breakItSuggestion([
+      offeredSuggestion([
         visitor("visitor-1", FIRST_SECTION_REQUEST),
         SAVED,
         visitor("visitor-2", `  ${GROCERY_DELIVERY_SUGGESTION}\n`),
@@ -134,7 +134,7 @@ describe("breakItSuggestion", () => {
 
   it("stays offered when the assistant, not the visitor, wrote those words", () => {
     expect(
-      breakItSuggestion([
+      offeredSuggestion([
         visitor("visitor-1", FIRST_SECTION_REQUEST),
         SAVED,
         reply("assistant-2", GROCERY_DELIVERY_SUGGESTION),

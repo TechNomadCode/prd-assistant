@@ -8,7 +8,7 @@ import { expectNoAccessibilityViolations } from "./accessibility";
 
 // The intro on the home page, then the chat it opens, with the scripted fake
 // model (src/server/ai/fake-chat-model.ts): asked for the first section, it
-// saves one, so the suggestion to try to break it appears.
+// saves one, so the suggestion appears.
 
 const INTRO_TITLE = "You're the product manager of a shared grocery list app";
 const WORKSPACE_TITLE = "The chat and your PRD";
@@ -30,7 +30,7 @@ function prd(page: Page) {
 }
 
 function suggestion(page: Page) {
-  return page.getByRole("group", { name: /try to break it/ });
+  return page.getByRole("group", { name: "Suggestion:", exact: true });
 }
 
 /** The visitor's messages a request to /api/chat sent. */
@@ -220,8 +220,8 @@ test.describe("the intro", () => {
   });
 });
 
-test.describe("the suggestion to try to break it", () => {
-  test("appears only once the first section is saved, sends the claim word for word with one click, then is gone", async ({
+test.describe("the suggestion", () => {
+  test("appears only once the first section is saved, sends its words with one click, then is gone", async ({
     page,
   }) => {
     const release = await holdNextAnswer(page, "continue");
@@ -235,15 +235,13 @@ test.describe("the suggestion to try to break it", () => {
     await expect(
       page.getByRole("list", { name: "Statements in Introduction / Overview" }),
     ).toBeVisible();
-    await expect(suggestion(page)).toHaveAccessibleName(
-      "Now try to break it. Send a claim that nobody in the interviews made:",
-    );
-    const claim = suggestion(page).getByRole("button", {
+    await expect(suggestion(page)).toHaveAccessibleName("Suggestion:");
+    const suggested = suggestion(page).getByRole("button", {
       name: GROCERY_DELIVERY_SUGGESTION,
     });
     const request = page.waitForRequest("**/api/chat");
 
-    await claim.click();
+    await suggested.click();
 
     expect(sentByVisitor(await request)).toEqual([
       FIRST_SECTION_REQUEST,
@@ -251,7 +249,7 @@ test.describe("the suggestion to try to break it", () => {
     ]);
     await expect(suggestion(page)).toHaveCount(0);
     // The check-in is disabled while the assistant works: once it's back,
-    // the answer to the claim has finished.
+    // the answer to the suggestion has finished.
     await expect(
       page.getByRole("button", { name: /^Looks right/ }),
     ).toBeEnabled();
@@ -287,15 +285,15 @@ test.describe("on a phone", () => {
     expect(await fitsTheWidth()).toBe(true);
 
     await draftButton(page).click();
-    const claim = page.getByRole("button", {
+    const suggested = page.getByRole("button", {
       name: GROCERY_DELIVERY_SUGGESTION,
     });
-    await expect(claim).toBeVisible();
+    await expect(suggested).toBeVisible();
     expect(await fitsTheWidth()).toBe(true);
 
-    await claim.click();
+    await suggested.click();
 
     await expect(conversation(page)).toContainText(GROCERY_DELIVERY_SUGGESTION);
-    await expect(claim).toHaveCount(0);
+    await expect(suggested).toHaveCount(0);
   });
 });
