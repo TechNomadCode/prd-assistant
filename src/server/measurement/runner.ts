@@ -394,7 +394,12 @@ export async function runBatch(
     env.search.kind === "real" ? embeddingSpend(copy.tokenBound).neurons : 0;
   const expectedOf = (runs: PlannedRun[]) =>
     runs.reduce(
-      (sum, { request }) => sum + expectedNeurons(request, ledger),
+      (sum, { request }) =>
+        sum +
+        expectedNeurons(request, ledger, [
+          options.measurement,
+          options.compareWith,
+        ]),
       0,
     );
   // The cap covers the answers that can go now; one that waits for its saved

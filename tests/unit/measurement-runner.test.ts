@@ -458,6 +458,37 @@ describe("the meter", () => {
     expect(expectedNeurons(findRequest("B"), ledger)).toBe(450);
     expect(expectedNeurons(findRequest("D"), [])).toBe(785);
   });
+
+  it("expects what this measurement's answers cost, or the compared one's", () => {
+    const entry = (measurement: string, neurons: number): LedgerEntry => ({
+      time: "2026-10-21T08:40:00.000Z",
+      measurement,
+      what: "D-1",
+      request: "D",
+      run: 1,
+      outcome: "counted",
+      spend: {
+        chatCalls: 3,
+        inputTokens: 0,
+        outputTokens: 0,
+        embeddingTokenBound: 0,
+        neurons,
+      },
+    });
+    const ledger = [
+      entry("prompt-v5", 200),
+      entry("prompt-v5", 300),
+      entry("reasoning-high", 700),
+    ];
+
+    const expectedOf = (prefer: (string | undefined)[]) =>
+      expectedNeurons(findRequest("D"), ledger, prefer);
+
+    expect(expectedOf(["reasoning-high", "prompt-v5"])).toBe(700);
+    expect(expectedOf(["support-check", "reasoning-high"])).toBe(700);
+    expect(expectedOf(["support-check", undefined])).toBeCloseTo(400);
+    expect(expectedOf([])).toBeCloseTo(400);
+  });
 });
 
 describe("the lock", () => {
