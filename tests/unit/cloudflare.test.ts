@@ -290,6 +290,45 @@ describe("the Cloudflare chat model", () => {
       tool_calls: [expect.objectContaining({ id: "call-1" })],
     });
   });
+
+  it("sends the search back as Cloudflare's own provider does: reasoning as reasoning, the tool named", async () => {
+    const replies = [
+      chatReply(
+        {
+          ...toolCallMessage("call-1", "searchNotes", {
+            query: "notifications",
+          }),
+          reasoning_content: "We need to search.",
+        },
+        "tool_calls",
+      ),
+      chatReply({ role: "assistant", content: "Henk wants a ping." }, "stop"),
+    ];
+    let call = 0;
+    const { sent, model } = chatModel(() => replies[call++]!());
+
+    const result = streamText({
+      model,
+      prompt: "Who wants a notification for every item someone adds?",
+      tools: {
+        searchNotes: tool({
+          inputSchema: z.object({ query: z.string() }),
+          execute: async () => ({ passages: [] }),
+        }),
+      },
+      stopWhen: isStepCount(2),
+    });
+
+    expect(await result.text).toBe("Henk wants a ping.");
+    const messages = sent[1]?.body.messages as Array<Record<string, unknown>>;
+    expect(messages[1]).toMatchObject({ reasoning: "We need to search." });
+    expect(messages[1]).not.toHaveProperty("reasoning_content");
+    expect(messages[2]).toMatchObject({
+      role: "tool",
+      tool_call_id: "call-1",
+      name: "searchNotes",
+    });
+  });
 });
 
 /** A whole reply that only calls one tool. */
