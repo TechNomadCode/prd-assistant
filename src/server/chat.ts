@@ -65,8 +65,8 @@ import {
 
 /**
  * At most this many searches for one answer. After them the model is offered
- * no search, so it has to save or write: on staging, gpt-oss searched five
- * times for one section and never replied.
+ * no search, so it has to save or write: without a limit, gpt-oss kept
+ * searching and never replied (staging, 2026-10-17).
  */
 const MAX_SEARCHES = 3;
 
@@ -109,7 +109,7 @@ export const MAX_MESSAGES = 200;
  * model: every part except our two tools' outputs, which reach it cut down
  * (`forEarlierAnswers`, `checkReport`). Each model call resends them, so this
  * bounds what a forged conversation costs; a full PRD of nine sections is
- * about 40,000 (estimated 2026-10-22 from the baseline's first section).
+ * about 40,000 (estimated 2026-10-22 from a recorded first section).
  */
 export const MAX_CONVERSATION_LENGTH = 100_000;
 
@@ -247,14 +247,14 @@ function createTools(
   visitorMessages: VisitorMessage[],
 ) {
   // How many searches this answer had left after each one, by tool call, so
-  // each result can say so: in the baseline (2026-10-20) gpt-oss lost count,
-  // asked for a fourth search after the third and ended without words.
+  // each result can say so: a model that loses count asks for a search it no
+  // longer has, and can end without words.
   let searches = 0;
   const searchesLeft = new Map<string, number>();
   return {
     searchNotes: tool({
       description:
-        "Searches the six interviews. Returns up to five passages about the query, most relevant first: each is the researcher's question and one interviewee's whole answer. When no passage is about the query, it returns none and says so.",
+        "Searches the six interviews. Returns the five passages closest to the query, most relevant first, even when none is about it: each is the researcher's question and one interviewee's whole answer.",
       inputSchema: searchNotesInput,
       outputSchema: searchNotesOutput,
       async execute({ query }, { toolCallId }) {
