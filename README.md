@@ -3,7 +3,7 @@
 **An AI assistant that turns user interviews into a product requirements document. Every claim in it comes with the interviewee's own words, and the app's code, not the AI, checks that those words were really said.**
 
 <p align="center">
-  <a href="docs/media/prd-assistant-demo.mp4"><img src="docs/media/prd-assistant-demo.gif" width="960" alt="The chat drafts a section: searches fold into one line, the quote check confirms 6 of 6 quotes, the PRD fills in, and a click on a source opens the quote highlighted in the interviewee's answer."></a>
+  <a href="https://github.com/user-attachments/assets/e7412df8-9fca-4f2a-b3f0-89b2c3291125"><img src="docs/media/prd-assistant-demo.gif" width="960" alt="The chat drafts a section: searches fold into one line, the quote check confirms 6 of 6 quotes, the PRD fills in, and a click on a source opens the quote highlighted in the interviewee's answer."></a>
   <br>
   <sub>An illustration of the interface, with sample content. Click it for the full-quality video.</sub>
 </p>
