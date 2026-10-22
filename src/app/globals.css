@@ -91,7 +91,10 @@ body {
  * The lines a folded line opens to slide open and shut in about 0.35s, like
  * opencode's spring without bounce: the one grid row grows from 0fr to 1fr.
  * Closed, they're hidden once the slide has ended. With reduced motion they
- * show and hide at once.
+ * show and hide at once. The box that clips them is positioned, so it clips
+ * their screen readers' labels too (`sr-only` is absolute): placed against
+ * the chat's pane instead, they stretched it below its last line while the
+ * folded line was the answer's last.
  */
 .fold {
   display: grid;
@@ -105,6 +108,7 @@ body {
 }
 
 .fold > * {
+  position: relative;
   min-height: 0;
   overflow: hidden;
 }
