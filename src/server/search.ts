@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { PassageMatch } from "@/lib/transcripts";
 import type { Embedder } from "./ai/embedder.ts";
 import { EMBEDDING_DIMENSIONS } from "./ai/models.ts";
-import { createEmbedder, createReranker } from "./ai/providers.ts";
+import { createEmbedder } from "./ai/providers.ts";
 import type { Reranker } from "./ai/reranker.ts";
 import { embeddingInput } from "./notes/load-notes.ts";
 import { createReadClient } from "./db/clients.ts";
@@ -13,10 +13,11 @@ import { providerSettings, readSearchEnv } from "./env.ts";
 // The interview search: a question in, the passages about it out, each with
 // the interviewee's name and the researcher's question. It embeds the question
 // with the passages' model (fake locally and in CI, Cloudflare Workers AI on
-// staging and production), the database ranks the passages by closeness, then
-// a reranker reads the question with each of the closest and keeps those
-// relevant enough, best first: retrieve, rerank, threshold, as Cloudflare's AI
-// Search and Haystack's rankers do (`src/server/AGENTS.md`, *The reranker*).
+// staging and production), and the database ranks the passages by closeness.
+// A reranker can then read the question with each of the closest and keep
+// those relevant enough, best first, as Cloudflare's AI Search and Haystack's
+// rankers do; it's off, since bge-reranker-base neither separated nor ordered
+// our passages better (`src/server/AGENTS.md`, *The reranker*).
 
 /** Longer input is usually a whole message, which blurs what to look for. */
 export const MAX_QUERY_LENGTH = 500;
@@ -126,8 +127,9 @@ function checked(embedding: number[] | undefined): number[] {
 }
 
 /**
- * The real dependencies, from the settings: the read key, the embedder and
- * the reranker.
+ * The real dependencies, from the settings: the read key and the embedder.
+ * No reranker (`src/server/AGENTS.md`, *The reranker*): `createReranker` in
+ * `ai/providers.ts` gives one back here.
  */
 function connect(): SearchDependencies {
   const env = readSearchEnv();
@@ -137,6 +139,5 @@ function connect(): SearchDependencies {
     embedder: createEmbedder(settings),
     findPassages: (embedding, count) =>
       findClosestPassages(client, embedding, count),
-    reranker: createReranker(settings),
   };
 }

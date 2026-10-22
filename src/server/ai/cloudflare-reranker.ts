@@ -11,27 +11,18 @@ import type { Reranker } from "./reranker.ts";
 // schema-input.json and schema-output.json, read 2026-10-22).
 
 /**
- * The lowest relevance, after the sigmoid, that a passage may have and still
- * reach the model. To be set from our own question and passage pairs, as
- * Cohere advises (`src/server/AGENTS.md`, *The reranker*); until that
- * calibration runs, the sigmoid's midpoint, a logit of 0.
+ * The lowest relevance a passage may have and still reach the model: 0, so
+ * none is dropped. The calibration of 2026-10-22 found no value that keeps our
+ * relevant pairs and drops the unrelated ones (`src/server/AGENTS.md`, *The
+ * reranker*, which is off for that reason).
  */
-export const RERANK_THRESHOLD = 0.5;
+export const RERANK_THRESHOLD = 0;
 
 const rerankReply = z.object({
   result: z.object({
     response: z.array(z.object({ id: z.number().int(), score: z.number() })),
   }),
 });
-
-/**
- * The model's score is a logit, which Cloudflare's model page says "can be
- * mapped to a float value in [0,1] by sigmoid function"; Haystack's
- * cross-encoder rankers do the same before their threshold (`scale_score`).
- */
-export function sigmoid(score: number): number {
-  return 1 / (1 + Math.exp(-score));
-}
 
 export function createCloudflareReranker({
   accountId,
@@ -69,8 +60,11 @@ export function createCloudflareReranker({
       const relevance = new Array<number | undefined>(texts.length).fill(
         undefined,
       );
+      // Already between 0 and 1: the model's logit after the sigmoid that its
+      // page says it "can be mapped" with (all 2,310 pairs of the calibration
+      // of 2026-10-22 matched a local copy's sigmoid to four places).
       for (const { id, score } of reply.result.response) {
-        if (id >= 0 && id < texts.length) relevance[id] = sigmoid(score);
+        if (id >= 0 && id < texts.length) relevance[id] = score;
       }
       const missing = relevance.filter((value) => value === undefined).length;
       if (missing > 0) {

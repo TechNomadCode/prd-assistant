@@ -7,7 +7,6 @@ import { createCloudflareEmbedder } from "../ai/cloudflare-embedder.ts";
 import { createCloudflareReranker } from "../ai/cloudflare-reranker.ts";
 import { createFakeChatModel } from "../ai/fake-chat-model.ts";
 import { createFakeEmbedder } from "../ai/fake-embedder.ts";
-import { createFakeReranker } from "../ai/fake-reranker.ts";
 import { embeddingTokenBound } from "../ai/embedding-input.ts";
 import { EMBEDDING_MODEL, RERANK_MODEL } from "../ai/models.ts";
 import { RERANK_CANDIDATES } from "../search.ts";
@@ -168,6 +167,8 @@ export function readToken(text: string): {
 }
 
 function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
+  // No reranker, as in the app's search (`search.ts`, `src/server/AGENTS.md`,
+  // *The reranker*).
   const common = {
     notesDir: join(process.cwd(), "notes"),
     repoRoot: process.cwd(),
@@ -180,7 +181,6 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
       chatModel: () =>
         createFakeChatModel({ chunkDelayInMs: 0, failedMessages: new Set() }),
       embedder: () => createFakeEmbedder(),
-      reranker: () => createFakeReranker(),
       search: { kind: "fake", model: createFakeEmbedder().model },
       secrets: {},
       // No neurons to protect, so no pause between requests either.
@@ -202,7 +202,6 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
       root: join(process.cwd(), MEASUREMENTS_DIR),
       chatModel: unavailable,
       embedder: unavailable,
-      reranker: unavailable,
       search: { kind: "real", model: EMBEDDING_MODEL },
       secrets: {},
     };
@@ -213,7 +212,6 @@ function environment(fake: boolean, planOnly: boolean): BatchEnvironment {
     root: join(process.cwd(), MEASUREMENTS_DIR),
     chatModel: (fetch) => createCloudflareChatModel({ ...settings, fetch }),
     embedder: (fetch) => createCloudflareEmbedder({ ...settings, fetch }),
-    reranker: (fetch) => createCloudflareReranker({ ...settings, fetch }),
     search: { kind: "real", model: EMBEDDING_MODEL },
     secrets: { token: settings.apiToken, accountId: settings.accountId },
   };

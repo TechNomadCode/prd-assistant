@@ -790,10 +790,12 @@ describe("the Cloudflare reranker", () => {
   }
 
   it("sends the question and every text to the pinned model, and reads each score by its index", async () => {
+    // Cloudflare's scores for "dark mode" against henk-3 and daan-6 in the
+    // calibration of 2026-10-22: already between 0 and 1.
     const { sent, fetch } = recordingFetch(
       rerankReply([
-        { id: 1, score: 2 },
-        { id: 0, score: -1 },
+        { id: 1, score: 0.000037782232538990435 },
+        { id: 0, score: 0.0007440208573828555 },
       ]),
     );
 
@@ -815,9 +817,8 @@ describe("the Cloudflare reranker", () => {
       ],
       top_k: 2,
     });
-    // The model's logits, mapped to 0 to 1 by the sigmoid.
-    expect(relevance[0]).toBeCloseTo(1 / (1 + Math.E));
-    expect(relevance[1]).toBeCloseTo(1 / (1 + Math.exp(-2)));
+    // As sent, never mapped again.
+    expect(relevance).toEqual([0.0007440208573828555, 0.000037782232538990435]);
   });
 
   it("sends nothing for no texts", async () => {
