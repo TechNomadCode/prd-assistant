@@ -45,6 +45,14 @@
   --duration-stagger: 0.2s; /* 6: between things arriving one by one */
   /* 34: a glow that rises in 6 and fades in 26 */
   --duration-highlight: 1.13s;
+  /* 9: a word arriving; 1.6 from one word to the next, and at most 6 from
+     the first word of a paragraph, list or table to its last, so it
+     settles within about half a second */
+  --duration-word: 0.3s;
+  --duration-word-gap: 0.053s;
+  --duration-word-spread: 0.2s;
+  --duration-fold: 0.53s; /* 16: searches drawing together into one line */
+  --duration-sweep: 0.8s; /* 24: a highlight sweeping across its words */
 }
 
 /*
@@ -193,22 +201,102 @@ body {
 }
 
 /*
- * A word of the assistant's text fading in as it arrives (opencode's
- * `markdown-word-enter`, `packages/session-ui/src/components/markdown.css` at
- * 50c5fce). With reduced motion the words show at once.
+ * The assistant's words arriving one after another, as the video's do: each
+ * rises 4px (half the video's 8) as it sharpens from a slight blur and fades
+ * in, all on the ease-out. In each paragraph, list or table an update
+ * brings, the words follow each other 1.6 frames apart, closer when there
+ * are many, so its last starts at most 6 frames after its first and it
+ * settles within about half a second (`--word`, a word's place among them,
+ * and `--words`, how many: `chat/rich-text.tsx`). An inline word can't take a
+ * transform, so it rises by its relative offset, which moves no other word;
+ * the offset settles on 0, as from a length to `auto` it would only jump. A
+ * list item that comes with them has its bullet or number fade in with its
+ * first word (`.marker-arrive`). With reduced motion the words show at once.
  */
 @media (prefers-reduced-motion: no-preference) {
-  .word-enter {
-    animation: word-enter 180ms ease-out both;
+  .word-arrive,
+  .marker-arrive {
+    --word-delay: calc(
+      var(--word) *
+        min(
+          var(--duration-word-gap),
+          var(--duration-word-spread) / max(var(--words) - 1, 1)
+        )
+    );
+  }
+
+  .word-arrive {
+    position: relative;
+    top: 0;
+    animation: word-arrive var(--duration-word) var(--ease-out)
+      var(--word-delay) backwards;
+  }
+
+  .marker-arrive::marker {
+    animation: marker-arrive var(--duration-word) var(--ease-out)
+      var(--word-delay) backwards;
   }
 }
 
-@keyframes word-enter {
+@keyframes word-arrive {
   from {
+    top: 0.25rem;
     opacity: 0;
+    filter: blur(2.5px);
+  }
+}
+
+@keyframes marker-arrive {
+  from {
+    color: transparent;
+  }
+}
+
+/*
+ * Searches drawing together as a second one joins them (`chat/search-run.tsx`),
+ * as in the video: the plain lines move up into the first one's place as they
+ * blur out and fade, while their box closes to the folded line's height
+ * (`--fold-y`, `--fold-from` and `--fold-to`, measured); halfway, "Used 2
+ * searches" settles in where they were, growing slightly from its left. With
+ * reduced motion the folded line simply takes their place.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .fold-closes {
+    animation: fold-closes var(--duration-fold) var(--ease-in-out) forwards;
+  }
+
+  .fold-leaves {
+    animation: fold-leaves var(--duration-fold) var(--ease-in-out) forwards;
+  }
+
+  .fold-settles {
+    transform-origin: 0 50%;
+    animation: fold-settles var(--duration-arrive) var(--ease-out)
+      calc(var(--duration-fold) / 2) backwards;
+  }
+}
+
+@keyframes fold-closes {
+  from {
+    height: var(--fold-from);
   }
   to {
-    opacity: 1;
+    height: var(--fold-to);
+  }
+}
+
+@keyframes fold-leaves {
+  to {
+    transform: translateY(var(--fold-y));
+    opacity: 0;
+    filter: blur(2px);
+  }
+}
+
+@keyframes fold-settles {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
   }
 }
 
@@ -554,5 +642,86 @@ body {
         top span-left,
         top span-right;
     }
+  }
+}
+
+/* The quoted words in the pop-over, highlighted: a gradient, so it can sweep. */
+.quote-mark {
+  background: linear-gradient(rgb(255 255 255 / 0.25), rgb(255 255 255 / 0.25))
+    0 0 / 100% 100% no-repeat;
+}
+
+/* Closing, it takes no clicks. */
+.source-popover:not(:popover-open) {
+  pointer-events: none;
+}
+
+/*
+ * The pop-over opens from the name that was clicked, as the video's does: it
+ * grows from 92% and fades in on the pop-over's spring, around the point
+ * nearest the name (`--grow-from`, from `prd/source-popover.tsx`), and closes
+ * the same way. Where the browser can't keep it on top as it closes, without
+ * `overlay` (Firefox and Safari, MDN's compatibility data, read 2026-10-22),
+ * it closes at once; without `@starting-style` (before Chrome 117, Firefox
+ * 129 and Safari 17.5) it also opens at once. On a phone the dimming behind
+ * it fades with it. Just after it opens, each time, its quote's highlight
+ * sweeps across the words. With reduced motion it simply shows and hides,
+ * the quote highlighted.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .source-popover {
+    transform-origin: var(--grow-from, 50% 50%);
+    opacity: 0;
+    scale: 0.92;
+    transition-property: opacity, scale;
+    transition-duration: var(--spring-popover-duration);
+    transition-timing-function:
+      var(--spring-popover-fade), var(--spring-popover);
+  }
+
+  .source-popover:popover-open {
+    opacity: 1;
+    scale: 1;
+  }
+
+  @starting-style {
+    .source-popover:popover-open {
+      opacity: 0;
+      scale: 0.92;
+    }
+  }
+
+  @supports (overlay: auto) {
+    .source-popover {
+      transition-property: opacity, scale, display, overlay;
+      transition-timing-function:
+        var(--spring-popover-fade), var(--spring-popover), linear, linear;
+      transition-behavior: allow-discrete;
+    }
+  }
+
+  .source-popover::backdrop {
+    transition: background-color var(--duration-arrive) var(--ease-in-out);
+  }
+
+  .source-popover:not(:popover-open)::backdrop {
+    background-color: transparent;
+  }
+
+  @starting-style {
+    .source-popover:popover-open::backdrop {
+      background-color: transparent;
+    }
+  }
+
+  .source-popover:popover-open .quote-mark {
+    animation: sweep var(--duration-sweep) var(--ease-in-out)
+      var(--duration-arrive) backwards;
+  }
+}
+
+@keyframes sweep {
+  from {
+    background-size: 0% 100%;
   }
 }

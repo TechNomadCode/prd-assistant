@@ -261,6 +261,13 @@ function AssistantMessage({
   activity?: Activity;
   onSeeSection?: (section: SectionName) => void;
 }) {
+  // How many parts showed before the latest came, so a run of searches that
+  // forms knows which of its lines were showing as plain lines (React's
+  // "storing information from previous renders" pattern).
+  const [counted, setCounted] = useState({ now: parts.length, before: 0 });
+  if (counted.now !== parts.length) {
+    setCounted({ now: parts.length, before: counted.now });
+  }
   if (parts.length === 0 && !stopped) return null;
   const movingStep = typeof activity === "object" ? activity.step : undefined;
   const lastPart = parts.at(-1);
@@ -279,6 +286,10 @@ function AssistantMessage({
             <SearchRun
               key={runKey(laid.run)}
               parts={laid.run}
+              joined={laid.run.slice(
+                0,
+                Math.max(counted.before - laid.first, 0),
+              )}
               stopped={stopped}
               moving={moving}
               arriving={arriving}

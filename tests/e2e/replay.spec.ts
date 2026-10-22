@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { SCENARIOS } from "@/lib/scenarios";
+import { GROCERY_DELIVERY_SUGGESTION } from "@/lib/suggestions";
 import { REPLAYS_FILE, type Replays } from "@/server/ai/replays";
 import { expectNoAccessibilityViolations } from "./accessibility";
+import { arrivals, recordArrivals } from "./motion";
 
 // The replayed real answers (`npm run dev:replay`; src/server/ai/
 // replay-chat-model.ts) on the second server of playwright.config.ts, which
@@ -44,6 +46,50 @@ test("the intro's button replays a real answer with its recorded words", async (
   ).toBeVisible();
   await expect(conversation).not.toContainText("This is the local fake model");
   await expectNoAccessibilityViolations(page);
+});
+
+// A real reply arrives whole, as on staging, and its words still come in one
+// after another (slice 26): each paragraph, list or table's spaced at most
+// 1.6 frames apart, so its last starts within 6 frames (0.2s) and it settles
+// within about half a second.
+test("brings in a reply that arrives whole word by word within about half a second, then shows it plain", async ({
+  page,
+}) => {
+  await recordArrivals(page, ".word-arrive");
+  await page.goto(REPLAY_URL);
+  await page
+    .getByRole("button", { name: "Or ask your own question first" })
+    .click();
+  // Request B, whose every recording ends in a reply of a hundred words or
+  // more; this server gives out whichever is next.
+  await page
+    .getByRole("textbox", { name: "Your message" })
+    .fill(GROCERY_DELIVERY_SUGGESTION);
+  await page.getByRole("button", { name: "Send" }).click();
+
+  const conversation = page.getByRole("list", { name: "Conversation" });
+  await expect(conversation.getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+  await expect(conversation.locator(".word-arrive")).toHaveCount(0);
+
+  // The words of the longest reply, which came in one update.
+  const words = await arrivals(page);
+  const batches = [...new Set(words.map(({ batch }) => batch))].map((batch) =>
+    words.filter((word) => word.batch === batch),
+  );
+  const reply = batches.sort((a, b) => b.length - a.length)[0] ?? [];
+  expect(reply.length).toBeGreaterThan(20);
+  // Each paragraph, list or table spaces its own words, from 0.
+  const delays = reply.map(({ delay }) => Number.parseFloat(delay));
+  expect(delays[0]).toBe(0);
+  for (let word = 1; word < delays.length; word++) {
+    if (delays[word] === 0) continue;
+    const gap = delays[word]! - delays[word - 1]!;
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThanOrEqual(0.0531);
+  }
+  expect(Math.max(...delays)).toBeLessThanOrEqual(0.2001);
+  for (const word of reply) expect(word.duration).toBe("0.3s");
 });
 
 // The scenario tour's steps (slice 24) answer on the same server. Its panel

@@ -30,3 +30,15 @@ export function useReducedMotion(): boolean {
     () => true,
   );
 }
+
+/**
+ * Whether the page may split what it shows into pieces that move and then
+ * wait for them to settle: motion isn't reduced, and the browser lists the
+ * animations it runs (`getAnimations`: Chrome 84, Firefox 75, Safari 13.1,
+ * MDN's compatibility data, read 2026-10-22). jsdom runs none and lists
+ * none, so there the words stay whole and the searches fold at once.
+ */
+export function useMotion(): boolean {
+  const still = useReducedMotion();
+  return !still && typeof Element.prototype.getAnimations === "function";
+}

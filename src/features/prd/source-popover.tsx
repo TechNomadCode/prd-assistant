@@ -4,16 +4,58 @@ import { VISITOR_NAME, type StatementSource } from "@/lib/prd";
 export const SOURCE_POPOVER_ID = "source-popover";
 
 /**
+ * Readies the pop-over for the name just clicked, whose own click then shows
+ * it. Open, or still closing, for another name, it shuts at once, without
+ * its closing transition: the browser keeps an open pop-over by the name that
+ * opened it, so it opens anew by this one. In the next frame, before it's
+ * painted, it's laid out there, and its transform origin moves to the point
+ * nearest the name, so it grows from the name (`--grow-from`,
+ * `.source-popover` in `src/app/globals.css`); offsets leave out the scale it
+ * grows from.
+ */
+export function openFrom(name: HTMLElement) {
+  const popover = document.getElementById(SOURCE_POPOVER_ID);
+  if (!popover) return;
+  if (popover.matches(":popover-open")) {
+    popover.style.transition = "none";
+    popover.hidePopover();
+  }
+  for (const animation of popover.getAnimations?.() ?? []) animation.finish();
+  // Takes in the closed state, so it opens from its starting style.
+  popover.getBoundingClientRect();
+  popover.style.removeProperty("transition");
+  requestAnimationFrame(() => {
+    if (!popover.matches(":popover-open")) return;
+    const from = name.getBoundingClientRect();
+    const x = from.left + from.width / 2 - popover.offsetLeft;
+    const y = from.top + from.height / 2 - popover.offsetTop;
+    popover.style.setProperty(
+      "--grow-from",
+      `${within(x, popover.offsetWidth)}px ${within(y, popover.offsetHeight)}px`,
+    );
+  });
+}
+
+function within(offset: number, size: number): number {
+  return Math.round(Math.min(Math.max(offset, 0), size));
+}
+
+/**
  * The pop-over a source's name opens: each passage it stands for, with the
  * researcher's question above the answer, or the visitor's message, and the
  * quoted words highlighted. For a quote the check couldn't confirm, it says
- * the words aren't there. One pop-over serves every name in the PRD.
+ * the words aren't there. One pop-over serves every name in the PRD. Each
+ * time a name opens it, its passages are new, so their highlights sweep in
+ * again (`.quote-mark`).
  */
 export function SourcePopover({
   source,
+  opened,
   visitorMessages,
 }: {
   source: StatementSource | undefined;
+  /** How many times a name has opened it. */
+  opened: number;
   /** The visitor's own messages, by id, to show a chat quote in place. */
   visitorMessages: ReadonlyMap<string, string>;
 }) {
@@ -26,7 +68,7 @@ export function SourcePopover({
       className="source-popover"
     >
       {source && (
-        <div className="space-y-5">
+        <div key={opened} className="space-y-5">
           <div className="flex items-start justify-between gap-4">
             <h3 id="source-popover-title" className="text-base font-semibold">
               {source.name === VISITOR_NAME
@@ -112,7 +154,7 @@ function Quoted({
       {found ? (
         <>
           {found.before}
-          <mark className="rounded-sm bg-foreground/25 px-0.5 text-foreground">
+          <mark className="quote-mark rounded-sm px-0.5 text-foreground">
             {found.quote}
           </mark>
           {found.after}

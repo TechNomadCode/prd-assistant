@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ChatStatus } from "ai";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Conversation } from "@/features/chat/conversation";
 import type { ThoughtPart } from "@/features/chat/thoughts";
 import type { ChatMessage, SaveSectionPart, SearchNotesPart } from "@/lib/chat";
@@ -64,6 +64,22 @@ function stepLine(text: string | RegExp): HTMLElement {
 
 function show(messages: ChatMessage[], status: ChatStatus = "ready") {
   return render(<Conversation messages={messages} status={status} />);
+}
+
+/**
+ * jsdom runs no animation and lists none (`getAnimations`), so there nothing
+ * moves that has to settle: in the tests of what moves, it lists none running.
+ */
+function listAnimations() {
+  beforeEach(() => {
+    Object.defineProperty(Element.prototype, "getAnimations", {
+      value: () => [],
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
+  });
 }
 
 describe("Conversation", () => {
@@ -241,6 +257,133 @@ describe("Conversation", () => {
       const line = screen.getByRole("button", { name: "Used 3 searches" });
       expect(line).toHaveAttribute("aria-expanded", "true");
       expect(stepLine("Search “apps”…")).toBeInTheDocument();
+    });
+  });
+
+  // A second search joining plain lines draws them together into the folded
+  // line (slice 26). jsdom lays nothing out, so every measure is 0: these
+  // check which elements carry the classes, and tests/e2e/chat.spec.ts that
+  // they move.
+  describe("searches drawing together", () => {
+    listAnimations();
+
+    const found = (toolCallId: string, query: string) =>
+      search("output-available", {
+        toolCallId,
+        input: { query },
+        output: { passages: [HENK] },
+      });
+    const running = (toolCallId: string, query: string) =>
+      search("input-available", { toolCallId, input: { query } });
+
+    /** Shows the question, then the answer's parts as they come. */
+    function arrive(...steps: ChatMessage["parts"][]) {
+      const shown = show([question], "submitted");
+      for (const parts of steps) {
+        shown.rerender(
+          <Conversation
+            messages={[question, answer(...parts)]}
+            status="streaming"
+          />,
+        );
+      }
+      return shown;
+    }
+
+    const FIRST = [thought(2_000), found("call-1", "pings")];
+    const JOINED = [...FIRST, thought(1_000), running("call-2", "lists")];
+
+    it("draws the plain lines that showed into the folded line as a second search joins them", () => {
+      const { container } = arrive(FIRST, JOINED);
+
+      const line = screen.getByRole("button", { name: "Used 2 searches" });
+      expect(line).toHaveClass("fold-settles", "absolute");
+      const leaving = container.querySelector(".fold-closes")!;
+      expect(leaving).toHaveAttribute("aria-hidden", "true");
+      // Only the lines that showed: the second search came with its time.
+      expect([...leaving.children].map((child) => child.textContent)).toEqual([
+        "Thought 2s",
+        "Search “pings” · passages from Henk",
+      ]);
+      for (const child of leaving.children) {
+        expect(child).toHaveClass("fold-leaves");
+      }
+      expect(
+        document.getElementById(line.getAttribute("aria-controls") ?? ""),
+      ).toHaveAttribute("inert");
+
+      fireEvent.animationEnd(leaving, { animationName: "fold-closes" });
+
+      expect(container.querySelector(".fold-closes")).toBeNull();
+      expect(line).not.toHaveClass("absolute");
+      expect(
+        stepLine("Search “pings” · passages from Henk"),
+      ).toBeInTheDocument();
+    });
+
+    it("draws them together once, not as a third search joins", () => {
+      const { container, rerender } = arrive(FIRST, JOINED);
+      fireEvent.animationEnd(container.querySelector(".fold-closes")!, {
+        animationName: "fold-closes",
+      });
+
+      rerender(
+        <Conversation
+          messages={[
+            question,
+            answer(...JOINED, thought(500), running("call-3", "apps")),
+          ]}
+          status="streaming"
+        />,
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Used 3 searches" }),
+      ).not.toHaveClass("absolute");
+      expect(container.querySelector(".fold-closes")).toBeNull();
+    });
+
+    it("folds at once searches that arrive together, as nothing showed before them", () => {
+      const { container } = arrive([
+        found("call-1", "pings"),
+        running("call-2", "lists"),
+      ]);
+
+      expect(
+        screen.getByRole("button", { name: "Used 2 searches" }),
+      ).not.toHaveClass("fold-settles");
+      expect(container.querySelector(".fold-closes")).toBeNull();
+    });
+
+    it("keeps still the searches of an answer the chat showed with", () => {
+      const { container } = show([
+        question,
+        answer(found("call-1", "pings"), found("call-2", "lists")),
+      ]);
+
+      expect(
+        screen.getByRole("button", { name: "Used 2 searches" }),
+      ).not.toHaveClass("fold-settles");
+      expect(container.querySelector(".fold-closes")).toBeNull();
+    });
+
+    it("folds at once under reduced motion", () => {
+      vi.stubGlobal(
+        "matchMedia",
+        (query: string) =>
+          ({
+            matches: query === "(prefers-reduced-motion: reduce)",
+            addEventListener() {},
+            removeEventListener() {},
+          }) as unknown as MediaQueryList,
+      );
+      const { container } = arrive(FIRST, JOINED);
+      vi.unstubAllGlobals();
+
+      expect(
+        screen.getByRole("button", { name: "Used 2 searches" }),
+      ).not.toHaveClass("fold-settles");
+      expect(container.querySelector(".fold-closes")).toBeNull();
     });
   });
 
@@ -712,6 +855,8 @@ describe("Conversation", () => {
   });
 
   describe("new text", () => {
+    listAnimations();
+
     const followUp: ChatMessage = {
       id: "visitor-2",
       role: "user",
@@ -724,12 +869,12 @@ describe("Conversation", () => {
     });
 
     function fading(container: HTMLElement): string[] {
-      return [...container.querySelectorAll(".word-enter")].map(
+      return [...container.querySelectorAll(".word-arrive")].map(
         (span) => span.textContent ?? "",
       );
     }
 
-    it("fades in only an answer that arrives after the chat shows, even when it ends as it arrives", () => {
+    it("brings in only an answer that arrives after the chat shows, word by word, even when it ends as it arrives", () => {
       const shownBefore = [question, answer({ type: "text", text: "Henk." })];
       const { container, rerender } = show(shownBefore);
       expect(fading(container)).toEqual([]);
@@ -740,10 +885,10 @@ describe("Conversation", () => {
           status="ready"
         />,
       );
-      expect(fading(container)).toEqual(["Daan doesn't."]);
+      expect(fading(container)).toEqual(["Daan", "doesn't."]);
     });
 
-    it("fades in an answer's words as they come, and leaves them once it's finished", () => {
+    it("brings in an answer's words as they come, and leaves them as they are once it's finished", () => {
       const { container, rerender } = show([question], "submitted");
       rerender(
         <Conversation
@@ -757,16 +902,16 @@ describe("Conversation", () => {
           status="streaming"
         />,
       );
-      expect(fading(container)).toEqual(["Daan", " doesn't."]);
+      expect(fading(container)).toEqual(["Daan", "doesn't."]);
 
-      const before = [...container.querySelectorAll(".word-enter")];
+      const before = [...container.querySelectorAll(".word-arrive")];
       rerender(
         <Conversation
           messages={[question, reply("Daan doesn't.", "done")]}
           status="ready"
         />,
       );
-      expect([...container.querySelectorAll(".word-enter")]).toEqual(before);
+      expect([...container.querySelectorAll(".word-arrive")]).toEqual(before);
     });
 
     it("shows a conversation brought back after a reload at once", () => {

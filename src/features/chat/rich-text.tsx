@@ -1,6 +1,15 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type AnimationEvent,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import {
   parseMarkdown,
   type Block,
@@ -9,7 +18,7 @@ import {
   type Table,
 } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
-import { useReducedMotion } from "./use-reduced-motion";
+import { useMotion } from "./use-reduced-motion";
 
 /**
  * The assistant's text with its formatting: bold, inline code, lists and
@@ -20,13 +29,15 @@ import { useReducedMotion } from "./use-reduced-motion";
  * top-aligned with even padding; one wider than the chat scrolls sideways in
  * its own box.
  *
- * Text still `arriving` fades in as it comes (opencode's
- * `markdown-word-enter`; `.word-enter` in `src/app/globals.css`): what it
- * mounts with, which is all of a reply that arrives in one piece, and then
- * only the words each update adds, each update's words as one. Text that was
- * there before, such as a finished answer or one brought back after a
- * reload, and everything under reduced motion, shows at once. A table that
- * arrives rises in as a block (`.arrive`) as it takes shape.
+ * Text still `arriving` comes in word by word, as in the README's video
+ * (`.word-arrive` in `src/app/globals.css`): what it mounts with, which is all
+ * of a reply that arrives in one piece, and then only the words each update
+ * adds, the newest update's one after another. Once the last of them has
+ * arrived, the text is plain again, one text node per run, as tests and
+ * screen readers read it. Text that was there before, such as a finished
+ * answer or one brought back after a reload, and everything under reduced
+ * motion, shows at once. A table that arrives rises in as a block (`.arrive`)
+ * as it takes shape.
  */
 export function RichText({
   text,
@@ -39,25 +50,68 @@ export function RichText({
   className?: string;
 }) {
   const blocks = parseMarkdown(text);
-  const length = shownLength(blocks);
-  // Where each update's words begin, counted in shown characters (React's
-  // "storing information from previous renders" pattern).
-  const [shown, setShown] = useState({ text, length, starts: [0] });
+  const characters = shownText(blocks);
+  const length = characters.length;
+  // Where each update's words begin, counted in shown characters, and how
+  // far the text is plain again (React's "storing information from previous
+  // renders" pattern).
+  const [shown, setShown] = useState({ text, length, starts: [0], settled: 0 });
   if (shown.text !== text) {
     const grew = length > shown.length && shown.starts.at(-1)! < shown.length;
+    // An update without a word, such as a space, brings nothing in: once
+    // everything before it has arrived, it's plain at once.
+    const plain =
+      grew &&
+      shown.settled >= shown.length &&
+      !/\S/.test(characters.slice(shown.length));
     setShown({
       text,
       length,
-      starts: grew ? [...shown.starts, shown.length] : shown.starts,
+      starts: grew && !plain ? [...shown.starts, shown.length] : shown.starts,
+      settled: plain ? length : Math.min(shown.settled, length),
     });
   }
-  const still = useReducedMotion();
+  const moves = useMotion();
   const words: Words | undefined =
-    arriving && !still ? { starts: shown.starts, at: 0 } : undefined;
+    arriving && moves
+      ? {
+          starts: shown.starts,
+          settled: shown.settled,
+          newest: Math.max(shown.starts.at(-1)!, shown.settled),
+          at: 0,
+          index: 0,
+          count: 0,
+        }
+      : undefined;
+
+  // Once no word is still on its way, the text is plain again: looked at
+  // once a frame, however many words ended in it, as a long reply's hundreds
+  // end within a few frames.
+  const looking = useRef(false);
+  function settle(event: AnimationEvent<HTMLDivElement>) {
+    if (event.animationName !== "word-arrive" || looking.current) return;
+    looking.current = true;
+    const box = event.currentTarget;
+    requestAnimationFrame(() => {
+      looking.current = false;
+      const onTheirWay = box
+        .getAnimations({ subtree: true })
+        .some(
+          (animation) =>
+            (animation as CSSAnimation).animationName === "word-arrive" &&
+            animation.playState !== "finished",
+        );
+      if (!onTheirWay) setShown((now) => ({ ...now, settled: now.length }));
+    });
+  }
 
   return (
-    <div className={cn("space-y-3 leading-relaxed", className)}>
+    <div
+      className={cn("space-y-3 leading-relaxed", className)}
+      onAnimationEnd={words && settle}
+    >
       {blocks.map((block, index) => {
+        beginBlock(block, words);
         if (block.type === "paragraph") {
           return (
             <p key={index}>
@@ -86,9 +140,15 @@ export function RichText({
               block.ordered ? "list-decimal" : "list-disc",
             )}
           >
-            {block.items.map((item, number) => (
-              <li key={number}>{runs(item, words)}</li>
-            ))}
+            {block.items.map((item, number) => {
+              // Read before its words are laid out, which counts them.
+              const marker = markerOf(words);
+              return (
+                <ListItem key={number} marker={marker}>
+                  {runs(item, words)}
+                </ListItem>
+              );
+            })}
           </List>
         );
       })}
@@ -97,11 +157,70 @@ export function RichText({
 }
 
 /**
- * The words being laid out, while they fade in: `starts` holds where each
- * update's words begin, the newest last, and `at` counts the characters laid
- * out so far, in the order they're rendered. Absent when nothing fades.
+ * The words being laid out while they arrive: `starts` holds where each
+ * update's words begin, the newest last, the text before `settled` is plain
+ * again, and the newest update's words still on their way begin at
+ * `newest`; `at` counts the characters laid out so far, in the order they're
+ * rendered, and `index` the newest update's words laid out so far in the
+ * paragraph, list or table being laid out, of `count`. Absent when nothing
+ * moves.
  */
-type Words = { starts: number[]; at: number };
+type Words = {
+  starts: number[];
+  settled: number;
+  newest: number;
+  at: number;
+  index: number;
+  count: number;
+};
+
+/**
+ * Each paragraph, list or table spaces its own words: they all begin at once,
+ * so what shows of a long reply, its end, needn't wait for the rest.
+ */
+function beginBlock(block: Block, words: Words | undefined) {
+  if (!words) return;
+  words.index = 0;
+  words.count = wordsIn(block, words.at, words.newest);
+}
+
+/**
+ * Where a list item's bullet or number arrives: with its first word, when
+ * the item comes with the newest update.
+ */
+type Marker = { word: number; of: number };
+
+function markerOf(words: Words | undefined): Marker | undefined {
+  return words && words.at >= words.newest
+    ? { word: words.index, of: words.count }
+    : undefined;
+}
+
+/**
+ * A list item whose bullet or number, when it comes with the newest update,
+ * fades in with its first word (`.marker-arrive`), so it doesn't show before
+ * its words. Kept from its mount, as a word's place is.
+ */
+function ListItem({
+  marker,
+  children,
+}: {
+  marker: Marker | undefined;
+  children: ReactNode;
+}) {
+  const [arrival] = useState(marker);
+  return (
+    <li
+      className={arrival && "marker-arrive"}
+      style={
+        arrival &&
+        ({ "--word": arrival.word, "--words": arrival.of } as CSSProperties)
+      }
+    >
+      {children}
+    </li>
+  );
+}
 
 /**
  * The text's runs in the order they're rendered: a table's header's cells,
@@ -118,13 +237,48 @@ function* runsOf(blocks: Block[]): Generator<Inline[]> {
   }
 }
 
-/** How many characters the text shows; a line break counts as one. */
-function shownLength(blocks: Block[]): number {
-  let length = 0;
+/** The characters the text shows, in the order they're rendered; a line break counts as one. */
+function shownText(blocks: Block[]): string {
+  let shown = "";
   for (const line of runsOf(blocks))
-    for (const run of line)
-      length += run.type === "break" ? 1 : run.text.length;
-  return length;
+    for (const run of line) shown += run.type === "break" ? "\n" : run.text;
+  return shown;
+}
+
+/** A text's words and the spaces between them, in order. */
+function tokens(text: string): string[] {
+  return text.split(/(\s+)/).filter((token) => token !== "");
+}
+
+function isSpace(token: string): boolean {
+  return /^\s/.test(token);
+}
+
+/**
+ * How many words, and pieces of inline code, a paragraph, list or table that
+ * begins at the offset `at` shows from the offset `from` on, counted as
+ * `wordsOf` and `runs` lay them out: a word cut by `from` counts once, after
+ * it.
+ */
+function wordsIn(block: Block, at: number, from: number): number {
+  let count = 0;
+  for (const line of runsOf([block]))
+    for (const run of line) {
+      if (run.type === "break") {
+        at += 1;
+        continue;
+      }
+      const end = at + run.text.length;
+      if (run.type === "code") {
+        if (at >= from) count += 1;
+      } else if (end > from) {
+        count += tokens(run.text.slice(Math.max(from - at, 0))).filter(
+          (token) => !isSpace(token),
+        ).length;
+      }
+      at = end;
+    }
+  return count;
 }
 
 /**
@@ -250,12 +404,17 @@ function runs(line: Inline[], words: Words | undefined) {
           </code>
         );
         if (!words) return <Fragment key={index}>{code}</Fragment>;
-        // Inline code fades in as one, as in opencode, with the update it
-        // began in.
-        const update = updateAt(words.starts, words.at);
+        const start = words.at;
         words.at += run.text.length;
+        if (start < words.settled)
+          return <Fragment key={index}>{code}</Fragment>;
+        // Inline code arrives as one word, with the update it began in.
+        const newest =
+          updateAt(words.starts, start) === words.starts.length - 1;
+        const first = words.index;
+        if (newest) words.index += 1;
         return (
-          <Arrival key={index} enter={update === words.starts.length - 1}>
+          <Arrival key={index} enter={newest} first={first} of={words.count}>
             {code}
           </Arrival>
         );
@@ -268,29 +427,38 @@ function runs(line: Inline[], words: Words | undefined) {
 }
 
 /**
- * The text as it is, or, while it fades in, a span for the words of each
- * update it holds.
+ * The text as it is, or, while its words arrive, what's plain again, then
+ * each update's words, the newest update's one after another.
  */
 function wordsOf(text: string, words: Words | undefined): ReactNode {
   if (!words) return text;
-  const { starts } = words;
+  const { starts, settled } = words;
   const from = words.at;
   const to = from + text.length;
   words.at = to;
+  if (to <= settled) return text;
   const pieces: ReactNode[] = [];
+  if (settled > from)
+    pieces.push(
+      <Fragment key="settled">{text.slice(0, settled - from)}</Fragment>,
+    );
   for (
-    let update = updateAt(starts, from);
+    let update = updateAt(starts, Math.max(from, settled));
     update < starts.length && starts[update]! < to;
     update++
   ) {
-    const begin = Math.max(starts[update]!, from) - from;
+    const begin = Math.max(starts[update]!, from, settled) - from;
     const end = Math.min(starts[update + 1] ?? to, to) - from;
-    if (end > begin)
-      pieces.push(
-        <Arrival key={update} enter={update === starts.length - 1}>
-          {text.slice(begin, end)}
-        </Arrival>,
-      );
+    if (end <= begin) continue;
+    const piece = text.slice(begin, end);
+    const newest = update === starts.length - 1;
+    const first = words.index;
+    if (newest) words.index += tokens(piece).filter((t) => !isSpace(t)).length;
+    pieces.push(
+      <Arrival key={update} enter={newest} first={first} of={words.count}>
+        {piece}
+      </Arrival>,
+    );
   }
   return pieces;
 }
@@ -301,14 +469,73 @@ function updateAt(starts: number[], offset: number): number {
 }
 
 /**
- * Words, or a piece of inline code, that fade in when they're the newest. It
- * keeps what it was given when it mounted, so the next update doesn't cut its
- * fade short, and words shown before never fade again, even when a change in
- * the text's form, such as a table taking shape, mounts them anew.
+ * At most this many pieces of a paragraph, list or table arrive one after
+ * another: their 0.2s holds about twelve frames, so more would start in the
+ * same frames anyway. Past it, a few words arrive together, which keeps a
+ * long reply's render light.
  */
-function Arrival({ enter, children }: { enter: boolean; children: ReactNode }) {
-  const [entering] = useState(enter);
-  return (
-    <span className={entering ? "word-enter" : undefined}>{children}</span>
+const MOST_PIECES = 16;
+
+/**
+ * The words of one update in one run, or a piece of inline code, which
+ * arrive when they're the newest update's: each word a span in its place
+ * among them (`--word`, from `first`), of how many (`--words`), the spaces
+ * between them plain; in a long paragraph, list or table a few words share a
+ * span, which begins at a place that's a multiple of how many (`together`).
+ * It keeps what it was given when it mounted, so the next update doesn't cut
+ * an arrival short or move it, and words shown before never arrive again,
+ * even when a change in the text's form, such as a table taking shape, mounts
+ * them anew.
+ */
+function Arrival({
+  enter,
+  first,
+  of,
+  children,
+}: {
+  enter: boolean;
+  first: number;
+  of: number;
+  children: string | ReactElement;
+}) {
+  const [place] = useState(enter ? { first, of } : undefined);
+  if (!place) return children;
+  const piece = (index: number, content: ReactNode, key?: number) => (
+    <span
+      key={key}
+      className="word-arrive"
+      style={{ "--word": index, "--words": place.of } as CSSProperties}
+    >
+      {content}
+    </span>
   );
+  if (typeof children !== "string") return piece(place.first, children);
+  const together = Math.max(Math.ceil(place.of / MOST_PIECES), 1);
+  const pieces: ReactNode[] = [];
+  // The span being filled: its first word's place, where it starts in the
+  // text, and its words so far; and the spaces after it, until the next word
+  // says whether they're inside it.
+  let open: { index: number; at: number; text: string } | undefined;
+  let space = "";
+  let index = place.first;
+  let at = 0;
+  for (const token of tokens(children)) {
+    if (isSpace(token)) {
+      space += token;
+    } else if (open && index % together !== 0) {
+      open.text += space + token;
+      space = "";
+      index += 1;
+    } else {
+      if (open) pieces.push(piece(open.index, open.text, open.at));
+      if (space) pieces.push(space);
+      open = { index, at, text: token };
+      space = "";
+      index += 1;
+    }
+    at += token.length;
+  }
+  if (open) pieces.push(piece(open.index, open.text, open.at));
+  if (space) pieces.push(space);
+  return pieces;
 }
