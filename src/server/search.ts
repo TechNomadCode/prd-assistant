@@ -29,11 +29,13 @@ export const MAX_QUERY_LENGTH = 500;
 export const SEARCH_RESULT_COUNT = 5;
 
 /**
- * How many of the closest passages the reranker reads: about half of the 42,
- * for under a neuron a search. Retrieving more than are returned is the
- * pattern Anthropic's contextual retrieval and Cloudflare's AI Search follow.
+ * How many of the closest passages the reranker reads: more than the 42 there
+ * are, so it reads every one, for about 1.3 neurons a search, and the
+ * embedder's ranking no longer decides which passages it sees. Retrieving more
+ * than are returned is the pattern Anthropic's contextual retrieval and
+ * Cloudflare's AI Search follow.
  */
-export const RERANK_CANDIDATES = 20;
+export const RERANK_CANDIDATES = 50;
 
 export const searchQuerySchema = z
   .string()

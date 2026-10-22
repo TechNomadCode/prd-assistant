@@ -74,7 +74,9 @@ describe("the reranker's calibration", () => {
       reranker,
     });
 
-    expect(pairs).toHaveLength(2 * RERANK_CANDIDATES);
+    expect(pairs).toHaveLength(
+      2 * Math.min(RERANK_CANDIDATES, copy.passages.length),
+    );
     expect(pairs[0]).toEqual({
       query: "notification",
       passage: expect.stringMatching(/^[a-z]+-\d+$/),
