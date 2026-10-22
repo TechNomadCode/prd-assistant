@@ -1,5 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
+import {
+  STORAGE_KEY,
+  STORED_FORMAT,
+} from "@/features/workspace/stored-conversation";
 import { FAKE_FAILURES, FAKE_SEARCH_AGAIN } from "@/server/ai/fake-chat-model";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
@@ -305,6 +309,100 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     await expect(jump).toHaveCount(0);
   });
 
+  test("ends the chat at its last line while an answer ends in folded searches", async ({
+    page,
+  }) => {
+    // The folded lines' labels for screen readers are `absolute`: placed
+    // against the chat's pane instead of the fold that clips them, they
+    // stretched the pane below its last line, and the chat, following its
+    // end, showed blank space under it (found 2026-10-22).
+    const search = (id: string, query: string) => ({
+      type: "tool-searchNotes",
+      toolCallId: id,
+      state: "output-available",
+      input: { query },
+      output: {
+        passages: [
+          {
+            id: 1,
+            slug: "henk",
+            participant: "Henk",
+            position: 4,
+            question: "How would you want to know when Ineke adds something?",
+            answer: "I'd like my phone to ping me every time.",
+            distance: 0.3,
+          },
+        ],
+      },
+    });
+    await page.setViewportSize({ width: 1440, height: 480 });
+    await page.addInitScript(
+      ({ key, kept }) => localStorage.setItem(key, JSON.stringify(kept)),
+      {
+        key: STORAGE_KEY,
+        kept: {
+          format: STORED_FORMAT,
+          messages: [
+            {
+              id: "question",
+              role: "user",
+              parts: [{ type: "text", text: QUESTION }],
+            },
+            {
+              id: "answer",
+              role: "assistant",
+              parts: [
+                { type: "step-start" },
+                {
+                  type: "text",
+                  text: Array.from(
+                    { length: 12 },
+                    () => "Henk wants a ping for every item Ineke adds.",
+                  ).join(" "),
+                  state: "done",
+                },
+              ],
+            },
+            {
+              id: "again",
+              role: "user",
+              parts: [{ type: "text", text: "Search once more." }],
+            },
+            {
+              id: "searches",
+              role: "assistant",
+              parts: [
+                { type: "step-start" },
+                search("first", "pings"),
+                { type: "step-start" },
+                search("second", "notifications"),
+              ],
+            },
+          ],
+          interrupted: false,
+          stopped: [],
+        },
+      },
+    );
+    await page.goto("/");
+    await expect(
+      turns(page).nth(3).getByRole("button", { name: "Used 2 searches" }),
+    ).toBeVisible();
+
+    const { scrollHeight, clientHeight, end } = await page
+      .locator("#chat-title + div")
+      .evaluate((pane) => {
+        const list = pane.querySelector(":scope > ol")!;
+        const top = pane.getBoundingClientRect().top - pane.scrollTop;
+        return {
+          scrollHeight: pane.scrollHeight,
+          clientHeight: pane.clientHeight,
+          end: list.getBoundingClientRect().bottom - top,
+        };
+      });
+    expect(scrollHeight).toBeGreaterThan(clientHeight);
+    expect(Math.abs(scrollHeight - end)).toBeLessThan(1);
+  });
   test("offers Jump to latest once opened searches push the chat's end out of view", async ({
     page,
   }) => {
