@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
+import { useArrival } from "@/components/arrival";
 import { RollingNumber } from "@/components/rolling-number";
 import { Button } from "@/components/ui/button";
 import type { SavedSection } from "@/lib/chat";
@@ -17,6 +18,7 @@ import {
   type SectionName,
   type StatementSource,
 } from "@/lib/prd";
+import { cn } from "@/lib/utils";
 import { CopySection } from "./copy-section";
 import { downloadPrd, PRODUCT, VISITOR_DECISION } from "./prd-markdown";
 import { SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
@@ -40,7 +42,9 @@ export type CheckIn = {
  * sections as an outline. A drafted section shows its latest save; one not
  * drafted yet is a grey heading. Sections change only through the chat. A
  * section being drafted says so beside its heading, and one that just changed
- * lights up briefly; the PRD never scrolls by itself.
+ * lights up briefly while its statements arrive one after another; the PRD
+ * never scrolls by itself. The check-in and the download arrive as they
+ * appear, unless the PRD showed with them.
  */
 export function PrdDocument({
   sections,
@@ -60,6 +64,11 @@ export function PrdDocument({
 }) {
   const [source, setSource] = useState<StatementSource>();
   const changes = useChanges(sections);
+  const downloadArrives = useArrival(sections.size > 0);
+  // The check-in shows under the latest section; under a new one, it arrives.
+  const checkInArrives = useArrival(
+    checkIn !== undefined && !checkIn.drafting && latest,
+  );
 
   return (
     <section
@@ -68,7 +77,11 @@ export function PrdDocument({
     >
       <div className="flex flex-wrap items-center justify-end gap-3">
         {sections.size > 0 && (
-          <Button variant="outline" onClick={() => downloadPrd(sections)}>
+          <Button
+            variant="outline"
+            onClick={() => downloadPrd(sections)}
+            className={cn(downloadArrives && "arrive")}
+          >
             Download as Markdown
           </Button>
         )}
@@ -145,12 +158,17 @@ export function PrdDocument({
                           key={index}
                           section={name}
                           statement={statement}
+                          arrival={
+                            changed === undefined
+                              ? undefined
+                              : { change: changed, order: index }
+                          }
                           onOpenSource={setSource}
                         />
                       ))}
                     </ul>
                     {checkIn && name === latest && (
-                      <CheckInButton {...checkIn} />
+                      <CheckInButton {...checkIn} arriving={checkInArrives} />
                     )}
                   </>
                 ) : (
@@ -236,15 +254,20 @@ function quoteCount({ section }: SavedSection): string {
 
 /**
  * One statement, ending in its sources by name. Only what the code objects
- * to is written out under it.
+ * to is written out under it. Once its section changes after the PRD showed,
+ * it arrives in its turn (`--order`), and again with each change after that,
+ * through `data-again`, without remounting what has focus.
  */
 function Statement({
   section,
   statement,
+  arrival,
   onOpenSource,
 }: {
   section: SectionName;
   statement: CheckedStatement;
+  /** How many times its section changed, and its place in the section. */
+  arrival: { change: number; order: number } | undefined;
   onOpenSource: (source: StatementSource) => void;
 }) {
   const sources = sourcesOf(statement);
@@ -252,7 +275,11 @@ function Statement({
     (citation) => !citation.confirmed,
   );
   return (
-    <li className="leading-relaxed">
+    <li
+      className={cn("leading-relaxed", arrival && "arrive arrive-block")}
+      data-again={arrival && arrival.change % 2 === 0 ? "" : undefined}
+      style={arrival && ({ "--order": arrival.order } as CSSProperties)}
+    >
       <p>
         {statement.text}
         {sources.length > 0 && (
@@ -297,11 +324,17 @@ function CheckInButton({
   failed,
   disabled,
   onConfirm,
-}: CheckIn) {
+  arriving,
+}: CheckIn & { arriving: boolean }) {
   // The section asked for says "Drafting…" beside its own heading.
   if (drafting) return null;
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div
+      className={cn(
+        "mt-4 flex flex-wrap items-center gap-x-4 gap-y-2",
+        arriving && "arrive arrive-block",
+      )}
+    >
       <Button disabled={disabled} onClick={onConfirm}>
         Looks right: draft {next}
       </Button>

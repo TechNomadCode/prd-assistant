@@ -25,7 +25,8 @@ import { useReducedMotion } from "./use-reduced-motion";
  * mounts with, which is all of a reply that arrives in one piece, and then
  * only the words each update adds, each update's words as one. Text that was
  * there before, such as a finished answer or one brought back after a
- * reload, and everything under reduced motion, shows at once.
+ * reload, and everything under reduced motion, shows at once. A table that
+ * arrives rises in as a block (`.arrive`) as it takes shape.
  */
 export function RichText({
   text,
@@ -70,7 +71,11 @@ export function RichText({
           );
         }
         if (block.type === "table") {
-          return <SideScroll key={index}>{table(block, words)}</SideScroll>;
+          return (
+            <SideScroll key={index} arriving={arriving}>
+              {table(block, words)}
+            </SideScroll>
+          );
         }
         const List = block.ordered ? "ol" : "ul";
         return (
@@ -190,7 +195,13 @@ function table({ header, rows }: Table, words: Words | undefined) {
  * A `ResizeObserver` measures it whenever the box or the table changes size,
  * as the chat narrows or an arriving table grows.
  */
-function SideScroll({ children }: { children: ReactNode }) {
+function SideScroll({
+  arriving,
+  children,
+}: {
+  arriving: boolean;
+  children: ReactNode;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const [scrolls, setScrolls] = useState(false);
   useEffect(() => {
@@ -206,7 +217,7 @@ function SideScroll({ children }: { children: ReactNode }) {
   return (
     <div
       ref={box}
-      className="overflow-x-auto"
+      className={cn("overflow-x-auto", arriving && "arrive arrive-block")}
       {...(scrolls && {
         tabIndex: 0,
         role: "region",

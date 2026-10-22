@@ -54,7 +54,7 @@ export function CopySection({
 
   const label = outcome ? SAID[outcome] : "Copy section";
   return (
-    <span className="relative self-center opacity-100 transition-opacity duration-150 group-focus-within/section:opacity-100 group-hover/section:opacity-100 [@media(hover:hover)]:opacity-0">
+    <span className="relative self-center opacity-100 transition-opacity group-focus-within/section:opacity-100 group-hover/section:opacity-100 [@media(hover:hover)]:opacity-0">
       <button
         type="button"
         aria-label={outcome ? label : `Copy section: ${name}`}

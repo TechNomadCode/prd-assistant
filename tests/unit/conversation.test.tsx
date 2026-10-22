@@ -780,4 +780,205 @@ describe("Conversation", () => {
       expect(container.querySelector("li span:not(.sr-only)")).toBeNull();
     });
   });
+
+  // What comes in after the chat showed arrives (`.arrive` in globals.css,
+  // slice 25). jsdom runs no animation, so these check which elements carry
+  // the classes; tests/e2e/chat.spec.ts checks that they move.
+  describe("what arrives", () => {
+    const followUp: ChatMessage = {
+      id: "visitor-2",
+      role: "user",
+      parts: [{ type: "text", text: "And Daan?" }],
+    };
+    const GOALS: CheckedSection = {
+      section: "Goals / Objectives",
+      statements: [{ text: "Fewer double purchases.", citations: [] }],
+    };
+
+    function save(
+      state: SaveSectionPart["state"],
+      extra: Partial<SaveSectionPart> = {},
+    ): SaveSectionPart {
+      return {
+        type: "tool-saveSection",
+        toolCallId: "save-1",
+        state,
+        input: { section: "Goals / Objectives", statements: [] },
+        ...extra,
+      } as SaveSectionPart;
+    }
+
+    function reply(...parts: ChatMessage["parts"]): ChatMessage {
+      return { id: "assistant-2", role: "assistant", parts };
+    }
+
+    /** Shows the conversation, then these messages after it. */
+    function arrive(
+      messages: ChatMessage[],
+      status: ChatStatus,
+      stopped?: ReadonlySet<string>,
+    ) {
+      const shown = show([question], "submitted");
+      shown.rerender(
+        <Conversation messages={messages} status={status} stopped={stopped} />,
+      );
+      return shown;
+    }
+
+    it("brings in the visitor's new message from its corner, and each line of the answer as it appears", () => {
+      const before = [question, answer({ type: "text", text: "Henk." })];
+      const { rerender } = show(before);
+      expect(document.querySelector(".arrive")).toBeNull();
+
+      rerender(
+        <Conversation messages={[...before, followUp]} status="submitted" />,
+      );
+      expect(screen.getByText("And Daan?").closest("li")).toHaveClass(
+        "arrive",
+        "arrive-message",
+      );
+
+      rerender(
+        <Conversation
+          messages={[
+            ...before,
+            followUp,
+            reply(thought(1200), search("input-available")),
+          ]}
+          status="streaming"
+        />,
+      );
+      expect(stepLine("Thought 1s")).toHaveClass("arrive");
+      expect(stepLine("Search “notifications for new items”…")).toHaveClass(
+        "arrive",
+        "arrive-search",
+      );
+      expect(
+        screen.getByText("Who wants pings?").closest("li"),
+      ).not.toHaveClass("arrive");
+    });
+
+    it("keeps still everything in the messages it showed with, as after a reload, its ticks drawn", () => {
+      const { container } = show([
+        question,
+        answer(
+          thought(1200),
+          search("output-available", { output: { passages: [HENK] } }),
+          save("output-available", { output: GOALS }),
+          { type: "text", text: "Saved." },
+        ),
+      ]);
+
+      expect(container.querySelector(".arrive")).toBeNull();
+      const line = stepLine(/^Saved Goals \/ Objectives: no quotes/);
+      expect(line.querySelector("svg circle")).toBeInTheDocument();
+      expect(line.querySelector(".tick-draws")).toBeNull();
+    });
+
+    it("brings in a saved section's line anew once its check ends, its tick drawing itself", () => {
+      const { rerender } = arrive(
+        [question, reply(save("input-available"))],
+        "streaming",
+      );
+      const checking = stepLine("Checking the quotes in Goals / Objectives…");
+      expect(checking).toHaveClass("arrive");
+
+      rerender(
+        <Conversation
+          messages={[
+            question,
+            reply(save("output-available", { output: GOALS })),
+          ]}
+          status="streaming"
+        />,
+      );
+      const line = stepLine(/^Saved Goals \/ Objectives: no quotes/);
+      expect(line).not.toBe(checking);
+      expect(line).toHaveClass("arrive");
+      const tick = line.querySelector(".tick-draws");
+      expect(tick).toHaveAttribute("aria-hidden", "true");
+      expect(tick?.querySelectorAll("circle, path")).toHaveLength(2);
+    });
+
+    it("keeps a search's line as it finishes, and its check's line as it fails or is stopped only as a new line", () => {
+      const { rerender } = arrive(
+        [question, reply(search("input-available"))],
+        "streaming",
+      );
+      const running = stepLine("Search “notifications for new items”…");
+
+      rerender(
+        <Conversation
+          messages={[
+            question,
+            reply(search("output-available", { output: { passages: [HENK] } })),
+          ]}
+          status="streaming"
+        />,
+      );
+      expect(
+        stepLine("Search “notifications for new items” · passages from Henk"),
+      ).toBe(running);
+
+      rerender(
+        <Conversation
+          messages={[question, reply(save("input-available"))]}
+          status="streaming"
+        />,
+      );
+      const checking = stepLine("Checking the quotes in Goals / Objectives…");
+      rerender(
+        <Conversation
+          messages={[question, reply(save("input-available"))]}
+          status="ready"
+          stopped={new Set([question.id])}
+        />,
+      );
+      const stopped = stepLine(
+        "Stopped checking the quotes in Goals / Objectives",
+      );
+      expect(stopped).not.toBe(checking);
+      expect(stopped).toHaveClass("arrive");
+    });
+
+    it("brings in a step that didn't work and the notices of an answer that broke off or was stopped", () => {
+      arrive(
+        [
+          question,
+          reply({
+            type: "dynamic-tool",
+            toolName: "saveSection",
+            toolCallId: "save-1",
+            state: "output-error",
+            input: {},
+            errorText: "It wasn't in the form the check reads.",
+          }),
+        ],
+        "error",
+      );
+      expect(screen.getByText(/^Saving the section didn't work\./)).toHaveClass(
+        "arrive",
+      );
+      expect(
+        screen.getByText("This answer stopped before it finished."),
+      ).toHaveClass("arrive");
+    });
+
+    it("brings in You stopped this answer, under the question too, but not under one it showed with", () => {
+      const { rerender } = show([question], "ready");
+      rerender(
+        <Conversation
+          messages={[question, followUp]}
+          status="ready"
+          stopped={new Set([question.id, followUp.id])}
+        />,
+      );
+
+      const [shownBefore, arrived] = screen.getAllByText(
+        "You stopped this answer.",
+      );
+      expect(shownBefore).not.toHaveClass("arrive");
+      expect(arrived).toHaveClass("arrive");
+    });
+  });
 });

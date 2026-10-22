@@ -138,6 +138,56 @@ test.describe("the intro", () => {
     await expect(conversation(page)).toHaveCount(0);
   });
 
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`the chat and the PRD arrive as it gives way, the PRD a beat later, unless motion is reduced, and not after a reload (${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      await page.goto("/");
+      await page
+        .getByRole("button", { name: "Or ask your own question first" })
+        .click();
+
+      // Each region's pane, which rises in from a slight blur.
+      const chatPane = page
+        .getByRole("region", { name: "Chat with the assistant" })
+        .locator("..");
+      const prdPane = prd(page).locator("..");
+      const arriving =
+        reducedMotion === "reduce" ? "none" : "arrive, arrive-fade";
+      await expect(chatPane).toHaveCSS("animation-name", arriving);
+      await expect(prdPane).toHaveCSS("animation-name", arriving);
+      if (reducedMotion === "no-preference") {
+        await expect(chatPane).toHaveCSS("animation-duration", /^0\.77s/);
+        await expect(chatPane).toHaveCSS("animation-delay", /^0s/);
+        await expect(prdPane).toHaveCSS("animation-delay", /^0\.2s/);
+      }
+      // Then still, sharp and whole.
+      for (const pane of [chatPane, prdPane]) {
+        await expect(pane).toHaveCSS("opacity", "1");
+        await expect(pane).toHaveCSS("transform", "none");
+        await expect(pane).toHaveCSS("filter", "none");
+      }
+
+      await page
+        .getByRole("textbox", { name: "Your message" })
+        .fill("Who wants a ping for every item?");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+      await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => localStorage.getItem("prd-assistant:conversation") ?? "",
+          ),
+        )
+        .toContain(FAKE_NOTE);
+      await page.reload();
+      await expect(conversation(page)).toContainText(FAKE_NOTE);
+      await expect(page.locator(".arrive")).toHaveCount(0);
+    });
+  }
+
   test("when the first request fails, the intro comes back with a clear message and its button, which tries again", async ({
     page,
   }) => {

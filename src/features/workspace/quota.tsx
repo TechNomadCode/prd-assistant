@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { site } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 // Cloudflare's daily free allocation is shared by every visitor of the demo.
 // Once it's used up, nothing the assistant does can work until 00:00 UTC, so
@@ -30,7 +31,7 @@ export function localTime(
  * The demo's free AI allocation for today is used up: when it resets, in UTC
  * and in the visitor's own time, and where to see the app working meanwhile.
  */
-export function QuotaNotice() {
+export function QuotaNotice({ className }: { className?: string }) {
   // When the notice first showed; the reset is the next midnight after it.
   const [shownAt] = useState(() => new Date());
   const reset = localTime(nextReset(shownAt));
@@ -38,7 +39,10 @@ export function QuotaNotice() {
   return (
     <div
       role="alert"
-      className="space-y-3 border-l-2 border-foreground py-1 pl-4"
+      className={cn(
+        "space-y-3 border-l-2 border-foreground py-1 pl-4",
+        className,
+      )}
     >
       <p>
         The demo&apos;s free AI allocation for today is used up, so the

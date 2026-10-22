@@ -55,10 +55,17 @@ async function width(locator: Locator): Promise<number> {
 /**
  * The gaps between an element's children, top to bottom, from one layout:
  * each child's top less the bottom of the one before. Children taken out of
- * the flow, such as the screen readers' "Assistant", don't count.
+ * the flow, such as the screen readers' "Assistant", don't count. What
+ * arrives rises a few pixels as it comes (slice 25), so every animation that
+ * ends is finished first, and the gaps are the settled ones.
  */
 function childGaps(parent: Locator): Promise<number[]> {
   return parent.evaluate((element) => {
+    for (const animation of document.getAnimations()) {
+      if (animation.effect?.getComputedTiming().endTime !== Infinity) {
+        animation.finish();
+      }
+    }
     const children = [...element.children].filter(
       (child) => getComputedStyle(child).position !== "absolute",
     );
@@ -403,6 +410,52 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     expect(scrollHeight).toBeGreaterThan(clientHeight);
     expect(Math.abs(scrollHeight - end)).toBeLessThan(1);
   });
+
+  test("keeps the conversation still while what arrives at its end rises into place", async ({
+    page,
+  }, testInfo) => {
+    // Short enough that one answer fills the chat.
+    await page.setViewportSize({ width: 1440, height: 480 });
+    await openChat(page);
+    await ask(page, "Draft the first section.");
+    await expect(turns(page).nth(1)).toContainText(ANSWER_END);
+    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+
+    // Where the first answer sits, every frame, while the next one breaks
+    // off and its notice and the alert arrive as the chat's last lines.
+    // Following the chat's end, it only ever moves up. Following the pane's
+    // scroll height, which counts a rising line's few pixels, it sank back
+    // as the alert settled.
+    await page.evaluate(() => {
+      const first = document.querySelector(
+        "[aria-label=Conversation] > li:nth-child(2)",
+      )!;
+      const tops: number[] = [];
+      Object.assign(window, { tops });
+      const sample = () => {
+        tops.push(first.getBoundingClientRect().top);
+        if (tops.length < 900) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    await ask(
+      page,
+      `Who wants a ping for every item? ${FAKE_FAILURES.partway} ${testInfo.testId}`,
+    );
+    await expect(chat(page).getByRole("alert")).toBeVisible();
+    await expect(chat(page).getByRole("alert")).toHaveCSS("opacity", "1");
+    await expect(chat(page).getByRole("alert")).toHaveCSS("transform", "none");
+
+    const tops = await page.evaluate(
+      () => (window as unknown as { tops: number[] }).tops,
+    );
+    const sank = Math.max(
+      ...tops.slice(1).map((top, frame) => top - tops[frame]!),
+    );
+    expect(tops.length).toBeGreaterThan(10);
+    expect(sank).toBeLessThan(0.5);
+  });
+
   test("offers Jump to latest once opened searches push the chat's end out of view", async ({
     page,
   }) => {

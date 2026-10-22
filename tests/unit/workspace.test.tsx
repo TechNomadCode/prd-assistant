@@ -720,9 +720,8 @@ describe("Jump to latest", () => {
    * `scrollTo` only records the call.
    */
   function sizePane() {
-    const pane = screen.getByRole("list", {
-      name: "Conversation",
-    }).parentElement!;
+    const conversation = screen.getByRole("list", { name: "Conversation" });
+    const pane = conversation.parentElement!;
     let top = 700;
     Object.defineProperties(pane, {
       scrollHeight: { configurable: true, value: 1000 },
@@ -732,6 +731,11 @@ describe("Jump to latest", () => {
         get: () => top,
         set: (value: number) => (top = Math.min(value, 700)),
       },
+    });
+    // The chat follows the conversation's end as laid out.
+    Object.defineProperties(conversation, {
+      offsetTop: { configurable: true, value: 0 },
+      offsetHeight: { configurable: true, value: 1000 },
     });
     const scrollTo = vi.fn();
     pane.scrollTo = scrollTo;
@@ -822,6 +826,17 @@ describe("Jump to latest", () => {
     // Within 48px of the end counts as the end.
     scrollPaneTo(660);
     expect(jumpButton()).not.toBeInTheDocument();
+  });
+
+  it("arrives each time it shows", async () => {
+    await chatWithAnAnswer();
+    const { scrollPaneTo } = sizePane();
+
+    scrollPaneTo(200);
+    expect(jumpButton()).toHaveClass("arrive");
+    scrollPaneTo(660);
+    scrollPaneTo(100);
+    expect(jumpButton()).toHaveClass("arrive");
   });
 
   it("scrolls smoothly to the end, goes, hands focus to the message box, and the chat follows the answer on its way", async () => {
@@ -1095,6 +1110,77 @@ describe("the home page when the demo's AI can't answer", () => {
     expect(
       screen.getByRole("textbox", { name: "Your message" }),
     ).toBeInTheDocument();
+  });
+});
+
+// What appears after the page has shown arrives (`.arrive` in globals.css,
+// slice 25). jsdom runs no animation, so these check which elements carry the
+// classes; tests/e2e/intro.spec.ts checks that they move.
+describe("what arrives in the workspace", () => {
+  /** The pane that holds a region. */
+  function pane(name: string) {
+    return screen.getByRole("region", { name }).parentElement!;
+  }
+
+  it("brings in the chat and the PRD when the intro gives way to them, the PRD a beat later", () => {
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+
+    const chat = pane("Chat with the assistant");
+    const prd = pane("Shared grocery list app");
+    expect(chat).toHaveClass("arrive", "arrive-pane");
+    expect(chat.style.getPropertyValue("--order")).toBe("");
+    expect(prd).toHaveClass("arrive", "arrive-pane");
+    expect(prd.style.getPropertyValue("--order")).toBe("1");
+  });
+
+  it("brings in the suggestion, the check-in and the download once the first section is saved", async () => {
+    fetchMock.mockResolvedValueOnce(answer(SAVES_INTRODUCTION));
+    render(<Workspace />);
+    fireEvent.click(draftButton());
+
+    expect(
+      await screen.findByRole("group", { name: /try to break it/ }),
+    ).toHaveClass("arrive", "arrive-block");
+    expect(
+      screen.getByRole("button", { name: /^Looks right/ }).parentElement,
+    ).toHaveClass("arrive", "arrive-block");
+    expect(
+      screen.getByRole("button", { name: "Download as Markdown" }),
+    ).toHaveClass("arrive");
+  });
+
+  it("brings in the notice of an answer that failed, and the allocation's once it's used up", async () => {
+    fetchMock.mockResolvedValueOnce(
+      answer([{ type: "error", errorText: DEMO_BUSY }]),
+    );
+    render(<Workspace />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Or ask your own question first" }),
+    );
+    const ask = () => {
+      fireEvent.change(screen.getByRole("textbox", { name: "Your message" }), {
+        target: { value: "Who wants a ping?" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    };
+    ask();
+    const chat = within(pane("Chat with the assistant"));
+    expect(await chat.findByRole("alert")).toHaveClass(
+      "arrive",
+      "arrive-block",
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      answer([{ type: "error", errorText: QUOTA_USED_UP }]),
+    );
+    ask();
+    expect(
+      await chat.findByText(/allocation for today is used up/),
+    ).toBeInTheDocument();
+    expect(chat.getByRole("alert")).toHaveClass("arrive", "arrive-block");
   });
 });
 
