@@ -229,7 +229,7 @@ describe("the home page", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers to try to break it only once the first section is saved, sends the claim with one click, focus in the message box, then no longer offers it", async () => {
+  it("offers the suggestion only once the first section is saved, sends it with one click, focus in the message box, then no longer offers it", async () => {
     let respond: (response: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(
       new Promise<Response>((resolve) => (respond = resolve)),
@@ -245,10 +245,8 @@ describe("the home page", () => {
     respond(answer(SAVES_INTRODUCTION));
 
     expect(
-      await screen.findByRole("group", { name: /try to break it/ }),
-    ).toHaveAccessibleName(
-      "Now try to break it. Send a claim that nobody in the interviews made:",
-    );
+      await screen.findByRole("group", { name: "Suggestion:" }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(suggestion()).toBeEnabled());
 
     fetchMock.mockResolvedValueOnce(
@@ -1142,7 +1140,7 @@ describe("what arrives in the workspace", () => {
     fireEvent.click(draftButton());
 
     expect(
-      await screen.findByRole("group", { name: /try to break it/ }),
+      await screen.findByRole("group", { name: "Suggestion:" }),
     ).toHaveClass("arrive", "arrive-block");
     expect(
       screen.getByRole("button", { name: /^Looks right/ }).parentElement,

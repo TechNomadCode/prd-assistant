@@ -319,7 +319,7 @@ describe("the home page after a reload", () => {
       screen.getByRole("button", { name: "Try again" }).parentElement,
     ).toHaveRole("alert");
     expect(
-      screen.getByRole("group", { name: /try to break it/ }),
+      screen.getByRole("group", { name: "Suggestion:" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /^Looks right/ }),
