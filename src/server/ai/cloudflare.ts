@@ -25,7 +25,7 @@ export function createCloudflare({
     apiKey: apiToken,
     // Without it, a streamed answer reports no tokens.
     includeUsage: true,
-    transformRequestBody: withTextContent,
+    transformRequestBody: (body) => asWorkersAiProvider(withTextContent(body)),
     fetch: refusingQuota(fetch),
   });
 }
@@ -149,6 +149,41 @@ function withTextContent(body: Record<string, unknown>) {
     messages: body.messages.map((message: Record<string, unknown>) =>
       message.content === null ? { ...message, content: "" } : message,
     ),
+  };
+}
+
+/**
+ * The messages as Cloudflare's own `workers-ai-provider` (4.0.1) sends them
+ * (`convert-to-workersai-chat-messages.ts`, read 2026-10-22): an assistant
+ * message's reasoning as `reasoning`, "the field name vLLM expects on input",
+ * where the package sends `reasoning_content`; and each tool result with its
+ * tool's `name`, which the package leaves out. Older vLLM ignores
+ * `reasoning_content` and names an unnamed tool result's author `functions.`
+ * (docs/records/relevance-and-transport-2026-10-22.md, local).
+ */
+function asWorkersAiProvider(body: Record<string, unknown>) {
+  if (!Array.isArray(body.messages)) return body;
+  const messages = body.messages as Record<string, unknown>[];
+  const toolNames = new Map<unknown, unknown>();
+  for (const message of messages) {
+    if (!Array.isArray(message.tool_calls)) continue;
+    for (const call of message.tool_calls as {
+      id?: unknown;
+      function?: { name?: unknown };
+    }[]) {
+      toolNames.set(call.id, call.function?.name);
+    }
+  }
+  return {
+    ...body,
+    messages: messages.map((message) => {
+      if (message.role === "tool" && toolNames.has(message.tool_call_id)) {
+        return { ...message, name: toolNames.get(message.tool_call_id) };
+      }
+      if (message.reasoning_content === undefined) return message;
+      const { reasoning_content: reasoning, ...rest } = message;
+      return { ...rest, reasoning };
+    }),
   };
 }
 
