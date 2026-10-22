@@ -8,8 +8,13 @@ import { ChatRequestError, readChatRequest, streamAnswer } from "@/server/chat";
 /** Seconds for one answer: its searches and its reply. Hobby allows 300. */
 export const maxDuration = 60;
 
-/** Requests longer than this are refused before they're parsed. */
-const MAX_BODY_LENGTH = 1_000_000;
+/**
+ * Requests longer than this are refused before they're parsed. A full PRD's
+ * conversation is about 155,000, most of it passages the browser keeps for
+ * the quotes' pop-overs (2026-10-22); what reaches the model is bounded in
+ * `readChatRequest`.
+ */
+const MAX_BODY_LENGTH = 300_000;
 
 export async function POST(request: Request) {
   const body = await request.text();
