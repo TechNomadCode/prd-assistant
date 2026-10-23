@@ -98,7 +98,7 @@ export function PrdDocument({
       {/* Focusable, so the PRD scrolls by keyboard before it holds a link. */}
       <div
         tabIndex={0}
-        className="relative bg-page px-5 py-8 sm:px-10 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
+        className="relative bg-page px-5 py-8 sm:px-10 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:px-6"
       >
         <article className="mx-auto max-w-[42rem]">
           <header className="space-y-3">
@@ -140,13 +140,15 @@ export function PrdDocument({
                     className="just-changed absolute -inset-x-3 -inset-y-2 -z-10 rounded-(--radius-control)"
                   />
                 )}
+                {/* A long heading wraps its own words, so what's beside it
+                    stays on its first line instead of a row of its own. */}
                 {saved ? (
                   <>
-                    <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3">
+                    <div className="mb-2.5 flex items-baseline gap-x-3">
                       <h3
                         id={sectionAnchor(name)}
                         tabIndex={-1}
-                        className="scroll-mt-6 text-lg font-semibold"
+                        className="min-w-0 scroll-mt-6 text-lg font-semibold"
                       >
                         {name}{" "}
                         <span className="text-sm font-normal text-muted-foreground">
@@ -179,10 +181,10 @@ export function PrdDocument({
                     )}
                   </>
                 ) : (
-                  <div className="flex flex-wrap items-baseline gap-x-3">
+                  <div className="flex items-baseline gap-x-3">
                     <h3
                       id={sectionAnchor(name)}
-                      className="text-lg font-semibold text-muted-foreground"
+                      className="min-w-0 text-lg font-semibold text-muted-foreground"
                     >
                       {name}
                       <span className="sr-only"> (not drafted yet)</span>

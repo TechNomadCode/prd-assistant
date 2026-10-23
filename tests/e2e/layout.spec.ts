@@ -7,11 +7,11 @@ import {
 import { FAKE_FAILURES, FAKE_SEARCH_AGAIN } from "@/server/ai/fake-chat-model";
 import { expectNoAccessibilityViolations } from "./accessibility";
 
-// The workspace's spacing and layout (docs/decisions.md, Design, 2026-10-20):
-// a chat column of steady width beside a PRD that takes the rest, slim page
-// chrome, a question closer to its own answer than to the turn before, and a
-// message box that grows with its text. Measured in the browser, since only
-// it lays the page out.
+// The workspace's spacing and layout (docs/decisions.md, Design, 2026-10-20
+// and 2026-10-22): the chat in front, its text in one column of at most 46rem,
+// beside a PRD in a supporting column, slim page chrome, a question closer to
+// its own answer than to the turn before, and a message box that grows with
+// its text. Measured in the browser, since only it lays the page out.
 
 /** The fake model ends every answer with this; once it's there, it's done. */
 const ANSWER_END = "then answers from a script.)";
@@ -50,6 +50,41 @@ function turns(page: Page) {
 async function width(locator: Locator): Promise<number> {
   const box = await locator.boundingBox();
   return box!.width;
+}
+
+/** Finishes every animation that ends, so what arrived sits where it settles. */
+function settle(page: Page): Promise<void> {
+  return page.evaluate(() => {
+    for (const animation of document.getAnimations()) {
+      if (animation.effect?.getComputedTiming().endTime !== Infinity) {
+        animation.finish();
+      }
+    }
+  });
+}
+
+/**
+ * Expects the chat's column (slice 27) to be `column` pixels wide and in the
+ * middle of the chat: the message box, and the conversation above it, which
+ * starts where the box starts, its question ending where the box ends.
+ */
+async function expectChatColumn(page: Page, column: number) {
+  await settle(page);
+  const pane = (await chat(page).boundingBox())!;
+  const box = (await page
+    .getByRole("textbox", { name: "Your message" })
+    .boundingBox())!;
+  const said = (await conversation(page).boundingBox())!;
+  const question = (await turns(page).first().boundingBox())!;
+
+  expect(box.width).toBeCloseTo(column, 0);
+  expect(box.x - pane.x).toBeCloseTo(
+    pane.x + pane.width - (box.x + box.width),
+    0,
+  );
+  expect(said.x).toBeCloseTo(box.x, 0);
+  expect(said.width).toBeCloseTo(column, 0);
+  expect(question.x + question.width).toBeCloseTo(box.x + box.width, 0);
 }
 
 /**
@@ -105,16 +140,15 @@ async function cannedAnswer(text: string) {
 test.describe("the workspace on a 1440px-wide laptop", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test("gives the chat a steady column and the PRD its full page, with slim chrome", async ({
+  test("puts the chat in front and the PRD in a supporting column beside it, with slim chrome", async ({
     page,
   }) => {
     await openChat(page);
 
-    const chatWidth = await width(chat(page));
-    expect(chatWidth).toBeGreaterThanOrEqual(400);
-    expect(chatWidth).toBeLessThanOrEqual(520);
-    // The PRD's page reaches its decided 42rem of text (625px before).
-    expect(await width(prd(page).locator("article"))).toBeCloseTo(672, 0);
+    // The PRD about 500px, 36% of the page, and the chat the rest, less the
+    // 32px between them (the owner, 2026-10-22): 840px and 520 before.
+    expect(await width(prd(page))).toBeCloseTo(501, 0);
+    expect(await width(chat(page))).toBeCloseTo(859, 0);
 
     // The header, the footer and the space around the panes: 150px before.
     const workspace = await page.locator("[data-workspace]").boundingBox();
@@ -122,6 +156,16 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
     await expect(
       page.getByRole("link", { name: "Source code on GitHub" }),
     ).toBeInViewport();
+  });
+
+  test("keeps the chat's text to a column of 46rem in the middle of the chat, the message box under it", async ({
+    page,
+  }) => {
+    await openChat(page);
+    await ask(page, QUESTION);
+    await expect(turns(page).nth(1)).toContainText(ANSWER_END);
+
+    await expectChatColumn(page, 736);
   });
 
   test("puts a question closer to its own answer than to the turn before, and steps in a row closer than text", async ({
@@ -501,17 +545,26 @@ test.describe("the workspace on a 1440px-wide laptop", () => {
 test.describe("the workspace on a 1024px-wide laptop", () => {
   test.use({ viewport: { width: 1024, height: 768 } });
 
-  test("keeps the chat at least 400px wide and gives the PRD the rest, without scrolling sideways", async ({
+  test("gives the PRD its least, 448px, and the chat the rest, without scrolling sideways", async ({
     page,
   }) => {
     await openChat(page);
     await ask(page, "Draft the first section.");
     await expect(chat(page)).toContainText(ANSWER_END);
+    await settle(page);
 
-    expect(await width(chat(page))).toBeCloseTo(400, 0);
+    expect(await width(prd(page))).toBeCloseTo(448, 0);
     const workspace = await page.locator("[data-workspace]").boundingBox();
-    // The PRD takes what's left beside the chat and the 32px between them.
-    expect(await width(prd(page))).toBeCloseTo(workspace!.width - 400 - 32, 0);
+    // The chat takes what's left beside the PRD and the 32px between them,
+    // its column across all of it, the conversation starting where the
+    // message box starts.
+    const rest = workspace!.width - 448 - 32;
+    expect(await width(chat(page))).toBeCloseTo(rest, 0);
+    const box = (await page
+      .getByRole("textbox", { name: "Your message" })
+      .boundingBox())!;
+    expect(box.width).toBeCloseTo(rest, 0);
+    expect((await conversation(page).boundingBox())!.x).toBeCloseTo(box.x, 0);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -519,19 +572,78 @@ test.describe("the workspace on a 1024px-wide laptop", () => {
     ).toBe(true);
     await expectNoAccessibilityViolations(page);
   });
+
+  test("keeps the PRD whole and easy to read in its column: its text, a heading's copy button and a source's pop-over", async ({
+    page,
+  }) => {
+    // The section with the longest name.
+    const section = "Open Questions / Future Considerations";
+    await openChat(page);
+    await ask(page, `Draft ${section}.`);
+    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+    await settle(page);
+
+    // Its page, its padding trimmed to 24px a side, keeps about 45
+    // characters a line, and scrolls only down, not sideways.
+    const sheet = prd(page).locator("article");
+    expect(await width(sheet)).toBeGreaterThanOrEqual(384);
+    expect(
+      await sheet
+        .locator("..")
+        .evaluate((element) => element.scrollWidth <= element.clientWidth),
+    ).toBe(true);
+
+    // A heading too long for one line with its tally wraps its own words,
+    // and its copy button stays on its first line, inside the page, rather
+    // than on a row of its own.
+    const heading = prd(page).getByRole("heading", { name: section });
+    const copy = prd(page).getByRole("button", {
+      name: `Copy section: ${section}`,
+    });
+    const headingBox = (await heading.boundingBox())!;
+    const copyBox = (await copy.boundingBox())!;
+    const sheetBox = (await sheet.boundingBox())!;
+    expect(headingBox.height).toBeGreaterThan(40);
+    expect(copyBox.y - headingBox.y).toBeLessThan(8);
+    expect(copyBox.x + copyBox.width).toBeLessThanOrEqual(
+      sheetBox.x + sheetBox.width,
+    );
+
+    // The pop-over a name opens stays on the screen.
+    await page
+      .getByRole("list", { name: `Statements in ${section}` })
+      .locator(":scope > li")
+      .first()
+      .getByRole("button")
+      .click();
+    const popover = page.getByRole("dialog");
+    await expect(popover).toBeVisible();
+    await popover.evaluate((element) => {
+      for (const animation of element.getAnimations()) animation.finish();
+    });
+    const popoverBox = (await popover.boundingBox())!;
+    expect(popoverBox.x).toBeGreaterThanOrEqual(0);
+    expect(popoverBox.x + popoverBox.width).toBeLessThanOrEqual(1024);
+    expect(popoverBox.y + popoverBox.height).toBeLessThanOrEqual(768);
+    await expectNoAccessibilityViolations(page);
+  });
 });
 
 test.describe("the workspace on a wide screen", () => {
   test.use({ viewport: { width: 1920, height: 1080 } });
 
-  test("grows the page to 1600px, with the chat still at most 520px wide", async ({
+  test("grows the page to 1600px, with the chat's text still in a column of 46rem in the middle of the chat", async ({
     page,
   }) => {
     await openChat(page);
+    await ask(page, QUESTION);
+    await expect(turns(page).nth(1)).toContainText(ANSWER_END);
 
-    // 1600px, less the page's 24px of padding on each side.
+    // 1600px, less the page's 24px of padding on each side, of which the
+    // PRD takes 36%.
     expect(await width(page.locator("[data-workspace]"))).toBeCloseTo(1552, 0);
-    expect(await width(chat(page))).toBeCloseTo(520, 0);
+    expect(await width(prd(page))).toBeCloseTo(559, 0);
+    await expectChatColumn(page, 736);
   });
 });
 

@@ -333,8 +333,10 @@ function RestoredWorkspace() {
     );
   }
 
-  // On a laptop the chat keeps a steady width, 400 to 520px, and the PRD
-  // takes the rest of the page (docs/decisions.md, Design, 2026-10-20).
+  // On a laptop the chat is the main thing and the PRD a supporting column
+  // beside it, 36% of the page and at least 448px, so its text keeps about
+  // 45 characters a line: 448px on a 1024px screen, about 500 on a 1440px one
+  // (docs/decisions.md, Design, 2026-10-22).
   // Arriving, the PRD follows the chat a beat later.
   const pane = cn(
     "flex flex-col lg:min-h-0",
@@ -344,7 +346,7 @@ function RestoredWorkspace() {
     <>
       <div
         data-workspace
-        className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[clamp(25rem,38%,32.5rem)_minmax(0,1fr)] lg:gap-8"
+        className="flex flex-col gap-10 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_max(28rem,36%)] lg:gap-8"
       >
         <h1 id={WORKSPACE_TITLE_ID} tabIndex={-1} className="sr-only">
           The chat and your PRD
