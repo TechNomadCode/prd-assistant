@@ -103,8 +103,10 @@
     var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, "Helvetica Neue", Arial, sans-serif;
   --radius-control: 0.25rem;
-  /* The workspace's page: wider than 1280px, so the PRD gets its full page. */
+  /* The workspace's page: wider than 1280px. */
   --container-workspace: 100rem;
+  /* The chat's text at most this wide, near opencode's 744px (slice 27). */
+  --container-chat: 46rem;
   /* Tailwind's transitions, such as a button's hover, on the motion above. */
   --default-transition-duration: var(--duration-quick);
   --default-transition-timing-function: var(--ease-in-out);
@@ -123,6 +125,31 @@ body {
 :focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
+}
+
+/*
+ * The chat's column (slice 27): its text, the message box and what sits above
+ * the box at most 46rem wide and centred in the chat however wide it gets.
+ * The conversation's pane spans the whole chat, so its scrollbar stays at the
+ * chat's edge, and centres the column with its padding instead: a padding's
+ * percentage is of the chat's width, the pane's parent, the width the message
+ * box centres in. `--chat-room` is the pane's own room on the left
+ * (`chat/chat.tsx`).
+ */
+@utility chat-column {
+  width: 100%;
+  max-width: var(--container-chat);
+  margin-inline: auto;
+}
+
+@utility chat-column-pane {
+  padding-left: calc(
+    var(--chat-room, 0px) + max(0px, (100% - var(--container-chat)) / 2)
+  );
+
+  & > * {
+    max-width: var(--container-chat);
+  }
 }
 
 /*
@@ -558,13 +585,15 @@ body {
  * in a quick fade, and closes when the button is pressed (`data-pressed`,
  * until the pointer leaves). It's held open to say "Couldn't copy". A fade,
  * so it runs with reduced motion too. The button's own name says the same to
- * screen readers, so the label is hidden from them.
+ * screen readers, so the label is hidden from them. It ends where the button
+ * ends, not centred over it: beside a heading that wraps, the button sits at
+ * the PRD's right edge, and the label, laid out even while hidden, made the
+ * page scroll sideways (slice 27).
  */
 .copy-tip {
   position: absolute;
   bottom: calc(100% + 0.25rem);
-  left: 50%;
-  translate: -50% 0;
+  right: 0;
   padding: 0.125rem 0.375rem;
   border-radius: var(--radius-control);
   background: var(--bubble);

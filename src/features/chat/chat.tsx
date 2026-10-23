@@ -215,13 +215,14 @@ export function Chat({
         Chat with the assistant
       </h2>
 
-      {/* 8px of room on the left, as far as its margin pulls it out, so
-          what moves past the start of a line, as a saved line's tick
+      {/* It centres the chat's column in its padding (`chat-column-pane`),
+          with 8px more room on the left, as far as its margin pulls it out,
+          so what moves past the start of a line, as a saved line's tick
           pulsing, isn't cut off where the pane scrolls. */}
       <div
         ref={scroller}
         onScroll={noteScroll}
-        className="relative space-y-6 lg:-ml-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3 lg:pl-2"
+        className="relative chat-column-pane space-y-6 lg:-ml-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-3 lg:[--chat-room:0.5rem]"
       >
         <Conversation
           messages={messages}
@@ -269,7 +270,9 @@ export function Chat({
       </div>
 
       {quotaUsedUp && (
-        <QuotaNotice className={cn(quotaArrives && "arrive arrive-block")} />
+        <QuotaNotice
+          className={cn("chat-column", quotaArrives && "arrive arrive-block")}
+        />
       )}
 
       {offered !== undefined && (
@@ -277,7 +280,7 @@ export function Chat({
           role="group"
           aria-labelledby="suggestion-title"
           className={cn(
-            "space-y-2",
+            "chat-column space-y-2",
             suggestionArrives && "arrive arrive-block",
           )}
         >
@@ -301,7 +304,7 @@ export function Chat({
           event.preventDefault();
           send();
         }}
-        className="space-y-2"
+        className="chat-column space-y-2"
       >
         <label htmlFor={MESSAGE_BOX_ID} className="sr-only">
           Your message

@@ -82,6 +82,17 @@ function moves(page: Page): Promise<string[]> {
   return page.evaluate(() => (window as Recording).moves ?? []);
 }
 
+type Box = { x: number; y: number; width: number; height: number };
+
+/**
+ * Whether the pop-over sits under the name that opened it. Where there's no
+ * room under it, as for a name low in the PRD's narrow column, it sits over
+ * it instead (`position-try-fallbacks` in `src/app/globals.css`).
+ */
+function under(popover: Box, name: Box): boolean {
+  return popover.y >= name.y + name.height;
+}
+
 test.describe("the PRD", () => {
   test("shows all nine sections from the start, none drafted yet", async ({
     page,
@@ -220,14 +231,19 @@ test.describe("the PRD", () => {
       await expect(
         page.getByRole("dialog", { name: "You, in this chat" }),
       ).toBeVisible();
-      // Under the name that opened it, 6px apart, its right edge at the
-      // name's (`position-area: bottom span-left`), once it has settled.
+      // By the name that opened it, 6px under it or, without room there, 6px
+      // over it, its right edge at the name's (`position-area: bottom
+      // span-left`, then `top span-left`), once it has settled.
       await expect
         .poll(async () => {
           const name = (await yours.boundingBox())!;
           const box = (await popover.boundingBox())!;
           return [
-            Math.round(box.y - (name.y + name.height)),
+            Math.round(
+              under(box, name)
+                ? box.y - (name.y + name.height)
+                : name.y - (box.y + box.height),
+            ),
             Math.round(box.x + box.width - (name.x + name.width)),
           ];
         })
@@ -266,7 +282,8 @@ test.describe("the PRD", () => {
         await expect(popover).toHaveCSS("transition-duration", "0.5s");
         await expect(mark).toHaveCSS("animation-duration", "0.8s");
         await expect(mark).toHaveCSS("animation-delay", "0.4s");
-        // It grew from the name: from the point of its top edge under it,
+        // It grew from the name: from the point of its edge nearest it, its
+        // top edge when it sits under the name, else its bottom edge,
         // measured once it has settled.
         await expect
           .poll(() =>
@@ -280,7 +297,7 @@ test.describe("the PRD", () => {
         );
         const from = (await name.boundingBox())!;
         const box = (await popover.boundingBox())!;
-        expect(origin[1]).toBe(0);
+        expect(origin[1]).toBeCloseTo(under(box, from) ? 0 : box.height, 0);
         expect(
           Math.abs(box.x + origin[0]! - (from.x + from.width / 2)),
         ).toBeLessThanOrEqual(1);
@@ -403,9 +420,13 @@ test.describe("the PRD", () => {
 
       // Enabled once the answer has finished: Playwright retries a click on a
       // disabled button, and its retries scroll the button into view, which
-      // would look like the PRD scrolling by itself.
+      // would look like the PRD scrolling by itself. In the PRD's column the
+      // section runs past the pane's end, so the test scrolls to the button
+      // first, as a visitor would, and from there the PRD stays where it is.
       const checkIn = page.getByRole("button", { name: /^Looks right/ });
       await expect(checkIn).toBeEnabled();
+      await checkIn.scrollIntoViewIfNeeded();
+      const scrolled = await pane.evaluate((element) => element.scrollTop);
       await checkIn.click();
       await expect(statements(page, GOALS)).not.toHaveCount(0);
       await expect(checkIn).toHaveAccessibleName(
@@ -433,7 +454,7 @@ test.describe("the PRD", () => {
       if (reducedMotion === "reduce") {
         await expect(prd(page).locator(".roll-out")).toBeHidden();
       }
-      await expect(pane).toHaveJSProperty("scrollTop", 0);
+      await expect(pane).toHaveJSProperty("scrollTop", scrolled);
 
       await page.reload();
       await expect(statements(page, GOALS)).not.toHaveCount(0);
