@@ -39,7 +39,9 @@
   --spring-pane-duration: 0.77s;
   /* Its durations, with its frames. */
   --duration-quick: 0.13s; /* 4: a fade that only acknowledges */
-  --duration-roll: 0.27s; /* 8: a count rolling */
+  /* 12: a count rolling, as long as what arrives; the video's 8 frames on
+     its ease-in-out looked choppy in the app (2026-10-25) */
+  --duration-roll: 0.4s;
   /* 12: something arriving (its lines take 10, its statements 14) */
   --duration-arrive: 0.4s;
   --duration-stagger: 0.2s; /* 6: between things arriving one by one */
@@ -523,14 +525,17 @@ body {
 }
 
 /*
- * The PRD's section count rolls to its new number: the old one leaves upwards
- * as the new one comes in from below, the other way when it drops. With
- * reduced motion the number changes at once.
+ * A count rolls to its new number, the PRD's sections and the searches in a
+ * folded line: the old one leaves upwards as the new one comes in from below,
+ * the other way when it drops, each moving half a line as it fades and blurs,
+ * on the ease-out, so it glides like what arrives. A full line's slide in a
+ * box that clipped both numbers in half, on the ease-in-out, crossed in a
+ * few frames and looked choppy (found 2026-10-25). With reduced motion the
+ * number changes at once.
  */
 .roll {
   position: relative;
   display: inline-block;
-  clip-path: inset(0);
 }
 
 .roll-out {
@@ -542,12 +547,12 @@ body {
     display: block;
     position: absolute;
     inset: 0;
-    animation: roll-out-up var(--duration-roll) var(--ease-in-out) both;
+    animation: roll-out-up var(--duration-roll) var(--ease-out) both;
   }
 
   .roll-in {
     display: inline-block;
-    animation: roll-in-up var(--duration-roll) var(--ease-in-out) both;
+    animation: roll-in-up var(--duration-roll) var(--ease-out) both;
   }
 
   .roll[data-direction="down"] .roll-out {
@@ -569,25 +574,33 @@ body {
 
 @keyframes roll-in-up {
   from {
-    transform: translateY(100%);
+    transform: translateY(0.5em);
+    opacity: 0;
+    filter: blur(2px);
   }
 }
 
 @keyframes roll-out-up {
   to {
-    transform: translateY(-100%);
+    transform: translateY(-0.5em);
+    opacity: 0;
+    filter: blur(2px);
   }
 }
 
 @keyframes roll-in-down {
   from {
-    transform: translateY(-100%);
+    transform: translateY(-0.5em);
+    opacity: 0;
+    filter: blur(2px);
   }
 }
 
 @keyframes roll-out-down {
   to {
-    transform: translateY(100%);
+    transform: translateY(0.5em);
+    opacity: 0;
+    filter: blur(2px);
   }
 }
 

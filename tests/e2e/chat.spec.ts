@@ -380,18 +380,25 @@ test.describe("chat", () => {
     });
   }
 
-  test("keeps the count of searches in view as it rolls while a search runs", async ({
+  test("keeps the count of searches in view as it rolls while a search runs, gliding rather than sliding in a clipped box", async ({
     page,
   }) => {
     // The band paints the line through its letters, which are see-through,
     // and left out the rolling number, in a box of its own: the count
     // vanished for its roll each time it grew (found 2026-10-25).
+    // A full line's slide in a box that clipped it, 0.27s on the ease-in-out,
+    // looked choppy (found 2026-10-25): it glides half a line as it fades.
     await page.addInitScript(() => {
       const colours: string[] = [];
-      Object.assign(window, { rollColours: colours });
+      const motions: string[] = [];
+      Object.assign(window, { rollColours: colours, rollMotions: motions });
       new MutationObserver(() => {
         for (const number of document.querySelectorAll(".shimmer .roll-in")) {
-          colours.push(getComputedStyle(number).color);
+          const style = getComputedStyle(number);
+          colours.push(style.color);
+          motions.push(
+            `${style.animationName} ${style.animationDuration} clip ${getComputedStyle(number.parentElement!).clipPath}`,
+          );
         }
       }).observe(document, { childList: true, subtree: true });
     });
@@ -415,6 +422,10 @@ test.describe("chat", () => {
     );
     expect(colours.length).toBeGreaterThan(0);
     expect(colours).not.toContain("rgba(0, 0, 0, 0)");
+    const motions = await page.evaluate(
+      () => (window as unknown as { rollMotions: string[] }).rollMotions,
+    );
+    expect(new Set(motions)).toEqual(new Set(["roll-in-up 0.4s clip none"]));
 
     await page.evaluate(() =>
       (window as unknown as { finishStep: () => void }).finishStep(),
