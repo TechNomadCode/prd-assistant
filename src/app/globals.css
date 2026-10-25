@@ -377,6 +377,7 @@ body {
     animation-duration: var(--duration-arrive);
     animation-timing-function: var(--ease-out), var(--ease-out-fade);
     animation-delay: calc(var(--order) * var(--duration-stagger));
+    animation-iteration-count: 1;
     animation-fill-mode: backwards;
   }
 
@@ -412,6 +413,33 @@ body {
     --arrive-y: 0.5625rem;
     animation-duration: var(--spring-pane-duration);
     animation-timing-function: var(--spring-pane), var(--spring-pane-fade);
+  }
+}
+
+/*
+ * A step that arrives while it works, a search or a quote check, carries the
+ * moving band too, and both are animations of the one line. `.shimmer` sets
+ * its animation with the shorthand and `.arrive` only some of its parts, so
+ * the two mixed: the line rose in again every 0.4s for as long as it worked,
+ * with no band (found 2026-10-25, while the database was down and each step
+ * waited on it). Here they run side by side, the arrival once, the band on.
+ */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .arrive.shimmer {
+      animation-name: arrive, arrive-fade, shimmer;
+      animation-duration: var(--duration-arrive), var(--duration-arrive), 1s;
+      animation-timing-function: var(--ease-out), var(--ease-out-fade), linear;
+      animation-delay:
+        calc(var(--order) * var(--duration-stagger)),
+        calc(var(--order) * var(--duration-stagger)), 0s;
+      animation-iteration-count: 1, 1, infinite;
+      animation-fill-mode: backwards, backwards, none;
+    }
+
+    .arrive-search.shimmer {
+      animation-timing-function: var(--ease-out), var(--ease-out), linear;
+    }
   }
 }
 

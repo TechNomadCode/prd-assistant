@@ -32,6 +32,67 @@ function conversation(page: Page) {
   return page.getByRole("list", { name: "Conversation" });
 }
 
+/** A step whose result the server is still waiting for. */
+type HeldStep = {
+  toolName: "searchNotes" | "saveSection";
+  input: unknown;
+  /** The error it ends in once the test lets it finish. */
+  errorText: string;
+};
+
+/**
+ * Answers the next message with one step that stays in progress until the
+ * test calls `window.finishStep()`, as a search or a save does while the
+ * server waits on a slow database, then ends it in an error. The chat's
+ * requests go through the page's own `fetch`, which this replaces from an
+ * init script, since a route can't hold a response halfway.
+ */
+async function holdStep(page: Page, step: HeldStep) {
+  await page.addInitScript((step) => {
+    const fetchFromNetwork = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.includes("/api/chat")) return fetchFromNetwork(input, init);
+      let finish = () => {};
+      const finished = new Promise<void>((resolve) => (finish = resolve));
+      Object.assign(window, { finishStep: finish });
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const send = (chunk: unknown) =>
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+            );
+          send({ type: "start" });
+          send({ type: "start-step" });
+          send({
+            type: "tool-input-available",
+            toolCallId: "held",
+            toolName: step.toolName,
+            input: step.input,
+          });
+          await finished;
+          send({
+            type: "tool-output-error",
+            toolCallId: "held",
+            errorText: step.errorText,
+          });
+          send({ type: "finish-step" });
+          send({ type: "finish" });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      return new Response(body, {
+        headers: {
+          "content-type": "text/event-stream",
+          "x-vercel-ai-ui-message-stream": "v1",
+        },
+      });
+    };
+  }, step);
+}
+
 /** The chat's own alert. Next.js keeps an empty one for route changes too. */
 function chatAlert(page: Page) {
   return page
@@ -223,6 +284,78 @@ test.describe("chat", () => {
 
       release();
       await expect(conversation(page)).toContainText(FAKE_NOTE);
+      await expect(working).toHaveCount(0);
+    });
+  }
+
+  const heldSteps: { name: string; line: string; step: HeldStep }[] = [
+    {
+      name: "search",
+      line: "Search “pings”…",
+      step: {
+        toolName: "searchNotes",
+        input: { query: "pings" },
+        errorText: "The search didn't work this time.",
+      },
+    },
+    {
+      name: "quote check",
+      line: "Checking the quotes in Goals / Objectives…",
+      step: {
+        toolName: "saveSection",
+        input: {
+          section: "Goals / Objectives",
+          statements: [
+            {
+              text: "Keep one list.",
+              citations: [{ source: "maya-3", quote: "one list" }],
+            },
+          ],
+        },
+        errorText:
+          "The section couldn't be checked this time, so it wasn't saved.",
+      },
+    },
+  ];
+  for (const { name, line, step } of heldSteps) {
+    test(`brings a ${name} in once and keeps its band moving while it waits, without arriving again`, async ({
+      page,
+    }) => {
+      // The arrival and the band are both animations of the one line. Mixed
+      // up, the line rose in again every 0.4s while it waited, with no band
+      // (found 2026-10-25, while the database was down).
+      await holdStep(page, step);
+      await openChat(page);
+      await ask(page, QUESTION);
+
+      const working = conversation(page).getByText(line);
+      await expect(working).toBeVisible();
+      await expect(working).toHaveCSS(
+        "animation-name",
+        "arrive, arrive-fade, shimmer",
+      );
+      await expect(working).toHaveCSS(
+        "animation-iteration-count",
+        "1, 1, infinite",
+      );
+      // Once it has arrived, only the band runs.
+      await expect
+        .poll(() =>
+          working.evaluate((element) =>
+            element
+              .getAnimations()
+              .map(
+                (animation) =>
+                  `${(animation as CSSAnimation).animationName} ${animation.playState}`,
+              ),
+          ),
+        )
+        .toEqual(["shimmer running"]);
+
+      await page.evaluate(() =>
+        (window as unknown as { finishStep: () => void }).finishStep(),
+      );
+      await expect(conversation(page)).toContainText(step.errorText);
       await expect(working).toHaveCount(0);
     });
   }
