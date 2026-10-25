@@ -358,9 +358,16 @@ function AssistantMessage({
             );
         }
       })}
-      {activity === "thinking" && (
-        <ThinkingLine className={lastPart?.type === "text" ? "mt-4" : "mt-2"} />
-      )}
+      {/* One line for the whole answer, kept while a step runs between two
+          waits, out of sight: shown again, it neither blinks nor starts its
+          band over (found 2026-10-25). Gone once the reply's words come. */}
+      {activity !== undefined &&
+        (activity === "thinking" || lastPart?.type !== "text") && (
+          <ThinkingLine
+            parked={activity !== "thinking"}
+            className={lastPart?.type === "text" ? "mt-4" : "mt-2"}
+          />
+        )}
       {unfinished && (
         <p className={cn("mt-6 text-sm font-medium", arrive)}>
           This answer stopped before it finished.

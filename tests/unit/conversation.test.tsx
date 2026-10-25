@@ -388,9 +388,21 @@ describe("Conversation", () => {
   });
 
   describe("while an answer is on its way, exactly one line moves", () => {
-    /** The lines with the moving band (`.shimmer` in `globals.css`). */
+    /**
+     * The lines with the moving band in sight (`.shimmer` in `globals.css`):
+     * a parked Thinking keeps its place out of sight while a step runs.
+     */
     function moving(container: HTMLElement) {
-      return container.querySelectorAll(".shimmer");
+      return [...container.querySelectorAll<HTMLElement>(".shimmer")].filter(
+        (line) => line.style.visibility !== "hidden",
+      );
+    }
+
+    /** "Thinking", where it's in sight. */
+    function thinkingInSight() {
+      return screen
+        .queryAllByText("Thinking")
+        .filter((line) => line.style.visibility !== "hidden");
     }
 
     it("shows Thinking before the first reply", () => {
@@ -409,7 +421,7 @@ describe("Conversation", () => {
         "streaming",
       );
 
-      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+      expect(thinkingInSight()).toEqual([]);
       expect(moving(container)).toHaveLength(1);
       expect(moving(container)[0]).toHaveTextContent(
         "Search “notifications for new items”…",
@@ -428,7 +440,7 @@ describe("Conversation", () => {
         "streaming",
       );
 
-      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+      expect(thinkingInSight()).toEqual([]);
       expect(moving(container)).toHaveLength(1);
       expect(moving(container)[0]).toHaveTextContent(/^Used 2 searches$/);
     });
@@ -497,13 +509,53 @@ describe("Conversation", () => {
       expect(moving(container)).toHaveLength(0);
     });
 
+    it("keeps one Thinking line through a step between two waits, out of sight while the step runs", () => {
+      // Removed for the step and added anew after it, it blinked and started
+      // its band over at every step (found 2026-10-25).
+      const done = search("output-available", { output: { passages: [HENK] } });
+      const { rerender } = show([question, answer(done)], "streaming");
+      const line = screen.getByText("Thinking");
+
+      rerender(
+        <Conversation
+          messages={[
+            question,
+            answer(done, search("input-available", { toolCallId: "call-2" })),
+          ]}
+          status="streaming"
+        />,
+      );
+      expect(screen.getByText("Thinking")).toBe(line);
+      expect(line).not.toBeVisible();
+      expect(line).toHaveAttribute("aria-hidden", "true");
+
+      rerender(
+        <Conversation
+          messages={[
+            question,
+            answer(
+              done,
+              search("output-available", {
+                toolCallId: "call-2",
+                output: { passages: [HENK] },
+              }),
+            ),
+          ]}
+          status="streaming"
+        />,
+      );
+      expect(screen.getByText("Thinking")).toBe(line);
+      expect(line).toBeVisible();
+      expect(line).not.toHaveAttribute("aria-hidden");
+    });
+
     it("stops Thinking once the reply begins with how long it thought", () => {
       const { container } = show(
         [question, answer(thought(3_000))],
         "streaming",
       );
 
-      expect(screen.queryByText("Thinking")).not.toBeInTheDocument();
+      expect(thinkingInSight()).toEqual([]);
       expect(moving(container)).toHaveLength(0);
       expect(screen.getByText("Thought").parentElement).toHaveTextContent(
         /^Thought 3s$/,
@@ -902,7 +954,6 @@ describe("Conversation", () => {
           status="ready"
         />,
       );
-      expect(container).not.toHaveTextContent("Daan doesn't.");
       typeOut();
       expect(fading(container)).toEqual(["Daan doesn't."]);
     });

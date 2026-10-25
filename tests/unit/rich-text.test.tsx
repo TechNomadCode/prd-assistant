@@ -268,13 +268,11 @@ describe("RichText as it's typed out", () => {
     wait(20);
   }
 
-  it("types out a text that arrives whole from the top, a step every 24ms, each ending after a word", () => {
+  it("types out a text that arrives whole from the top, its first step at once, then one every 24ms, each ending after a word", () => {
     const text = "Henk wants pings for every item someone adds. Daan doesn't.";
     const { container, rerender } = render(<RichText text={text} arriving />);
-    expect(container).toHaveTextContent("");
-
-    wait(24);
     expect(container.querySelector("p")).toHaveTextContent("Henk wants pings");
+    expect(container.querySelector("p")).not.toHaveTextContent("every");
     expect(steps(container)).toEqual(["Henk wants pings "]);
 
     wait(24);
@@ -298,7 +296,6 @@ describe("RichText as it's typed out", () => {
         arriving
       />,
     );
-    wait(24);
     const [first] = spans(container);
     wait(24);
     expect(spans(container)[0]).toBe(first);
@@ -355,7 +352,6 @@ describe("RichText as it's typed out", () => {
         arriving
       />,
     );
-    wait(24);
     expect(container.querySelectorAll("li")).toHaveLength(1);
     const first = container.querySelector("li")!;
     expect(first).toHaveClass("marker-arrive");
@@ -376,7 +372,6 @@ describe("RichText as it's typed out", () => {
     const table =
       "| Persona | Needs |\n|---|---|\n| Maya | Lists everyone shares |\n| Henk | A ping for every item |";
     const { container } = render(<RichText text={table} arriving />);
-    wait(24);
     const shown = within(container).getByRole("table");
     expect(shown.parentElement).toHaveClass("arrive", "arrive-block");
     expect(within(shown).getAllByRole("row").length).toBeLessThan(3);

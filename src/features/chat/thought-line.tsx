@@ -7,10 +7,22 @@ import { thoughtTime, type ThoughtPart } from "./thoughts";
 // lines. Unlike opencode's, the line doesn't open: the reasoning's words
 // never reach the browser.
 
-/** "Thinking", with the moving band (`.shimmer` in `src/app/globals.css`). */
-export function ThinkingLine({ className }: { className?: string }) {
+/**
+ * "Thinking", with the moving band (`.shimmer` in `src/app/globals.css`).
+ * `parked`, it keeps its place and its band out of sight, and out of the
+ * accessibility tree, while a step runs between two waits.
+ */
+export function ThinkingLine({
+  parked = false,
+  className,
+}: {
+  parked?: boolean;
+  className?: string;
+}) {
   return (
     <p
+      aria-hidden={parked || undefined}
+      style={parked ? { visibility: "hidden" } : undefined}
       className={cn(
         "shimmer text-[0.8125rem] leading-4 font-medium text-muted-foreground",
         className,

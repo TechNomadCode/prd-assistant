@@ -37,16 +37,18 @@ function nextEnd(text: string, from: number, step: number): number {
 }
 
 /**
- * How many of the text's characters show: while `paced`, from none when it
- * mounts, growing tick by tick to all of them, and again from where it was
- * whenever the text grows; otherwise all of them at once. The text is what
- * shows, its formatting already read, so a half-shown mark never appears.
+ * How many of the text's characters show: while `paced`, its first step as
+ * soon as it mounts, growing tick by tick to all of them, and again from
+ * where it was whenever the text grows; otherwise all of them at once. The
+ * text is what shows, its formatting already read, so a half-shown mark
+ * never appears. Mounting empty, a reply took nothing's place for a frame
+ * as "Thinking" left, and the chat sank by a line (found 2026-10-25).
  */
 export function usePacedLength(text: string, paced: boolean): number {
   const length = text.length;
   const [pace, setPace] = useState(() => ({
     length,
-    shown: paced ? 0 : length,
+    shown: paced ? nextEnd(text, 0, stepFor(length)) : length,
     step: stepFor(length),
   }));
   // React's "storing information from previous renders" pattern: the step
