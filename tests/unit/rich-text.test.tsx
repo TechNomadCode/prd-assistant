@@ -203,14 +203,15 @@ describe("RichText's table box", () => {
   });
 });
 
-// New text arrives word by word (slice 26): each word of the newest update
-// in a span of `.word-arrive`, whose CSS animation runs once, when the span
-// mounts, delayed by its place among them (`--word`) of how many
-// (`--words`). Once none is still on its way, a frame after the last ended,
-// the text is plain again. jsdom runs no animation and lists none
-// (`getAnimations`), so there the text stays whole: these tests give it a
-// list, of the animations they say are still on their way.
-describe("RichText as it arrives", () => {
+// Text that arrives is typed out (2026-10-25, `chat/paced-text.ts`): what
+// shows grows from the top every 24ms, about 15 characters a step, ending
+// after a word, and the words each step adds fade in together, in one span
+// of `.word-arrive`, whose CSS animation runs once, when the span mounts.
+// Once none is still on its way, a frame after the last ended, the text is
+// plain again. jsdom runs no animation and lists none (`getAnimations`), so
+// there the text stays whole: these tests give it a list, of the animations
+// they say are still on their way, and fake timers for the steps.
+describe("RichText as it's typed out", () => {
   let onTheirWay: Animation[] = [];
 
   beforeEach(() => {
@@ -219,9 +220,18 @@ describe("RichText as it arrives", () => {
       value: () => onTheirWay,
       configurable: true,
     });
+    vi.useFakeTimers({
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+      ],
+    });
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
     vi.unstubAllGlobals();
   });
@@ -230,19 +240,24 @@ describe("RichText as it arrives", () => {
     return [...container.querySelectorAll<HTMLElement>(".word-arrive")];
   }
 
-  /** Each arriving word, in order, with its place among its update's words. */
-  function arriving(container: HTMLElement, since: Element[] = []) {
-    return spans(container)
-      .filter((span) => !since.includes(span))
-      .map((span) => [
-        span.textContent,
-        Number(span.style.getPropertyValue("--word")),
-        Number(span.style.getPropertyValue("--words")),
-      ]);
+  /** What each step brought in, in order. */
+  function steps(container: HTMLElement): (string | null)[] {
+    return spans(container).map((span) => span.textContent);
   }
 
-  /** The word animation of the last word ends. */
-  function lastWordArrives(container: HTMLElement) {
+  /** Time passes, as many steps as fit in it. */
+  function wait(ms: number) {
+    // A frame at a time: each step is set for the next once the last has
+    // rendered, which happens when `act` ends.
+    for (let passed = 0; passed < ms; passed += 8) {
+      act(() => {
+        vi.advanceTimersByTime(Math.min(8, ms - passed));
+      });
+    }
+  }
+
+  /** The word animation of the last step's words ends. */
+  function lastStepArrives(container: HTMLElement) {
     fireEvent.animationEnd(spans(container).at(-1)!, {
       animationName: "word-arrive",
     });
@@ -250,187 +265,162 @@ describe("RichText as it arrives", () => {
 
   /** The next frame, when the text looks at what's still on its way. */
   function nextFrame() {
-    return act(
-      () =>
-        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-    );
+    wait(20);
   }
 
-  it("brings in a text that arrives in one piece word by word, the spaces between them plain", () => {
-    const text = "Henk wants pings. Daan doesn't.";
+  it("types out a text that arrives whole from the top, a step every 24ms, each ending after a word", () => {
+    const text = "Henk wants pings for every item someone adds. Daan doesn't.";
     const { container, rerender } = render(<RichText text={text} arriving />);
+    expect(container).toHaveTextContent("");
 
-    expect(arriving(container)).toEqual([
-      ["Henk", 0, 5],
-      ["wants", 1, 5],
-      ["pings.", 2, 5],
-      ["Daan", 3, 5],
-      ["doesn't.", 4, 5],
+    wait(24);
+    expect(container.querySelector("p")).toHaveTextContent("Henk wants pings");
+    expect(steps(container)).toEqual(["Henk wants pings "]);
+
+    wait(24);
+    expect(steps(container)).toEqual([
+      "Henk wants pings ",
+      "for every item someone ",
     ]);
+
+    wait(1000);
     expect(container.querySelector("p")).toHaveTextContent(text);
-    expect(
-      [...container.querySelector("p")!.childNodes]
-        .filter((node) => node.nodeType === Node.TEXT_NODE)
-        .map((node) => node.textContent),
-    ).toEqual([" ", " ", " ", " "]);
 
     const before = spans(container);
     rerender(<RichText text={text} arriving className="mt-4" />);
     expect(spans(container)).toEqual(before);
   });
 
-  it("brings in only the words each update adds, leaving those shown before where they were", () => {
-    const { container, rerender } = render(
-      <RichText text="Henk wants pings" arriving />,
-    );
-    const first = spans(container);
-    expect(arriving(container)).toEqual([
-      ["Henk", 0, 3],
-      ["wants", 1, 3],
-      ["pings", 2, 3],
-    ]);
-
-    rerender(<RichText text="Henk wants pings for every item." arriving />);
-    expect(arriving(container, first)).toEqual([
-      ["for", 0, 3],
-      ["every", 1, 3],
-      ["item.", 2, 3],
-    ]);
-    expect(spans(container).slice(0, 3)).toEqual(first);
-    expect(arriving(container).slice(0, 3)).toEqual([
-      ["Henk", 0, 3],
-      ["wants", 1, 3],
-      ["pings", 2, 3],
-    ]);
-
-    const second = spans(container);
-    rerender(
-      <RichText
-        text={"Henk wants pings for every item.\n\n- Maya **plans** ahead"}
-        arriving
-      />,
-    );
-    expect(arriving(container, second)).toEqual([
-      ["Maya", 0, 3],
-      ["plans", 1, 3],
-      ["ahead", 2, 3],
-    ]);
-    expect(within(container).getByRole("listitem")).toHaveTextContent(
-      "Maya plans ahead",
-    );
-  });
-
-  it("spaces each paragraph's, list's or table's words on their own, so they all begin at once", () => {
+  it("leaves what each step brought in where it was as the next step comes", () => {
     const { container } = render(
       <RichText
-        text={
-          "Henk wants pings.\n\n- Daan\n- Sofia\n\n| Who |\n|---|\n| Maya |"
-        }
+        text="Henk wants pings for every item someone adds."
         arriving
       />,
     );
-    expect(arriving(container)).toEqual([
-      ["Henk", 0, 3],
-      ["wants", 1, 3],
-      ["pings.", 2, 3],
-      ["Daan", 0, 2],
-      ["Sofia", 1, 2],
-      ["Who", 0, 2],
-      ["Maya", 1, 2],
-    ]);
+    wait(24);
+    const [first] = spans(container);
+    wait(24);
+    expect(spans(container)[0]).toBe(first);
+    expect(spans(container)).toHaveLength(2);
   });
 
-  it("brings in a long paragraph's words a few at a time, at most 16 pieces of it", () => {
-    const words = Array.from({ length: 40 }, (_, index) => `w${index}`);
-    const { container } = render(<RichText text={words.join(" ")} arriving />);
+  it("types out a long reply within about 2.5 seconds, faster than 600 characters a second", () => {
+    const words = Array.from({ length: 700 }, (_, index) => `w${index}`);
+    const text = words.join(" ");
+    expect(text.length).toBeGreaterThan(3000);
+    const { container } = render(<RichText text={text} arriving />);
 
-    // Three words a span, each span from a place that's a multiple of three.
-    const pieces = arriving(container);
-    expect(pieces).toHaveLength(14);
-    expect(pieces[0]).toEqual(["w0 w1 w2", 0, 40]);
-    expect(pieces[1]).toEqual(["w3 w4 w5", 3, 40]);
-    expect(pieces.at(-1)).toEqual(["w39", 39, 40]);
-    expect(container.querySelector("p")).toHaveTextContent(words.join(" "));
+    wait(1200);
+    const partway = container.querySelector("p")!.textContent!.length;
+    expect(partway).toBeGreaterThan(1200 * 0.6);
+    expect(partway).toBeLessThan(text.length);
+
+    wait(1400);
+    expect(container.querySelector("p")).toHaveTextContent(text);
   });
 
-  it("brings in the rest of a word that came before with the update's words", () => {
-    const { container, rerender } = render(<RichText text="Hen" arriving />);
-    const before = spans(container);
-    rerender(<RichText text="Henk wants" arriving />);
-    expect(arriving(container, before)).toEqual([
-      ["k", 0, 2],
-      ["wants", 1, 2],
-    ]);
-    expect(container.querySelector("p")).toHaveTextContent("Henk wants");
-  });
-
-  it("doesn't bring in again the words a table taking shape mounts anew", () => {
+  it("goes on from where it was when the text grows", () => {
     const { container, rerender } = render(
-      <RichText text={"Who needs what:\n\n| Persona | Needs |"} arriving />,
+      <RichText text="Henk wants pings." arriving />,
     );
-
+    wait(1000);
     const before = spans(container);
-    rerender(
+
+    rerender(<RichText text="Henk wants pings. Daan doesn't." arriving />);
+    expect(container.querySelector("p")).toHaveTextContent("Henk wants pings.");
+    expect(container.querySelector("p")).not.toHaveTextContent("Daan");
+
+    wait(1000);
+    expect(container.querySelector("p")).toHaveTextContent(
+      "Henk wants pings. Daan doesn't.",
+    );
+    expect(spans(container).slice(0, before.length)).toEqual(before);
+  });
+
+  it("never shows a formatting mark half typed", () => {
+    const { container } = render(
+      <RichText text="Maya **plans ahead** for the week." arriving />,
+    );
+    wait(24);
+    expect(container).toHaveTextContent("Maya plans ahead");
+    expect(container.textContent).not.toContain("*");
+    expect(container.querySelector("strong")).toHaveTextContent("plans ahead");
+  });
+
+  it("types out a list item by item, a new item's bullet arriving with its words, but not one shown before", () => {
+    const { container } = render(
       <RichText
-        text={
-          "Who needs what:\n\n| Persona | Needs |\n|---|---|\n| Maya | Lists |"
-        }
+        text={"Two needs:\n\n- One shared list\n- Aisle order"}
         arriving
       />,
     );
-    const now = arriving(container, before).map(([word]) => word);
-    expect(now).toEqual(["Maya", "Lists"]);
+    wait(24);
+    expect(container.querySelectorAll("li")).toHaveLength(1);
+    const first = container.querySelector("li")!;
+    expect(first).toHaveClass("marker-arrive");
+
+    wait(1000);
+    const [kept, added] = container.querySelectorAll("li");
+    expect(kept).toBe(first);
+    expect(added).toHaveClass("marker-arrive");
+    expect(added).toHaveTextContent("Aisle order");
+
+    const before = render(<RichText text={"- One shared list"} />);
+    expect(before.container.querySelector("li")).not.toHaveClass(
+      "marker-arrive",
+    );
   });
 
-  it("brings in a table's box as a block once the table takes shape, but not a table that was there before", () => {
-    const table = "| Persona | Needs |\n|---|---|\n| Maya | Lists |";
-    const { container, rerender } = render(
-      <RichText text="Who needs what:" arriving />,
-    );
-    expect(container.querySelector(".arrive")).toBeNull();
+  it("types out a table row by row, its box rising in as a block, but not a table that was there before", () => {
+    const table =
+      "| Persona | Needs |\n|---|---|\n| Maya | Lists everyone shares |\n| Henk | A ping for every item |";
+    const { container } = render(<RichText text={table} arriving />);
+    wait(24);
+    const shown = within(container).getByRole("table");
+    expect(shown.parentElement).toHaveClass("arrive", "arrive-block");
+    expect(within(shown).getAllByRole("row").length).toBeLessThan(3);
 
-    rerender(<RichText text={`Who needs what:\n\n${table}`} arriving />);
-    expect(within(container).getByRole("table").parentElement).toHaveClass(
-      "arrive",
-      "arrive-block",
-    );
+    wait(1000);
+    expect(grid(shown)).toEqual([
+      [["Persona"], ["Needs"]],
+      [["Maya"], ["Lists everyone shares"]],
+      [["Henk"], ["A ping for every item"]],
+    ]);
 
     const before = render(<RichText text={table} />);
     expect(before.container.querySelector(".arrive")).toBeNull();
   });
 
-  it("brings in inline code as one word", () => {
-    const { container, rerender } = render(<RichText text="Run it" arriving />);
-    const before = spans(container);
-    rerender(<RichText text="Run it with `npm test` now" arriving />);
-    expect(arriving(container, before)).toEqual([
-      ["with", 0, 3],
-      ["npm test", 1, 3],
-      ["now", 2, 3],
-    ]);
+  it("brings in inline code whole, with the step it begins in", () => {
+    const { container } = render(
+      <RichText text="Run it with `npm test --run` now" arriving />,
+    );
+    wait(24);
     expect(container.querySelector(".word-arrive > code")).toHaveTextContent(
-      "npm test",
+      "npm test --run",
     );
   });
 
-  it("is plain text again once no word is still on its way, one text node per run", async () => {
+  it("is plain text again once no word is still on its way, one text node per run", () => {
     const { container } = render(
       <RichText text="Maya **plans** ahead. Henk doesn't." arriving />,
     );
-    // Another word's animation still runs: it waits for that one too.
+    wait(1000);
+    // Another step's animation still runs: it waits for that one too.
     onTheirWay = [
       {
         animationName: "word-arrive",
         playState: "running",
       } as unknown as Animation,
     ];
-    lastWordArrives(container);
-    await nextFrame();
-    expect(spans(container)).toHaveLength(5);
+    lastStepArrives(container);
+    nextFrame();
+    expect(spans(container).length).toBeGreaterThan(0);
 
     onTheirWay = [];
-    lastWordArrives(container);
-    await nextFrame();
+    lastStepArrives(container);
+    nextFrame();
 
     expect(spans(container)).toEqual([]);
     const paragraph = container.querySelector("p")!;
@@ -445,61 +435,32 @@ describe("RichText as it arrives", () => {
     expect(screen.getByText("plans").childNodes).toHaveLength(1);
   });
 
-  it("brings in what comes after it was plain again, leaving that plain", async () => {
+  it("brings in what comes after it was plain again, leaving that plain", () => {
     const { container, rerender } = render(
       <RichText text="Henk wants pings." arriving />,
     );
-    lastWordArrives(container);
-    await nextFrame();
+    wait(1000);
+    lastStepArrives(container);
+    nextFrame();
     expect(spans(container)).toEqual([]);
 
     rerender(<RichText text="Henk wants pings. Daan doesn't." arriving />);
+    wait(1000);
 
-    expect(arriving(container)).toEqual([
-      ["Daan", 0, 2],
-      ["doesn't.", 1, 2],
-    ]);
+    expect(steps(container)).toEqual([" Daan doesn't."]);
     expect(container.querySelector("p")!.firstChild?.textContent).toBe(
       "Henk wants pings.",
     );
   });
 
-  it("ignores the end of any other animation in it", async () => {
+  it("ignores the end of any other animation in it", () => {
     const { container } = render(<RichText text="Henk does." arriving />);
+    wait(1000);
     fireEvent.animationEnd(spans(container).at(-1)!, {
       animationName: "arrive",
     });
-    await nextFrame();
-    expect(spans(container)).toHaveLength(2);
-  });
-
-  it("brings in a new list item's bullet with its first word, but not one shown before", () => {
-    const { container, rerender } = render(
-      <RichText text={"Two needs:\n\n- One shared list"} arriving />,
-    );
-    const first = container.querySelector("li")!;
-    expect(first).toHaveClass("marker-arrive");
-    expect(first.style.getPropertyValue("--word")).toBe("0");
-    expect(first.style.getPropertyValue("--words")).toBe("3");
-
-    rerender(
-      <RichText
-        text={"Two needs:\n\n- One shared list\n- Aisle order"}
-        arriving
-      />,
-    );
-    const [kept, added] = container.querySelectorAll("li");
-    expect(kept).toBe(first);
-    expect(kept!.style.getPropertyValue("--word")).toBe("0");
-    expect(kept!.style.getPropertyValue("--words")).toBe("3");
-    expect(added).toHaveClass("marker-arrive");
-    expect(added!.style.getPropertyValue("--word")).toBe("0");
-    expect(added!.style.getPropertyValue("--words")).toBe("2");
-
-    const before = render(<RichText text={"- One shared list"} />);
-    expect(before.container.querySelector("li")).not.toHaveClass(
-      "marker-arrive",
-    );
+    nextFrame();
+    expect(spans(container)).toHaveLength(1);
   });
 
   it("shows a text that was there before at once", () => {

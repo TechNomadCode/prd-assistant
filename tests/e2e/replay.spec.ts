@@ -61,11 +61,10 @@ function wordsIn(piece: { text: string }): number {
   return piece.text.split(/\s+/).filter(Boolean).length;
 }
 
-// A real reply arrives whole, as on staging, and its words still come in one
-// after another (slice 26): each paragraph, list or table's spaced at most
-// 1.6 frames apart, so its last starts within 6 frames (0.2s) and it settles
-// within about half a second.
-test("brings in a reply that arrives whole word by word within about half a second, then shows it plain", async ({
+// A real reply arrives whole, as on staging, and is still typed out from the
+// top (2026-10-25, `chat/paced-text.ts`): a few words every 24ms, each step's
+// fading in together, all of it within about 2.5 seconds.
+test("types out a reply that arrives whole from the top within about 2.5 seconds, then shows it plain", async ({
   page,
 }) => {
   await recordArrivals(page, ".word-arrive");
@@ -87,26 +86,23 @@ test("brings in a reply that arrives whole word by word within about half a seco
   await expect(conversation).not.toContainText("This is the local fake model");
   await expect(conversation.locator(".word-arrive")).toHaveCount(0);
 
-  // The pieces of the reply, which came whole, in one update.
+  // The reply came whole, in one update, and was typed out in steps: each
+  // step's words in a batch of their own, a few words each.
   const pieces = await arrivals(page);
-  const batches = [...new Set(pieces.map(({ batch }) => batch))].map((batch) =>
-    pieces.filter((piece) => piece.batch === batch),
-  );
-  const count = (batch: typeof pieces) =>
-    batch.reduce((words, piece) => words + wordsIn(piece), 0);
-  const reply = batches.sort((a, b) => count(b) - count(a))[0] ?? [];
-  expect(count(reply)).toBeGreaterThan(150);
-  // Each paragraph, list or table spaces its own words, from 0.
-  const delays = reply.map(({ delay }) => Number.parseFloat(delay));
-  expect(delays[0]).toBe(0);
-  for (let word = 1; word < delays.length; word++) {
-    if (delays[word] === 0) continue;
-    const gap = delays[word]! - delays[word - 1]!;
-    expect(gap).toBeGreaterThan(0);
-    expect(gap).toBeLessThanOrEqual(0.0531);
+  const words = pieces.reduce((count, piece) => count + wordsIn(piece), 0);
+  expect(words).toBeGreaterThan(150);
+  const batches = new Set(pieces.map(({ batch }) => batch));
+  expect(batches.size).toBeGreaterThan(20);
+  const first = pieces.filter(({ batch }) => batch === pieces[0]!.batch);
+  expect(
+    first.reduce((count, piece) => count + wordsIn(piece), 0),
+  ).toBeLessThan(words / 10);
+  // All of it within about 2.5 seconds.
+  expect(pieces.at(-1)!.time - pieces[0]!.time).toBeLessThan(2700);
+  for (const piece of pieces) {
+    expect(piece.duration).toBe("0.18s");
+    expect(piece.delay).toBe("0s");
   }
-  expect(Math.max(...delays)).toBeLessThanOrEqual(0.2001);
-  for (const word of reply) expect(word.duration).toBe("0.3s");
 });
 
 // The scenario tour's steps (slice 24) answer on the same server. Its panel

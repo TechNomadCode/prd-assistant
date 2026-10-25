@@ -45,12 +45,8 @@
   --duration-stagger: 0.2s; /* 6: between things arriving one by one */
   /* 34: a glow that rises in 6 and fades in 26 */
   --duration-highlight: 1.13s;
-  /* 9: a word arriving; 1.6 from one word to the next, and at most 6 from
-     the first word of a paragraph, list or table to its last, so it
-     settles within about half a second */
-  --duration-word: 0.3s;
-  --duration-word-gap: 0.053s;
-  --duration-word-spread: 0.2s;
+  /* A typed word fading in: opencode's 180ms, not the video's (2026-10-25) */
+  --duration-word: 0.18s;
   --duration-fold: 0.53s; /* 16: searches drawing together into one line */
   --duration-sweep: 0.8s; /* 24: a highlight sweeping across its words */
 }
@@ -228,48 +224,28 @@ body {
 }
 
 /*
- * The assistant's words arriving one after another, as the video's do: each
- * rises 4px (half the video's 8) as it sharpens from a slight blur and fades
- * in, all on the ease-out. In each paragraph, list or table an update
- * brings, the words follow each other 1.6 frames apart, closer when there
- * are many, so its last starts at most 6 frames after its first and it
- * settles within about half a second (`--word`, a word's place among them,
- * and `--words`, how many: `chat/rich-text.tsx`). An inline word can't take a
- * transform, so it rises by its relative offset, which moves no other word;
- * the offset settles on 0, as from a length to `auto` it would only jump. A
- * list item that comes with them has its bullet or number fade in with its
- * first word (`.marker-arrive`). With reduced motion the words show at once.
+ * The assistant's words as the reply is typed out (`chat/paced-text.ts`):
+ * the words each step adds fade in together, as opencode's do (its
+ * `markdown-word-enter`, `packages/session-ui/src/components/markdown.css` at
+ * acdcdb8, read 2026-10-25): opacity only, on the ease-out, the owner's
+ * choice over the video's rise and blur (docs/decisions.md, Design,
+ * 2026-10-25). A list item that comes with them has its bullet or number
+ * fade in with its words (`.marker-arrive`). With reduced motion the words
+ * show at once.
  */
 @media (prefers-reduced-motion: no-preference) {
-  .word-arrive,
-  .marker-arrive {
-    --word-delay: calc(
-      var(--word) *
-        min(
-          var(--duration-word-gap),
-          var(--duration-word-spread) / max(var(--words) - 1, 1)
-        )
-    );
-  }
-
   .word-arrive {
-    position: relative;
-    top: 0;
-    animation: word-arrive var(--duration-word) var(--ease-out)
-      var(--word-delay) backwards;
+    animation: word-arrive var(--duration-word) var(--ease-out) backwards;
   }
 
   .marker-arrive::marker {
-    animation: marker-arrive var(--duration-word) var(--ease-out)
-      var(--word-delay) backwards;
+    animation: marker-arrive var(--duration-word) var(--ease-out) backwards;
   }
 }
 
 @keyframes word-arrive {
   from {
-    top: 0.25rem;
     opacity: 0;
-    filter: blur(2.5px);
   }
 }
 
@@ -580,6 +556,14 @@ body {
 
   .roll[data-direction="down"] .roll-in {
     animation-name: roll-in-down;
+  }
+
+  /* On a line with the moving band, whose letters are see-through and show
+     the band painted behind them, the rolling number, in a box of its own,
+     was left out and vanished for its roll (found 2026-10-25): it keeps its
+     own grey until it's plain text again. */
+  .shimmer .roll {
+    color: var(--muted-foreground);
   }
 }
 

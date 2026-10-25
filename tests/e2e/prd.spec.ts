@@ -705,7 +705,9 @@ test.describe("the chat beside the PRD", () => {
         (element) => element.scrollHeight > element.clientHeight,
       ),
     ).toBe(true);
-    expect(await atBottom()).toBe(true);
+    // The reply is still typed out below the statements as they show
+    // (2026-10-25), and the chat follows it there.
+    await expect.poll(atBottom).toBe(true);
 
     await chat.evaluate((element) => {
       element.scrollTop = 0;

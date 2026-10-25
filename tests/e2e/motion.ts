@@ -4,6 +4,8 @@ import type { Page } from "@playwright/test";
 export type Arrived = {
   /** Which batch of changes to the page added it, counted from 1. */
   batch: number;
+  /** When, in milliseconds since the page loaded. */
+  time: number;
   text: string;
   classes: string;
   animation: string;
@@ -41,6 +43,7 @@ export async function recordArrivals(page: Page, selector: string) {
             const style = getComputedStyle(element);
             arrived.push({
               batch,
+              time: performance.now(),
               text: element.textContent ?? "",
               classes: element.className,
               animation: style.animationName,

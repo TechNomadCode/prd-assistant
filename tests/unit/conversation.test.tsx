@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ChatStatus } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Conversation } from "@/features/chat/conversation";
@@ -874,7 +874,24 @@ describe("Conversation", () => {
       );
     }
 
-    it("brings in only an answer that arrives after the chat shows, word by word, even when it ends as it arrives", () => {
+    // The reply is typed out a step every 24ms (`chat/paced-text.ts`), each
+    // step set once the last has rendered, which happens when `act` ends.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function typeOut() {
+      for (let step = 0; step < 40; step++) {
+        act(() => {
+          vi.advanceTimersByTime(24);
+        });
+      }
+    }
+
+    it("types out only an answer that arrives after the chat shows, even when it ends as it arrives", () => {
       const shownBefore = [question, answer({ type: "text", text: "Henk." })];
       const { container, rerender } = show(shownBefore);
       expect(fading(container)).toEqual([]);
@@ -885,10 +902,12 @@ describe("Conversation", () => {
           status="ready"
         />,
       );
-      expect(fading(container)).toEqual(["Daan", "doesn't."]);
+      expect(container).not.toHaveTextContent("Daan doesn't.");
+      typeOut();
+      expect(fading(container)).toEqual(["Daan doesn't."]);
     });
 
-    it("brings in an answer's words as they come, and leaves them as they are once it's finished", () => {
+    it("types out an answer's words as they come, and leaves them as they are once it's finished", () => {
       const { container, rerender } = show([question], "submitted");
       rerender(
         <Conversation
@@ -896,13 +915,15 @@ describe("Conversation", () => {
           status="streaming"
         />,
       );
+      typeOut();
       rerender(
         <Conversation
           messages={[question, reply("Daan doesn't.", "streaming")]}
           status="streaming"
         />,
       );
-      expect(fading(container)).toEqual(["Daan", "doesn't."]);
+      typeOut();
+      expect(fading(container)).toEqual(["Daan", " doesn't."]);
 
       const before = [...container.querySelectorAll(".word-arrive")];
       rerender(

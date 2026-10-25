@@ -84,6 +84,7 @@ export function Conversation({
   status,
   stopped = new Set(),
   onSeeSection,
+  onTextGrows,
 }: {
   messages: ChatMessage[];
   status: ChatStatus;
@@ -91,6 +92,8 @@ export function Conversation({
   stopped?: ReadonlySet<string>;
   /** Brings a saved section into view in the PRD. */
   onSeeSection?: (section: SectionName) => void;
+  /** A reply being typed out shows more of itself. */
+  onTextGrows?: () => void;
 }) {
   // The messages the chat showed with, such as a conversation brought back
   // after a reload: they're there already, so nothing in them arrives.
@@ -156,6 +159,7 @@ export function Conversation({
             stopped={question?.role === "user" && stopped.has(question.id)}
             activity={message === last ? activity : undefined}
             onSeeSection={onSeeSection}
+            onTextGrows={onTextGrows}
           />
         );
       })}
@@ -250,6 +254,7 @@ function AssistantMessage({
   stopped = false,
   activity,
   onSeeSection,
+  onTextGrows,
 }: {
   parts: ShownPart[];
   /** The answer came in after the chat showed: its lines arrive. */
@@ -260,6 +265,7 @@ function AssistantMessage({
   /** Set while this answer is on its way. */
   activity?: Activity;
   onSeeSection?: (section: SectionName) => void;
+  onTextGrows?: () => void;
 }) {
   // How many parts showed before the latest came, so a run of searches that
   // forms knows which of its lines were showing as plain lines (React's
@@ -316,6 +322,7 @@ function AssistantMessage({
                 key={index}
                 text={part.text}
                 arriving={arriving}
+                onGrow={onTextGrows}
                 className={cn(space, unfinished && "text-muted-foreground")}
               />
             );

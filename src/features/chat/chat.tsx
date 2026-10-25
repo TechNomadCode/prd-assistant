@@ -2,6 +2,7 @@
 
 import type { ChatStatus } from "ai";
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -113,6 +114,14 @@ export function Chat({
     const element = scroller.current;
     if (element && following.current) followEnd(element);
   }, [messages, status]);
+
+  // A reply typed out grows after its answer has ended, when the effect above
+  // no longer runs (found 2026-10-25, `tests/e2e/layout.spec.ts`, 2 runs in
+  // 8): it keeps following as it grows. A jump on its way goes on by itself.
+  const followTyping = useCallback(() => {
+    const element = scroller.current;
+    if (element && following.current && !jumping.current) followEnd(element);
+  }, []);
 
   // It keeps following when it gets shorter: the message box growing with
   // its text, the suggestion showing, or the window changing size.
@@ -229,6 +238,7 @@ export function Chat({
           status={status}
           stopped={stopped}
           onSeeSection={onSeeSection}
+          onTextGrows={followTyping}
         />
 
         {failed && (

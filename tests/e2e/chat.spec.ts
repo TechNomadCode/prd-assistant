@@ -41,56 +41,76 @@ type HeldStep = {
 };
 
 /**
- * Answers the next message with one step that stays in progress until the
- * test calls `window.finishStep()`, as a search or a save does while the
- * server waits on a slow database, then ends it in an error. The chat's
- * requests go through the page's own `fetch`, which this replaces from an
- * init script, since a route can't hold a response halfway.
+ * Answers the next message with steps that each end in their error, 0.3s
+ * apart, and then one that stays in progress until the test calls
+ * `window.finishStep()`, as a search or a save does while the server waits
+ * on a slow database. The chat's requests go through the page's own `fetch`,
+ * which this replaces from an init script, since a route can't hold a
+ * response halfway.
  */
-async function holdStep(page: Page, step: HeldStep) {
-  await page.addInitScript((step) => {
-    const fetchFromNetwork = window.fetch.bind(window);
-    window.fetch = async (input, init) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (!url.includes("/api/chat")) return fetchFromNetwork(input, init);
-      let finish = () => {};
-      const finished = new Promise<void>((resolve) => (finish = resolve));
-      Object.assign(window, { finishStep: finish });
-      const encoder = new TextEncoder();
-      const body = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          const send = (chunk: unknown) =>
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
-            );
-          send({ type: "start" });
-          send({ type: "start-step" });
-          send({
-            type: "tool-input-available",
-            toolCallId: "held",
-            toolName: step.toolName,
-            input: step.input,
-          });
-          await finished;
-          send({
-            type: "tool-output-error",
-            toolCallId: "held",
-            errorText: step.errorText,
-          });
-          send({ type: "finish-step" });
-          send({ type: "finish" });
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-        },
-      });
-      return new Response(body, {
-        headers: {
-          "content-type": "text/event-stream",
-          "x-vercel-ai-ui-message-stream": "v1",
-        },
-      });
-    };
-  }, step);
+async function holdStep(page: Page, step: HeldStep, before: HeldStep[] = []) {
+  await page.addInitScript(
+    ({ step, before }) => {
+      const fetchFromNetwork = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (!url.includes("/api/chat")) return fetchFromNetwork(input, init);
+        let finish = () => {};
+        const finished = new Promise<void>((resolve) => (finish = resolve));
+        Object.assign(window, { finishStep: finish });
+        const encoder = new TextEncoder();
+        const body = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            const send = (chunk: unknown) =>
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+              );
+            send({ type: "start" });
+            for (const [index, earlier] of before.entries()) {
+              send({ type: "start-step" });
+              send({
+                type: "tool-input-available",
+                toolCallId: `earlier-${index}`,
+                toolName: earlier.toolName,
+                input: earlier.input,
+              });
+              send({
+                type: "tool-output-error",
+                toolCallId: `earlier-${index}`,
+                errorText: earlier.errorText,
+              });
+              send({ type: "finish-step" });
+              await new Promise((resolve) => setTimeout(resolve, 300));
+            }
+            send({ type: "start-step" });
+            send({
+              type: "tool-input-available",
+              toolCallId: "held",
+              toolName: step.toolName,
+              input: step.input,
+            });
+            await finished;
+            send({
+              type: "tool-output-error",
+              toolCallId: "held",
+              errorText: step.errorText,
+            });
+            send({ type: "finish-step" });
+            send({ type: "finish" });
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        });
+        return new Response(body, {
+          headers: {
+            "content-type": "text/event-stream",
+            "x-vercel-ai-ui-message-stream": "v1",
+          },
+        });
+      };
+    },
+    { step, before },
+  );
 }
 
 /** The chat's own alert. Next.js keeps an empty one for route changes too. */
@@ -360,8 +380,49 @@ test.describe("chat", () => {
     });
   }
 
+  test("keeps the count of searches in view as it rolls while a search runs", async ({
+    page,
+  }) => {
+    // The band paints the line through its letters, which are see-through,
+    // and left out the rolling number, in a box of its own: the count
+    // vanished for its roll each time it grew (found 2026-10-25).
+    await page.addInitScript(() => {
+      const colours: string[] = [];
+      Object.assign(window, { rollColours: colours });
+      new MutationObserver(() => {
+        for (const number of document.querySelectorAll(".shimmer .roll-in")) {
+          colours.push(getComputedStyle(number).color);
+        }
+      }).observe(document, { childList: true, subtree: true });
+    });
+    const search = (query: string): HeldStep => ({
+      toolName: "searchNotes",
+      input: { query },
+      errorText: "The search didn't work this time.",
+    });
+    await holdStep(page, search("pings"), [
+      search("alerts"),
+      search("notifications"),
+    ]);
+    await openChat(page);
+    await ask(page, QUESTION);
+
+    await expect(
+      conversation(page).getByRole("button", { name: "Used 3 searches" }),
+    ).toBeVisible();
+    const colours = await page.evaluate(
+      () => (window as unknown as { rollColours: string[] }).rollColours,
+    );
+    expect(colours.length).toBeGreaterThan(0);
+    expect(colours).not.toContain("rgba(0, 0, 0, 0)");
+
+    await page.evaluate(() =>
+      (window as unknown as { finishStep: () => void }).finishStep(),
+    );
+  });
+
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
-    test(`brings the answer's words in one after another as they arrive, unless motion is reduced, then plain again, and not after a reload (${reducedMotion})`, async ({
+    test(`types the answer out as it arrives, each step's words fading in, unless motion is reduced, then plain again, and not after a reload (${reducedMotion})`, async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion });
@@ -374,13 +435,14 @@ test.describe("chat", () => {
       if (reducedMotion === "reduce") {
         expect(words).toEqual([]);
       } else {
-        // The fake model sends a word at a time, so its words come one by
-        // one, or a few together should a busy page gather many.
-        expect(words.length).toBeGreaterThan(10);
+        // The fake model sends a word at a time, and the chat types them
+        // out a few at a time, each step's words fading in together.
+        expect(words.length).toBeGreaterThan(5);
         for (const word of words) {
-          expect(word.text).toMatch(/^\S(.*\S)?$/);
+          expect(word.text.trim()).not.toBe("");
           expect(word.animation).toBe("word-arrive");
-          expect(word.duration).toBe("0.3s");
+          expect(word.duration).toBe("0.18s");
+          expect(word.delay).toBe("0s");
         }
       }
       // Then plain again, as tests and screen readers read it: no word apart
