@@ -36,7 +36,7 @@ import { conversationStarted, offeredSuggestion } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
 import { ScenarioTour } from "./scenario-tour";
 import { keepConversation, restoreConversation } from "./stored-conversation";
-import { finishedOnly, unfinishedStep } from "./stopped-answer";
+import { finishedOnly } from "./stopped-answer";
 
 // `npm run dev:replay` sets it, and with it the scenario tour shows (slice 24).
 // Inlined when Next.js compiles, so no build for staging or production has it.
@@ -403,7 +403,9 @@ function RestoredWorkspace() {
 /**
  * The sections being drafted while the assistant works: the one the check-in
  * asked for, from its message until it's saved, and any whose save has
- * started in the answer on its way.
+ * started in the answer on its way, until a save of it in that answer comes
+ * through. A save that failed keeps its section drafting, as the assistant
+ * can try again: it blinked off and on with each try (found 2026-10-25).
  */
 function sectionsBeingDrafted(
   messages: ChatMessage[],
@@ -414,12 +416,14 @@ function sectionsBeingDrafted(
   const answer = messages.at(-1);
   if (answer?.role !== "assistant") return drafting;
   for (const part of answer.parts) {
-    if (part.type !== "tool-saveSection" || !unfinishedStep(part)) continue;
+    if (part.type !== "tool-saveSection") continue;
     // Until its input has arrived, the name can be cut short.
     const name = PRD_SECTIONS.find(
       (section) => section === part.input?.section,
     );
-    if (name !== undefined) drafting.add(name);
+    if (name === undefined) continue;
+    if (part.state === "output-available") drafting.delete(name);
+    else drafting.add(name);
   }
   return drafting;
 }

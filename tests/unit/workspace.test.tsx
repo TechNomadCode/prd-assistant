@@ -492,6 +492,38 @@ describe("the PRD while the assistant works", () => {
     expect(screen.queryByText("Drafting…")).not.toBeInTheDocument();
   });
 
+  it("keeps Drafting beside a section whose save failed while the assistant goes on, as it tries again", async () => {
+    // Gone between tries, it blinked on and off with each one (found
+    // 2026-10-25, while the database was down).
+    fetchMock.mockImplementationOnce(async (_, init) =>
+      answerOnItsWay(
+        [
+          SAVES_INTRODUCTION[0]!,
+          {
+            type: "tool-output-error",
+            toolCallId: "save-1",
+            errorText:
+              "The section couldn't be checked this time, so it wasn't saved.",
+          },
+        ],
+        init?.signal,
+      ),
+    );
+    await openChat();
+    send("Draft the first section.");
+
+    await screen.findByText(/^Saving Introduction \/ Overview didn't work/);
+    expect(
+      within(sectionRegion("Introduction / Overview")).getByText("Drafting…"),
+    ).toHaveClass("shimmer");
+
+    // Once the answer ends, nothing is being drafted any more.
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Drafting…")).not.toBeInTheDocument(),
+    );
+  });
+
   it("says Drafting beside the section the check-in asked for, from its message, instead of under the one before", async () => {
     fetchMock.mockResolvedValueOnce(answer(SAVES_INTRODUCTION));
     await openChat();
