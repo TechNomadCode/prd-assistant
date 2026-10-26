@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   useLayoutEffect,
   useRef,
+  useState,
   type CSSProperties,
   type RefObject,
 } from "react";
@@ -172,26 +173,45 @@ function order(place: number): CSSProperties {
 /**
  * The intro arrives as the page first shows. The server's page is the intro
  * without its handlers, and the browser's own replaces it once it has read
- * what's kept, a moment later: its arrivals count from the page's first
- * paint, so they go on where the server's page had got to, or are over,
- * rather than start again. So an intro brought back by "Start over" or a
- * failed first request is simply there. Where the browser has no paint
- * timing, they count from now.
+ * what's kept, a moment later: its arrivals take the server's start time, so
+ * they go on exactly where the server's page had got to, or are over, rather
+ * than start again. So an intro brought back by "Start over" or a failed
+ * first request is simply there. Without the server's start, as when its
+ * arrivals hadn't begun, they count from the first paint, which comes a frame
+ * or so after it, and where the browser has no paint timing, from now.
  */
 function useArrivalSinceFirstPaint(
   intro: RefObject<HTMLDivElement | null>,
   live: boolean,
 ) {
+  const [serverStart] = useState(serverArrivalStart);
   useLayoutEffect(() => {
     if (!live) return;
-    const [paint] =
-      performance.getEntriesByName?.("first-contentful-paint") ?? [];
-    if (paint === undefined) return;
+    const start =
+      serverStart ??
+      performance.getEntriesByName?.("first-contentful-paint")[0]?.startTime;
+    if (start === undefined) return;
     for (const animation of intro.current?.getAnimations?.({ subtree: true }) ??
       []) {
-      animation.startTime = paint.startTime;
+      animation.startTime = start;
     }
-  }, [intro, live]);
+  }, [intro, live, serverStart]);
+}
+
+/**
+ * When the server's intro began arriving, on the document's timeline. Read
+ * while the browser's intro first renders: React isn't hydrating the server's
+ * (the browser renders its own in place of it), so the server's is on the
+ * page until the commit that follows, and gone by any effect.
+ */
+function serverArrivalStart(): number | undefined {
+  if (typeof document === "undefined") return undefined;
+  const starts = (
+    document.getElementById(INTRO_TITLE_ID)?.getAnimations?.() ?? []
+  ).flatMap(({ startTime }) =>
+    typeof startTime === "number" ? [startTime] : [],
+  );
+  return starts.length > 0 ? Math.min(...starts) : undefined;
 }
 
 /**
