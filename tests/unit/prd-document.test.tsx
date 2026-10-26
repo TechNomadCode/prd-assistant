@@ -243,7 +243,8 @@ describe("the PRD", () => {
     function open(statement: number, name: string) {
       const item = statements("Introduction / Overview")[statement]!;
       fireEvent.click(within(item).getByRole("button", { name }));
-      return screen.getByRole("dialog", { hidden: true });
+      // The name opened it, so it's the one dialog showing.
+      return screen.getByRole("dialog");
     }
 
     it("opens from the name, with the researcher's question above the answer and the quoted words highlighted", () => {
@@ -679,19 +680,30 @@ describe("the PRD", () => {
     });
   });
 
-  it("asks once before Start over clears the chat and the PRD", () => {
+  it("asks once in a pop-over before Start over clears the chat and the PRD, focus on keeping them", () => {
     const onStartOver = vi.fn();
     showPrd({ onStartOver });
+    const question = () =>
+      screen.queryByRole("dialog", { name: "Clear the chat and the PRD?" });
+    expect(question()).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
     expect(onStartOver).not.toHaveBeenCalled();
-    expect(screen.getByText("This clears the chat and the PRD.")).toBeVisible();
+    expect(question()).toBeVisible();
+    expect(screen.getByRole("button", { name: "Keep them" })).toHaveFocus();
+    // Its button opens it, so the row above the PRD keeps its two buttons.
+    expect(screen.getByRole("button", { name: "Start over" })).toHaveAttribute(
+      "popovertarget",
+      question()!.id,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Keep them" }));
     expect(onStartOver).not.toHaveBeenCalled();
+    expect(question()).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
     fireEvent.click(screen.getByRole("button", { name: "Clear both" }));
     expect(onStartOver).toHaveBeenCalledOnce();
+    expect(question()).toBeNull();
   });
 });

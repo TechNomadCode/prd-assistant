@@ -1,20 +1,28 @@
 @import "tailwindcss";
 
 /*
- * Design tokens (docs/decisions.md, Design): black dominant on backgrounds and
- * large surfaces, white in support for text, lines and accents. No cream or
+ * Design tokens (docs/decisions.md, Design, 2026-10-26): the neutral palette
+ * of the owner's own site, near-black backgrounds, a lighter grey for panels
+ * and lines, and text in three tones. No colour accents, no cream or
  * off-white backgrounds, no pill shapes, no monospace labels.
  */
 :root {
-  --background: #000000;
-  --surface: #0d0d0d;
-  --foreground: #ffffff;
-  /* 9.4:1 on black, well above WCAG AA for body text. */
-  --muted-foreground: #b4b4b4;
-  --border: rgb(255 255 255 / 0.18);
-  --border-strong: rgb(255 255 255 / 0.5);
-  /* The PRD's page, slightly lighter than the pane around it. */
-  --page: #141414;
+  --background: #0a0a0a;
+  /* Panels: the pop-overs and the PRD's page. */
+  --surface: #171717;
+  --page: #171717;
+  /* Headings, bold words, names and buttons. */
+  --foreground: #fafafa;
+  /* What's read at length: the chat's replies and the PRD's statements, the
+     owner's choice over the site's #a1a1a1. 13.4:1 on the background, 12.1:1
+     on a panel. */
+  --prose: #d4d4d4;
+  /* Captions, step lines, tallies: 7.7:1 on the background, 6.9:1 on a
+     panel, 5.9:1 in the visitor's bubble. */
+  --muted-foreground: #a1a1a1;
+  --border: #262626;
+  /* A control's edge: the outline buttons, the message box, a pop-over. */
+  --border-strong: #404040;
   /* The visitor's messages in the chat. */
   --bubble: #262626;
 }
@@ -91,6 +99,7 @@
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-prose: var(--prose);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
@@ -655,21 +664,50 @@ body {
 }
 
 /*
- * The pop-over a source's name opens. On a phone it isn't anchored: nearly
- * full width, scrolling inside, closed by a tap outside. On a laptop it sits
- * by the name that opened it where the browser has anchor positioning, and is
- * a centred box where it hasn't (iPhones before iOS 26 among them).
+ * The app's pop-overs, a source's quote and "Start over"'s question, share a
+ * look and their motion (`.popover`). Where the browser lacks anchor
+ * positioning (iPhones before iOS 26 among them), each is a centred box.
  */
-.source-popover {
-  width: calc(100vw - 1.5rem);
-  max-height: 80dvh;
-  overflow-y: auto;
+.popover {
   margin: auto;
   padding: 1.25rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--foreground);
+}
+
+/*
+ * "Start over"'s question, under its button and ending where it ends, on
+ * every screen.
+ */
+.start-over-popover {
+  width: max-content;
+  max-width: calc(100vw - 1.5rem);
+  padding: 1rem;
+}
+
+@supports (position-area: bottom) {
+  .start-over-popover {
+    inset: auto;
+    margin: 0.375rem 0;
+    position-area: bottom span-left;
+    position-try-fallbacks:
+      bottom span-right,
+      top span-left,
+      top span-right;
+  }
+}
+
+/*
+ * The pop-over a source's name opens. On a phone it isn't anchored: nearly
+ * full width, scrolling inside, closed by a tap outside. On a laptop it sits
+ * by the name that opened it.
+ */
+.source-popover {
+  width: calc(100vw - 1.5rem);
+  max-height: 80dvh;
+  overflow-y: auto;
 }
 
 .source-popover::backdrop {
@@ -705,25 +743,25 @@ body {
     0 0 / 100% 100% no-repeat;
 }
 
-/* Closing, it takes no clicks. */
-.source-popover:not(:popover-open) {
+/* Closing, a pop-over takes no clicks. */
+.popover:not(:popover-open) {
   pointer-events: none;
 }
 
 /*
- * The pop-over opens from the name that was clicked, as the video's does: it
- * grows from 92% and fades in on the pop-over's spring, around the point
- * nearest the name (`--grow-from`, from `prd/source-popover.tsx`), and closes
- * the same way. Where the browser can't keep it on top as it closes, without
- * `overlay` (Firefox and Safari, MDN's compatibility data, read 2026-10-22),
- * it closes at once; without `@starting-style` (before Chrome 117, Firefox
- * 129 and Safari 17.5) it also opens at once. On a phone the dimming behind
- * it fades with it. Just after it opens, each time, its quote's highlight
- * sweeps across the words. With reduced motion it simply shows and hides,
- * the quote highlighted.
+ * A pop-over opens from what was clicked, as the video's does: it grows from
+ * 92% and fades in on the pop-over's spring, around the point nearest what
+ * opened it (`--grow-from`, from `growFrom` in `src/components/popover.ts`),
+ * and closes the same way. Where the browser can't keep it on top as it
+ * closes, without `overlay` (Firefox and Safari, MDN's compatibility data,
+ * read 2026-10-22), it closes at once; without `@starting-style` (before
+ * Chrome 117, Firefox 129 and Safari 17.5) it also opens at once. On a phone
+ * the dimming behind a source's fades with it. Just after a source's opens,
+ * each time, its quote's highlight sweeps across the words. With reduced
+ * motion a pop-over simply shows and hides, the quote highlighted.
  */
 @media (prefers-reduced-motion: no-preference) {
-  .source-popover {
+  .popover {
     transform-origin: var(--grow-from, 50% 50%);
     opacity: 0;
     scale: 0.92;
@@ -733,20 +771,20 @@ body {
       var(--spring-popover-fade), var(--spring-popover);
   }
 
-  .source-popover:popover-open {
+  .popover:popover-open {
     opacity: 1;
     scale: 1;
   }
 
   @starting-style {
-    .source-popover:popover-open {
+    .popover:popover-open {
       opacity: 0;
       scale: 0.92;
     }
   }
 
   @supports (overlay: auto) {
-    .source-popover {
+    .popover {
       transition-property: opacity, scale, display, overlay;
       transition-timing-function:
         var(--spring-popover-fade), var(--spring-popover), linear, linear;

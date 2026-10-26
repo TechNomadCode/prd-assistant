@@ -221,7 +221,7 @@ Product type: a web application built with Next.js, Supabase (Postgres with pgve
 - The placements and controls named in this document (the PRD beside the chat, the pop-over, one line per step, the line under the chat box, the explanation next to the first section) state what each part must do. The piece of work that builds one may propose another form that serves the same purpose, and the owner decides before it's built. Tests check the purpose, not the placement. The look below stays fixed.
 
 **Look**
-- Black and white, with black dominant on backgrounds and large surfaces, and white in support for text, lines and accents.
+- A neutral palette of near-black backgrounds and greys, with text in three tones and no colour accents (`docs/decisions.md`, Design, 2026-10-26).
 - Not allowed: cream or off-white backgrounds, italic accent words in headlines, numbered "01/02/03" section labels, monospace labels, pill-shaped buttons.
 
 **Mockups:** none. There's no separate design document; this section and the rules above are the design brief.

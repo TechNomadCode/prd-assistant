@@ -1,3 +1,4 @@
+import { growFrom } from "@/components/popover";
 import { highlightQuote } from "@/lib/highlight";
 import { VISITOR_NAME, type StatementSource } from "@/lib/prd";
 
@@ -7,11 +8,8 @@ export const SOURCE_POPOVER_ID = "source-popover";
  * Readies the pop-over for the name just clicked, whose own click then shows
  * it. Open, or still closing, for another name, it shuts at once, without
  * its closing transition: the browser keeps an open pop-over by the name that
- * opened it, so it opens anew by this one. In the next frame, before it's
- * painted, it's laid out there, and its transform origin moves to the point
- * nearest the name, so it grows from the name (`--grow-from`,
- * `.source-popover` in `src/app/globals.css`); offsets leave out the scale it
- * grows from.
+ * opened it, so it opens anew by this one. It grows from the name
+ * (`growFrom`).
  */
 export function openFrom(name: HTMLElement) {
   const popover = document.getElementById(SOURCE_POPOVER_ID);
@@ -24,20 +22,7 @@ export function openFrom(name: HTMLElement) {
   // Takes in the closed state, so it opens from its starting style.
   popover.getBoundingClientRect();
   popover.style.removeProperty("transition");
-  requestAnimationFrame(() => {
-    if (!popover.matches(":popover-open")) return;
-    const from = name.getBoundingClientRect();
-    const x = from.left + from.width / 2 - popover.offsetLeft;
-    const y = from.top + from.height / 2 - popover.offsetTop;
-    popover.style.setProperty(
-      "--grow-from",
-      `${within(x, popover.offsetWidth)}px ${within(y, popover.offsetHeight)}px`,
-    );
-  });
-}
-
-function within(offset: number, size: number): number {
-  return Math.round(Math.min(Math.max(offset, 0), size));
+  growFrom(popover, name);
 }
 
 /**
@@ -65,7 +50,7 @@ export function SourcePopover({
       popover="auto"
       role="dialog"
       aria-labelledby="source-popover-title"
-      className="source-popover"
+      className="popover source-popover"
     >
       {source && (
         <div key={opened} className="space-y-5">

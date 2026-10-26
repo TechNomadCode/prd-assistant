@@ -1,4 +1,10 @@
 import Link from "next/link";
+import {
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { QuotaNotice } from "./quota";
@@ -6,11 +12,24 @@ import { QuotaNotice } from "./quota";
 /** The intro's heading, which takes focus when the intro comes back. */
 export const INTRO_TITLE_ID = "intro-title";
 
+/** The interviewed households, by the slug of each one's interview. */
+const HOUSEHOLDS = [
+  ["Maya", "maya"],
+  ["Henk", "henk"],
+  ["Daan", "daan"],
+  ["Sofia", "sofia"],
+  ["Lena", "lena"],
+  ["Ravi", "ravi"],
+] as const;
+
 /**
- * The first screen of the home page: who the visitor is, what the interviews
- * are, and what their job is, then one button that drafts the first section.
+ * The first screen of the home page, centred on one screen with room around
+ * it: who the visitor is, one line on what they'll do, the households with
+ * a link to each interview, then one button that drafts the first section.
  * Quieter, the full interviews and a way to start with a question instead,
- * which the owner decided to keep (docs/decisions.md, Design).
+ * which the owner decided to keep, and a softened glimpse of the chat beside
+ * the PRD, where they're headed (docs/decisions.md, Design). It arrives line
+ * by line, the glimpse last, as the page first shows.
  */
 export function Intro({
   failed,
@@ -36,34 +55,52 @@ export function Intro({
   onDraft?: () => void;
   onAsk?: () => void;
 }) {
+  const intro = useRef<HTMLDivElement>(null);
+  useArrivalSinceFirstPaint(intro, onDraft !== undefined);
+
   // Not a named region: its heading names a "shared grocery list app", and
   // the PRD is the region of that name.
   return (
-    <div className="max-w-2xl space-y-8 sm:py-6 lg:py-12">
+    <div
+      ref={intro}
+      className="mx-auto flex max-w-3xl flex-col items-center text-center sm:py-6 lg:pt-8"
+    >
       <h1
         id={INTRO_TITLE_ID}
         tabIndex={-1}
-        className="text-3xl leading-tight font-semibold tracking-tight sm:text-4xl"
+        className="arrive text-4xl leading-[1.1] font-light tracking-[-0.03em] text-balance sm:text-5xl"
       >
         You&apos;re the product manager of a shared grocery list app
       </h1>
-      <div className="space-y-4 text-lg leading-relaxed text-muted-foreground">
-        <p>
-          A researcher already interviewed six households about it. Those
-          transcripts are finished records: the AI reads and quotes them, and
-          never asks their questions again.
-        </p>
-        <p>
-          Your job is to turn them into a product requirements document, a PRD.
-          The AI proves every line with a quote, and the app&apos;s own code
-          checks each one.
-        </p>
-      </div>
+      <p
+        className="arrive mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground"
+        style={order(1)}
+      >
+        Turn six household interviews into its product requirements document.
+        The app checks every quote word for word.
+      </p>
+      <p
+        className="arrive mt-3 text-sm text-balance text-muted-foreground"
+        style={order(2)}
+      >
+        Interviewed:{" "}
+        {HOUSEHOLDS.map(([name, slug], index) => (
+          <span key={slug}>
+            {index > 0 && (index === HOUSEHOLDS.length - 1 ? " and " : ", ")}
+            <Link
+              href={`/transcripts#${slug}`}
+              className="underline decoration-border-strong underline-offset-4 hover:text-foreground hover:decoration-current"
+            >
+              {name}
+            </Link>
+          </span>
+        ))}
+      </p>
 
       {discarded && (
         <p
           role="status"
-          className="border-l-2 border-border-strong py-1 pl-4 text-muted-foreground"
+          className="mt-8 w-full max-w-xl border-l-2 border-border-strong py-1 pl-4 text-left text-muted-foreground"
         >
           The PRD you started earlier couldn&apos;t be brought back: the demo
           has changed since. You can start a new one.
@@ -71,10 +108,13 @@ export function Intro({
       )}
 
       {quotaUsedUp ? (
-        <QuotaNotice />
+        <QuotaNotice className="mt-8 w-full max-w-xl text-left" />
       ) : (
         failed && (
-          <div role="alert" className="border-l-2 border-foreground py-1 pl-4">
+          <div
+            role="alert"
+            className="mt-8 w-full max-w-xl border-l-2 border-foreground py-1 pl-4 text-left"
+          >
             <p>
               The first section wasn&apos;t drafted: something went wrong before
               the assistant could finish. Try again in a moment.
@@ -83,7 +123,10 @@ export function Intro({
         )
       )}
 
-      <div className="space-y-5">
+      <div
+        className="arrive mt-10 flex flex-col items-center gap-5"
+        style={order(3)}
+      >
         {!quotaUsedUp && (
           <Button
             size="large"
@@ -93,7 +136,7 @@ export function Intro({
             Draft the first section
           </Button>
         )}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
           <Link
             href="/transcripts"
             className={cn(buttonVariants({ variant: "quiet" }), "h-auto px-0")}
@@ -112,6 +155,190 @@ export function Intro({
           )}
         </div>
       </div>
+
+      <Glimpse />
+    </div>
+  );
+}
+
+function order(place: number): CSSProperties {
+  return { "--order": place } as CSSProperties;
+}
+
+/**
+ * The intro arrives as the page first shows. The server's page is the intro
+ * without its handlers, and the browser's own replaces it once it has read
+ * what's kept, a moment later: its arrivals count from the page's first
+ * paint, so they go on where the server's page had got to, or are over,
+ * rather than start again. So an intro brought back by "Start over" or a
+ * failed first request is simply there. Where the browser has no paint
+ * timing, they count from now.
+ */
+function useArrivalSinceFirstPaint(
+  intro: RefObject<HTMLDivElement | null>,
+  live: boolean,
+) {
+  useLayoutEffect(() => {
+    if (!live) return;
+    const [paint] =
+      performance.getEntriesByName?.("first-contentful-paint") ?? [];
+    if (paint === undefined) return;
+    for (const animation of intro.current?.getAnimations?.({ subtree: true }) ??
+      []) {
+      animation.startTime = paint.startTime;
+    }
+  }, [intro, live]);
+}
+
+/**
+ * A small, softened picture of the workspace, the chat beside the PRD, with
+ * bars for text, so it says where the visitor is headed without anything to
+ * read. Decoration only, and left out on a phone.
+ */
+function Glimpse() {
+  return (
+    <div
+      aria-hidden
+      className="arrive arrive-pane mt-10 hidden w-full max-w-sm mask-b-from-40% sm:block"
+      style={order(4)}
+    >
+      <svg viewBox="0 0 448 168" className="w-full" fill="none">
+        <rect
+          x="0.5"
+          y="0.5"
+          width="447"
+          height="167"
+          rx="6"
+          className="stroke-border"
+        />
+        {/* The chat: a question, two step lines, a reply, the message box. */}
+        <rect
+          x="178"
+          y="18"
+          width="104"
+          height="16"
+          rx="3"
+          className="fill-bubble"
+        />
+        <circle cx="21" cy="52" r="2.5" className="fill-border-strong" />
+        <rect
+          x="30"
+          y="50"
+          width="96"
+          height="4"
+          rx="2"
+          className="fill-border-strong"
+        />
+        <circle cx="21" cy="66" r="2.5" className="fill-border-strong" />
+        <rect
+          x="30"
+          y="64"
+          width="72"
+          height="4"
+          rx="2"
+          className="fill-border-strong"
+        />
+        <rect
+          x="16"
+          y="84"
+          width="252"
+          height="5"
+          rx="2.5"
+          className="fill-border"
+        />
+        <rect
+          x="16"
+          y="96"
+          width="236"
+          height="5"
+          rx="2.5"
+          className="fill-border"
+        />
+        <rect
+          x="16"
+          y="108"
+          width="168"
+          height="5"
+          rx="2.5"
+          className="fill-border"
+        />
+        <rect
+          x="16.5"
+          y="130.5"
+          width="265"
+          height="25"
+          rx="3"
+          className="stroke-border-strong"
+        />
+        {/* The PRD's page: a title, its line, then sections of statements. */}
+        <rect
+          x="298"
+          y="10"
+          width="140"
+          height="148"
+          rx="3"
+          className="fill-page"
+        />
+        <rect
+          x="310"
+          y="22"
+          width="72"
+          height="7"
+          rx="3.5"
+          className="fill-border-strong"
+        />
+        <rect
+          x="310"
+          y="35"
+          width="104"
+          height="3"
+          rx="1.5"
+          className="fill-border"
+        />
+        <rect x="310" y="45" width="116" height="1" className="fill-border" />
+        <rect
+          x="310"
+          y="56"
+          width="60"
+          height="5"
+          rx="2.5"
+          className="fill-border-strong"
+        />
+        {[68, 80, 92].map((y, index) => (
+          <g key={y}>
+            <circle
+              cx="313"
+              cy={y + 1.5}
+              r="1.5"
+              className="fill-border-strong"
+            />
+            <rect
+              x="320"
+              y={y}
+              width={[100, 88, 94][index]}
+              height="3"
+              rx="1.5"
+              className="fill-border"
+            />
+          </g>
+        ))}
+        <rect
+          x="310"
+          y="110"
+          width="68"
+          height="5"
+          rx="2.5"
+          className="fill-border"
+        />
+        <rect
+          x="310"
+          y="126"
+          width="52"
+          height="5"
+          rx="2.5"
+          className="fill-border"
+        />
+      </svg>
     </div>
   );
 }

@@ -323,7 +323,10 @@ function AssistantMessage({
                 text={part.text}
                 arriving={arriving}
                 onGrow={onTextGrows}
-                className={cn(space, unfinished && "text-muted-foreground")}
+                className={cn(
+                  space,
+                  unfinished ? "text-muted-foreground" : "text-prose",
+                )}
               />
             );
           case "tool-searchNotes":
