@@ -7,7 +7,7 @@ import {
 } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { QuotaNotice } from "./quota";
+import { QuotaNotice, type DayOver } from "./quota";
 
 /** The intro's heading, which takes focus when the intro comes back. */
 export const INTRO_TITLE_ID = "intro-title";
@@ -34,7 +34,7 @@ const HOUSEHOLDS = [
 export function Intro({
   failed,
   discarded = false,
-  quotaUsedUp,
+  dayOver,
   onDraft,
   onAsk,
 }: {
@@ -43,10 +43,11 @@ export function Intro({
   /** A PRD kept in this browser no longer fitted the app, so it's gone. */
   discarded?: boolean;
   /**
-   * The day's free AI allocation is used up: a notice takes the place of the
-   * ways into the chat, and the interviews stay open to read.
+   * The day's free AI allocation or the visitor's messages are used up: a
+   * notice takes the place of the ways into the chat, and the interviews stay
+   * open to read.
    */
-  quotaUsedUp: boolean;
+  dayOver: DayOver | undefined;
   /**
    * Absent in the server's page, which the browser replaces once it has read
    * what's kept. Until then the buttons are `aria-disabled`, which looks the
@@ -107,8 +108,11 @@ export function Intro({
         </p>
       )}
 
-      {quotaUsedUp ? (
-        <QuotaNotice className="mt-8 w-full max-w-xl text-left" />
+      {dayOver ? (
+        <QuotaNotice
+          reason={dayOver}
+          className="mt-8 w-full max-w-xl text-left"
+        />
       ) : (
         failed && (
           <div
@@ -127,7 +131,7 @@ export function Intro({
         className="arrive mt-10 flex flex-col items-center gap-5"
         style={order(3)}
       >
-        {!quotaUsedUp && (
+        {!dayOver && (
           <Button
             size="large"
             aria-disabled={onDraft === undefined || undefined}
@@ -143,7 +147,7 @@ export function Intro({
           >
             Read the full interviews
           </Link>
-          {!quotaUsedUp && (
+          {!dayOver && (
             <Button
               variant="quiet"
               className="h-auto px-0"

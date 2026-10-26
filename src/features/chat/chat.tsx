@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useArrival } from "@/components/arrival";
 import { Button } from "@/components/ui/button";
-import { QuotaNotice } from "@/features/workspace/quota";
+import { QuotaNotice, type DayOver } from "@/features/workspace/quota";
 import { DEMO_BUSY, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
 import type { SectionName } from "@/lib/prd";
 import { cn } from "@/lib/utils";
@@ -52,16 +52,17 @@ function followEnd(element: HTMLElement) {
 /**
  * The chat with the assistant: the conversation, which scrolls on its own,
  * and under it a suggested message, when there is one, and the message box.
- * Once the day's free AI allocation is used up, the conversation stays to
- * read, and a notice takes the place of the suggestion and the message box.
- * What appears after the chat showed arrives (`useArrival`): the failure
- * notice, the suggestion, the allocation's notice and Jump to latest.
+ * Once the day's free AI allocation or the visitor's messages are used up,
+ * the conversation stays to read, and a notice takes the place of the
+ * suggestion and the message box. What appears after the chat showed arrives
+ * (`useArrival`): the failure notice, the suggestion, that notice and Jump to
+ * latest.
  */
 export function Chat({
   messages,
   status,
   error,
-  quotaUsedUp,
+  dayOver,
   suggestion,
   draft,
   onDraftChange,
@@ -75,8 +76,11 @@ export function Chat({
   status: ChatStatus;
   /** Why the last answer failed, in the server's words. */
   error: Error | undefined;
-  /** The day's free AI allocation is used up, so nothing can be sent. */
-  quotaUsedUp: boolean;
+  /**
+   * Nothing can be sent until 00:00 UTC: the day's free AI allocation is used
+   * up, or the visitor has sent the day's messages.
+   */
+  dayOver: DayOver | undefined;
   /** A message the visitor can send with one click. */
   suggestion: string | undefined;
   /** The message box's text, kept by the page so it outlasts the chat. */
@@ -103,10 +107,10 @@ export function Chat({
 
   const working = status === "submitted" || status === "streaming";
   const canSend = !working && draft.trim() !== "";
-  const failed = status === "error" && !quotaUsedUp;
-  const offered = quotaUsedUp ? undefined : suggestion;
+  const failed = status === "error" && !dayOver;
+  const offered = dayOver ? undefined : suggestion;
   const failureArrives = useArrival(failed);
-  const quotaArrives = useArrival(quotaUsedUp);
+  const dayOverArrives = useArrival(dayOver);
   const suggestionArrives = useArrival(offered);
 
   // The chat follows the newest message, unless the visitor scrolled up.
@@ -182,8 +186,8 @@ export function Chat({
     setAwayFromEnd(false);
     // The button goes with the click, so focus moves on first, to where the
     // visitor goes on: the message box, or the chat's heading once the day's
-    // allocation is used up and the box is gone.
-    if (quotaUsedUp) heading.current?.focus();
+    // allocation or the visitor's messages are used up and the box is gone.
+    if (dayOver) heading.current?.focus();
     else box.current?.focus();
     scrollToEnd(element);
   }
@@ -279,9 +283,10 @@ export function Chat({
         )}
       </div>
 
-      {quotaUsedUp && (
+      {dayOver && (
         <QuotaNotice
-          className={cn("chat-column", quotaArrives && "arrive arrive-block")}
+          reason={dayOver}
+          className={cn("chat-column", dayOverArrives && "arrive arrive-block")}
         />
       )}
 
@@ -309,7 +314,7 @@ export function Chat({
       )}
 
       <form
-        hidden={quotaUsedUp}
+        hidden={dayOver !== undefined}
         onSubmit={(event) => {
           event.preventDefault();
           send();

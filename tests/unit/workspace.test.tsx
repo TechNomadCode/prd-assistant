@@ -15,7 +15,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localTime, nextReset } from "@/features/workspace/quota";
 import { STORAGE_KEY } from "@/features/workspace/stored-conversation";
 import { Workspace } from "@/features/workspace/workspace";
-import { DEMO_BUSY, QUOTA_USED_UP, textOf, type ChatMessage } from "@/lib/chat";
+import {
+  DAILY_LIMIT_REACHED,
+  DAILY_MESSAGE_LIMIT,
+  DEMO_BUSY,
+  QUOTA_USED_UP,
+  textOf,
+  type ChatMessage,
+} from "@/lib/chat";
 import type { CheckedSection } from "@/lib/prd";
 import { site } from "@/lib/site";
 import {
@@ -1149,6 +1156,85 @@ describe("the home page when the demo's AI can't answer", () => {
     expect(
       screen.getByRole("textbox", { name: "Your message" }),
     ).toBeInTheDocument();
+  });
+});
+
+// The chat's endpoint refuses a visitor's message after the day's limit with
+// a 429 and these words (src/app/api/chat/route.ts, src/server/rate-limit.ts).
+describe("the home page once the visitor has sent the day's messages", () => {
+  const refused = () =>
+    new Response(DAILY_LIMIT_REACHED, {
+      status: 429,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+
+  function expectLimitNotice(notice: HTMLElement) {
+    expect(notice).toHaveTextContent(
+      `You've sent today's ${DAILY_MESSAGE_LIMIT} messages, the most the demo takes from one visitor in a day`,
+    );
+    expect(notice).toHaveTextContent(
+      /answer you again after 00:00 UTC \(.+ your time\)/,
+    );
+    expect(notice).not.toHaveTextContent("allocation for today is used up");
+    expect(
+      screen.getByRole("link", { name: "README" }).getAttribute("href"),
+    ).toBe(`${site.links.repository}#readme`);
+  }
+
+  it("says so on the intro, and when the visitor can carry on, without the ways into the chat", async () => {
+    fetchMock.mockResolvedValueOnce(refused());
+    render(<Workspace />);
+
+    fireEvent.click(draftButton());
+
+    const alert = await screen.findByRole("alert");
+    expectLimitNotice(alert);
+    expect(alert).not.toHaveTextContent("Try again");
+    expect(introHeading()).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: "Draft the first section" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Or ask your own question first" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Read the full interviews" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the chat and the PRD readable, with no way to send", async () => {
+    fetchMock.mockResolvedValueOnce(answer(SAVES_INTRODUCTION));
+    render(<Workspace />);
+    fireEvent.click(draftButton());
+    await screen.findByRole("list", {
+      name: "Statements in Introduction / Overview",
+    });
+
+    fetchMock.mockResolvedValueOnce(refused());
+    fireEvent.change(screen.getByRole("textbox", { name: "Your message" }), {
+      target: { value: "Who wants a ping?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    const chat = screen.getByRole("region", {
+      name: "Chat with the assistant",
+    });
+    expectLimitNotice(await within(chat).findByRole("alert"));
+    expect(within(chat).getAllByRole("alert")).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Your message" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Looks right/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("list", {
+        name: "Statements in Introduction / Overview",
+      }),
+    ).toHaveTextContent("Henk wants a ping for every item.");
   });
 });
 

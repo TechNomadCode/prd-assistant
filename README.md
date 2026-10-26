@@ -10,7 +10,7 @@
 
 Next.js · TypeScript · Vercel AI SDK · gpt-oss-120b on Cloudflare Workers AI · Supabase Postgres with pgvector · Playwright · GitHub Actions
 
-**Status:** built and running on a private staging site. The public demo opens at launch, after a per-visitor message limit. [More below](#status).
+**Status:** built and running on a private staging site. The public demo opens at launch. [More below](#status).
 
 ## The story
 
@@ -28,15 +28,15 @@ The check proves a quote is real, not that it's read fairly, which is why every 
 | **Tool calling with limits** | The model decides when to search and when to save. The app caps it at three searches, then allows only saving, then takes the tools away so it replies. | [`chat.ts`](src/server/chat.ts) |
 | **AI output checked in code** | Every quote is checked against the cited person's answer, never the interviewer's question or the assistant's own words. | [`citations.ts`](src/server/citations.ts) |
 | **AI behaviour, measured** | Fixed requests, five runs each on the real model, scored on the product's rules. A change is compared with the baseline on a one-sided Fisher's exact test, and any other rule that gets worse is flagged. | [`measurement/`](src/server/measurement/) |
-| **Failures in plain sight** | A broken or cut-off answer stays on screen marked unfinished. A used-up daily AI allowance and a busy provider each get their own message. | [`cloudflare.ts`](src/server/ai/cloudflare.ts), [`quota.tsx`](src/features/workspace/quota.tsx) |
+| **Failures in plain sight** | A broken or cut-off answer stays on screen marked unfinished. A used-up daily AI allowance, a visitor's used-up 10 messages for the day and a busy provider each get their own message. The limit counts a keyed hash of the visitor's address and the day, never the address itself. | [`cloudflare.ts`](src/server/ai/cloudflare.ts), [`rate-limit.ts`](src/server/rate-limit.ts), [`quota.tsx`](src/features/workspace/quota.tsx) |
 | **Safe by default** | Runs locally with no accounts or keys. A guard stops every command that points at a hosted database or holds a stray key. Every table starts closed to the public API. | [`env-guard.ts`](src/lib/env-guard.ts), [`supabase/AGENTS.md`](supabase/AGENTS.md) |
 | **Tested in four layers** | Unit, integration, SQL and end-to-end tests. CI runs on every pull request, and every merge deploys to staging. | [`tests/`](tests/), [`.github/workflows/`](.github/workflows/) |
 
 ## Status
 
-- **Built:** everything in the story, running on a private staging site (Vercel, Supabase in Frankfurt, Cloudflare Workers AI on its free plan).
+- **Built:** everything in the story, running on a private staging site (Vercel, Supabase in Frankfurt, Cloudflare Workers AI on its free plan), with a limit of 10 messages per visitor a day, so one visitor can't use up the free daily AI allowance.
 - **Measured:** the AI's behaviour, on fixed requests against a baseline ([how](#measuring-the-ais-behaviour)).
-- **Before launch:** a per-visitor message limit, so one visitor can't use up the free daily AI allowance; the public demo; and a short screen recording here.
+- **Before launch:** the public demo, and a short screen recording here.
 
 The [product description](docs/product/prd.md), its [scope](docs/product/mvp.md), the [decisions](docs/decisions.md) and the [build plan](docs/plan.md) are all in the repository.
 
@@ -181,7 +181,7 @@ The staging and production keys never sit on a development machine; a Workers AI
 | Name | Where | What |
 | --- | --- | --- |
 | `SUPABASE_DB_URL` | GitHub environment secret | The database's session pooler address, with its password |
-| `SUPABASE_SECRET_KEY` | GitHub environment secret | `sb_secret_…`, for loading the interviews |
+| `SUPABASE_SECRET_KEY` | GitHub environment secret, and Vercel (Secret) | `sb_secret_…`, for loading the interviews and counting each visitor's messages |
 | `CLOUDFLARE_API_TOKEN` | GitHub environment secret, and Vercel (Secret) | The Workers AI token for that environment |
 | `VERCEL_TOKEN` | GitHub environment secret | A Vercel token for that environment's project only |
 | `SUPABASE_URL` | GitHub environment variable, and Vercel (Config) | `https://<ref>.supabase.co` |
@@ -231,6 +231,7 @@ First for `prd-assistant-staging`, then for `prd-assistant`.
 2. Open **Settings → Git** and select **Disconnect**. From now on, only GitHub Actions deploys.
 3. Under **Settings → Environment Variables**, add these to the **Production** environment only, leaving Preview and Development empty:
    - `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_ACCOUNT_ID` and `AI_PROVIDER` = `cloudflare`, as **Config**.
+   - `SUPABASE_SECRET_KEY`, as **Secret**. Without it the chat refuses every message, since it can't count them against each visitor's daily limit.
    - `CLOUDFLARE_API_TOKEN`, as **Secret**. The production project gets this one at launch.
 4. For staging only, under **Settings → Deployment Protection**, turn on **Vercel Authentication** and choose **All Deployments**, not Standard Protection, which leaves the main address public. All Deployments is available on every plan (https://vercel.com/docs/security/deployment-protection). Then only you can open staging, and strangers can't use up the free AI allowance.
 5. Note the **Project ID** from **Settings → General**, and the **Team ID** from your team's **Settings → General**.
