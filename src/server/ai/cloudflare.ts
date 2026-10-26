@@ -240,6 +240,62 @@ const refusingDegenerateReplies: LanguageModelMiddleware = {
   },
 };
 
+/** A whole text that is one JSON object, bare or in a code fence. */
+const JSON_REPLY = /^\s*(?:```(?:json)?\s*)?(\{[\s\S]*\})\s*(?:```)?\s*$/;
+
+/**
+ * The sentence inside a reply that is only a JSON object of one text field,
+ * such as `{"question":"…"}`; anything else is undefined.
+ */
+function unwrappedJson(text: string): string | undefined {
+  const match = JSON_REPLY.exec(text);
+  if (!match) return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(match[1]!);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const fields = Object.values(value);
+  if (fields.length !== 1 || typeof fields[0] !== "string") return undefined;
+  const sentence = fields[0].trim();
+  return sentence === "" ? undefined : sentence;
+}
+
+/**
+ * gpt-oss can write its reply as a JSON object instead of words: on staging
+ * (2026-10-26), its whole text was `{"question":"Should the app …?"}` after a
+ * search, whose passages are objects with a `question` field (replayed in
+ * `tests/unit/cloudflare.test.ts`). A reply that is only an object of one
+ * text field becomes that text, so the visitor, and the model in later
+ * messages, read the sentence. Anything else passes as it came.
+ */
+const unwrappingJsonReplies: LanguageModelMiddleware = {
+  specificationVersion: "v4",
+  async wrapGenerate({ doGenerate }) {
+    const result = await doGenerate();
+    if (result.content.some((part) => part.type === "tool-call")) return result;
+    const text = result.content
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("");
+    const sentence = unwrappedJson(text);
+    if (sentence === undefined) return result;
+    // The sentence takes the first text part's place; the other text parts go.
+    const first = result.content.findIndex((part) => part.type === "text");
+    return {
+      ...result,
+      content: result.content
+        .map((part, index) =>
+          index === first ? { ...part, text: sentence } : part,
+        )
+        .filter((part, index) => part.type !== "text" || index === first),
+    };
+  },
+};
+
 /**
  * The chat model, asked for whole replies. Streamed, Cloudflare sends
  * gpt-oss's tool calls as reasoning text without the tool's name and ends
@@ -255,6 +311,10 @@ export function createCloudflareChatModel(
     // The last middleware is wrapped directly around the model
     // (https://ai-sdk.dev/docs/reference/ai-sdk-core/wrap-language-model), so
     // each whole reply is checked before it becomes a stream.
-    middleware: [simulateStreamingMiddleware(), refusingDegenerateReplies],
+    middleware: [
+      simulateStreamingMiddleware(),
+      unwrappingJsonReplies,
+      refusingDegenerateReplies,
+    ],
   });
 }
