@@ -6,8 +6,9 @@ import type { Database } from "./database.types.ts";
 //
 // - The read client uses the publishable key, so it acts as the `anon` role:
 //   it can read transcript text and nothing else (supabase/schemas/).
-// - The write client uses the secret key (`service_role`). Only the notes
-//   loader uses it, and only CI holds a hosted secret key.
+// - The write client uses the secret key (`service_role`): the notes loader,
+//   which runs in CI for hosted databases, and the rate limit, which counts
+//   each visitor's messages on the server (`rate-limit.ts`).
 
 const options = {
   auth: {

@@ -40,6 +40,25 @@ export type Database = {
         };
         Relationships: [];
       };
+      message_counts: {
+        Row: {
+          day: string;
+          messages: number;
+          visitor: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          day: string;
+          messages: number;
+          visitor: string;
+        };
+        Update: {
+          day?: string;
+          messages?: number;
+          visitor?: string;
+        };
+        Relationships: [];
+      };
       passages: {
         Row: {
           answer: string;
@@ -101,6 +120,10 @@ export type Database = {
           question: string;
           slug: string;
         }[];
+      };
+      take_message: {
+        Args: { daily_limit: number; visitor_hash: string };
+        Returns: boolean;
       };
     };
     Enums: {

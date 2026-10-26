@@ -43,7 +43,7 @@ For each GitHub environment, `staging` and `production` (deployment branches: `m
   - `VERCEL_TOKEN`: scoped to that Vercel project.
 - **Variables:** `SUPABASE_URL`, `CLOUDFLARE_ACCOUNT_ID`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
 
-Vercel project settings (Production environment only, credentials as type Secret): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `AI_PROVIDER=cloudflare`, `CLOUDFLARE_API_TOKEN`. `README.md` has the owner's steps, click by click.
+Vercel project settings (Production environment only, credentials as type Secret): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `AI_PROVIDER=cloudflare`, `SUPABASE_SECRET_KEY` (the rate limit's counts, since slice 8), `CLOUDFLARE_API_TOKEN`. `README.md` has the owner's steps, click by click.
 
 ## Gotchas
 - **Migrations must not break the running code.** The old code keeps running between migrate and deploy, after a failed deploy, and after a rollback. Add before you remove: a new column first, dropping the old one in a later change.

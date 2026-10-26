@@ -77,6 +77,19 @@ export function readSearchEnv(env: Settings = process.env) {
   return read(searchSchema, env, "the interview search");
 }
 
+const rateLimitSchema = z.object({
+  SUPABASE_URL: z.url(),
+  SUPABASE_SECRET_KEY: z.string().min(1),
+});
+
+/**
+ * What the rate limit needs: the secret key, the only one that reaches the
+ * counts, which also keys the hash of each visitor's address.
+ */
+export function readRateLimitEnv(env: Settings = process.env) {
+  return read(rateLimitSchema, env, "the rate limit");
+}
+
 const loaderSchema = z
   .object({
     SUPABASE_URL: z.url(),

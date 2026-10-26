@@ -19,7 +19,6 @@ import { timeThoughts } from "@/features/chat/thoughts";
 import { PrdDocument } from "@/features/prd/prd-document";
 import {
   latestSave,
-  QUOTA_USED_UP,
   savedSections,
   textOf,
   type ChatMessage,
@@ -34,6 +33,7 @@ import { FIRST_SECTION_REQUEST } from "@/lib/suggestions";
 import { cn } from "@/lib/utils";
 import { conversationStarted, offeredSuggestion } from "./disclosure";
 import { Intro, INTRO_TITLE_ID } from "./intro";
+import { dayOverIn, type DayOver } from "./quota";
 import { ScenarioTour } from "./scenario-tour";
 import { keepConversation, restoreConversation } from "./stored-conversation";
 import { finishedOnly } from "./stopped-answer";
@@ -86,7 +86,7 @@ type SentCheckIn = { section: SectionName; fromMessage: number };
  */
 export function Workspace() {
   return (
-    <Suspense fallback={<Intro failed={false} quotaUsedUp={false} />}>
+    <Suspense fallback={<Intro failed={false} dayOver={undefined} />}>
       <RestoredWorkspace />
     </Suspense>
   );
@@ -118,7 +118,7 @@ function RestoredWorkspace() {
   } = useChat<ChatMessage>({
     transport,
     messages: kept?.messages,
-    onError: noteQuota,
+    onError: noteDayOver,
     onFinish: afterAnswer,
   });
   // The kept conversation's last answer broke off before the reload, so the
@@ -131,9 +131,10 @@ function RestoredWorkspace() {
   );
   // A kept conversation that no longer fit was discarded: the intro says so.
   const [discarded, setDiscarded] = useState(restored.status === "discarded");
-  // The day's free AI allocation is used up. It stays so until the page
-  // reloads, through "Start over" too: nothing can be sent before 00:00 UTC.
-  const [quotaUsedUp, setQuotaUsedUp] = useState(false);
+  // The day's free AI allocation or the visitor's messages are used up. It
+  // stays so until the page reloads, through "Start over" too: nothing can be
+  // sent before 00:00 UTC.
+  const [dayOver, setDayOver] = useState<DayOver>();
   // The message box's text lives here, not in the chat, so it outlasts the
   // intro coming back after a failed first request.
   const [draft, setDraft] = useState("");
@@ -241,10 +242,12 @@ function RestoredWorkspace() {
 
   /**
    * Every failed answer, before `afterAnswer`. The server words the used-up
-   * allocation as `QUOTA_USED_UP`; once seen, it lasts until a reload.
+   * allocation as `QUOTA_USED_UP` and the visitor's used-up day as
+   * `DAILY_LIMIT_REACHED`; once seen, either lasts until a reload.
    */
-  function noteQuota(failure: Error) {
-    if (failure.message === QUOTA_USED_UP) setQuotaUsedUp(true);
+  function noteDayOver(failure: Error) {
+    const reason = dayOverIn(failure);
+    if (reason) setDayOver(reason);
   }
 
   /**
@@ -324,7 +327,7 @@ function RestoredWorkspace() {
         <Intro
           failed={introFailed}
           discarded={discarded}
-          quotaUsedUp={quotaUsedUp}
+          dayOver={dayOver}
           onDraft={draftFirstSection}
           onAsk={askOwnQuestion}
         />
@@ -356,7 +359,7 @@ function RestoredWorkspace() {
             messages={messages}
             status={failed ? "error" : status}
             error={error}
-            quotaUsedUp={quotaUsedUp}
+            dayOver={dayOver}
             suggestion={suggestion}
             draft={draft}
             onDraftChange={setDraft}
@@ -382,7 +385,7 @@ function RestoredWorkspace() {
             onStartOver={startOver}
             checkIn={
               // The check-in sends a message too, so it goes with the message box.
-              next === undefined || quotaUsedUp
+              next === undefined || dayOver
                 ? undefined
                 : {
                     next: checkInOpen ? checkIn.section : next,

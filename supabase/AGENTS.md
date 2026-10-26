@@ -28,12 +28,13 @@
   - Prefer `security invoker`. A `security definer` function needs a reason in a comment and a fixed `search_path`.
 - **Roles:**
   - `anon` is the app's read key (publishable).
-  - `service_role` is the notes loader (secret key; CI only for hosted databases).
+  - `service_role` is the secret key: the notes loader (in CI for hosted databases) and the app's server, for the rate limit's counts only (`schemas/rate-limit.sql`, slice 8).
   - `authenticated` gets nothing: there's no sign-in.
 - **Test every grant and policy** in `tests/database/*.test.sql`, as each role (`npm run test:sql`). New tables and functions get tests in the same change.
 
 ## Data
-- The notes loader (`scripts/load-notes.ts`) is the only writer. `db:start`, `db:reset` and `notes:load` run it with the fake embedder. Seeding in `config.toml` is off.
+- The notes loader (`scripts/load-notes.ts`) is the only writer of the interviews. `db:start`, `db:reset` and `notes:load` run it with the fake embedder. Seeding in `config.toml` is off.
+- The rate limit's counts (`message_counts`) are written only through `take_message`, by the server when the chat runs on the real model, so locally only the tests write them, and each test removes what it wrote. A row is a keyed hash of a visitor's address and the day, never the address (`src/server/AGENTS.md`, *The rate limit*); the check on `visitor` refuses anything but 64 hexadecimal characters. Rows from earlier UTC days are deleted by the next message, since the app has no background jobs.
 - `npm run db:reset` and `npm run verify:db` delete local data. Ask the owner first if the local database may hold anything of theirs, and never reset while another session works here.
 
 ## Gotchas

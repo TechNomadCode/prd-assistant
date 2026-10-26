@@ -17,6 +17,19 @@ export const MAX_MESSAGE_LENGTH = 2000;
 export const QUOTA_USED_UP =
   "The demo's free AI allocation for today is used up. It resets at 00:00 UTC.";
 
+/**
+ * How many messages one visitor may send in a UTC day. An answer costs about
+ * 350 of Cloudflare's 10,000 free neurons a day, so one visitor can use at
+ * most about a third of the day's allocation (the owner, 2026-10-26).
+ */
+export const DAILY_MESSAGE_LIMIT = 10;
+
+/**
+ * The refusal's text once a visitor has sent the day's messages. The browser
+ * recognises it by these words and shows when the visitor can carry on.
+ */
+export const DAILY_LIMIT_REACHED = `You've sent this demo's ${DAILY_MESSAGE_LIMIT} messages for today. The limit resets at 00:00 UTC.`;
+
 /** The answer's error when Cloudflare stayed busy through the retries. */
 export const DEMO_BUSY = "The demo is busy right now. Try again in a minute.";
 

@@ -1,6 +1,7 @@
 import { createUIMessageStreamResponse } from "ai";
-import type { ChatMessage } from "@/lib/chat";
+import { DAILY_LIMIT_REACHED, type ChatMessage } from "@/lib/chat";
 import { ChatRequestError, readChatRequest, streamAnswer } from "@/server/chat";
+import { admitMessage } from "@/server/rate-limit";
 
 // The chat's endpoint: the browser posts the conversation, and the answer
 // streams back as the AI SDK's UI message stream (server-sent events).
@@ -29,6 +30,10 @@ export async function POST(request: Request) {
     if (error instanceof ChatRequestError) return refuse(error.message, 400);
     throw error;
   }
+
+  // Only a request that reads as a conversation counts against the visitor's
+  // day (src/server/rate-limit.ts), and a refused one reaches no model.
+  if (!(await admitMessage(request))) return refuse(DAILY_LIMIT_REACHED, 429);
 
   return createUIMessageStreamResponse({
     // A visitor who leaves stops the model call, and its tokens with it.
