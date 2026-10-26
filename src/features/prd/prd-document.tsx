@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { CopySection } from "./copy-section";
 import { downloadPrd, PRODUCT, VISITOR_DECISION } from "./prd-markdown";
 import { openFrom, SOURCE_POPOVER_ID, SourcePopover } from "./source-popover";
+import { StartOver } from "./start-over";
 
 /** The check-in under the latest saved section. */
 export type CheckIn = {
@@ -82,7 +83,8 @@ export function PrdDocument({
       aria-labelledby="prd-title"
       className="flex flex-col gap-3 lg:min-h-0 lg:flex-1"
     >
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      {/* One row that never wraps: "Start over" asks in its pop-over. */}
+      <div className="flex items-center justify-end gap-3">
         {sections.size > 0 && (
           <Button
             variant="outline"
@@ -104,7 +106,7 @@ export function PrdDocument({
           <header className="space-y-3">
             <h2
               id="prd-title"
-              className="text-[1.625rem] leading-tight font-semibold tracking-tight"
+              className="text-[1.625rem] leading-tight font-light tracking-[-0.03em]"
             >
               {PRODUCT}
             </h2>
@@ -148,7 +150,7 @@ export function PrdDocument({
                       <h3
                         id={sectionAnchor(name)}
                         tabIndex={-1}
-                        className="min-w-0 scroll-mt-6 text-lg font-semibold"
+                        className="min-w-0 scroll-mt-6 text-lg font-normal tracking-[-0.01em]"
                       >
                         {name}{" "}
                         <span className="text-sm font-normal text-muted-foreground">
@@ -184,7 +186,7 @@ export function PrdDocument({
                   <div className="flex items-baseline gap-x-3">
                     <h3
                       id={sectionAnchor(name)}
-                      className="min-w-0 text-lg font-semibold text-muted-foreground"
+                      className="min-w-0 text-lg font-normal tracking-[-0.01em] text-muted-foreground"
                     >
                       {name}
                       <span className="sr-only"> (not drafted yet)</span>
@@ -290,7 +292,10 @@ function Statement({
   );
   return (
     <li
-      className={cn("leading-relaxed", arrival && "arrive arrive-block")}
+      className={cn(
+        "leading-relaxed text-prose",
+        arrival && "arrive arrive-block",
+      )}
       data-again={arrival && arrival.change % 2 === 0 ? "" : undefined}
       style={arrival && ({ "--order": arrival.order } as CSSProperties)}
     >
@@ -320,7 +325,7 @@ function Statement({
       {(unverified.length > 0 ||
         isFlagged(section, statement) ||
         isVisitorDecision(statement)) && (
-        <div className="mt-1 space-y-0.5 text-sm font-medium">
+        <div className="mt-1 space-y-0.5 text-sm font-medium text-foreground">
           {unverified.map((citation, index) => (
             <p key={index}>{objection(citation)}</p>
           ))}
@@ -357,39 +362,6 @@ function CheckInButton({
           That answer didn&apos;t finish. Try again.
         </p>
       )}
-    </div>
-  );
-}
-
-/** "Start over", which asks once before it clears the chat and the PRD. */
-function StartOver({ onConfirm }: { onConfirm: () => void }) {
-  const [asking, setAsking] = useState(false);
-  if (!asking) {
-    return (
-      <Button variant="outline" onClick={() => setAsking(true)}>
-        Start over
-      </Button>
-    );
-  }
-  return (
-    <div
-      role="group"
-      aria-label="Start over"
-      className="flex flex-wrap items-center justify-end gap-3"
-    >
-      <p className="text-sm">This clears the chat and the PRD.</p>
-      <Button
-        variant="outline"
-        onClick={() => {
-          setAsking(false);
-          onConfirm();
-        }}
-      >
-        Clear both
-      </Button>
-      <Button variant="quiet" onClick={() => setAsking(false)}>
-        Keep them
-      </Button>
     </div>
   );
 }

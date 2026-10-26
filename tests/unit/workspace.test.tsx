@@ -168,20 +168,29 @@ function draftButton() {
 }
 
 describe("the home page", () => {
-  it("opens on the intro: the visitor's role, the interviews as finished records, their job, one filled button that drafts and, quieter, a link to the interviews and a way to ask first", () => {
+  it("opens on the intro: the visitor's role, what they'll do, the households each linking to its interview, one filled button that drafts and, quieter, a link to the interviews and a way to ask first", () => {
     render(<Workspace />);
 
     expect(introHeading()).toBeInTheDocument();
     expect(
       screen.getByText(
-        "A researcher already interviewed six households about it. Those transcripts are finished records: the AI reads and quotes them, and never asks their questions again.",
+        "Turn six household interviews into its product requirements document. The app checks every quote word for word.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText(/^Interviewed:/)).toHaveTextContent(
+      "Interviewed: Maya, Henk, Daan, Sofia, Lena and Ravi",
+    );
+    expect(screen.getByRole("link", { name: "Lena" })).toHaveAttribute(
+      "href",
+      "/transcripts#lena",
+    );
+    // Each line arrives in its turn, the glimpse of the workspace last, and
+    // screen readers skip the glimpse.
+    const arriving = document.querySelectorAll<HTMLElement>(".arrive");
     expect(
-      screen.getByText(
-        "Your job is to turn them into a product requirements document, a PRD. The AI proves every line with a quote, and the app's own code checks each one.",
-      ),
-    ).toBeInTheDocument();
+      [...arriving].map((element) => element.style.getPropertyValue("--order")),
+    ).toEqual(["", "1", "2", "3", "4"]);
+    expect(arriving[4]).toHaveAttribute("aria-hidden", "true");
     // The PRD is the region named after the product; the intro isn't one.
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
     expect(draftButton()).toBeEnabled();

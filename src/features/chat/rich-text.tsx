@@ -256,7 +256,10 @@ function table({ header, rows }: Table, words: Words | undefined) {
             <th
               key={column}
               scope="col"
-              className={cn(CELL, "border-border-strong font-medium")}
+              className={cn(
+                CELL,
+                "border-border-strong font-medium text-foreground",
+              )}
             >
               {runs(cell, words)}
             </th>
@@ -342,7 +345,7 @@ function runs(line: Inline[], words: Words | undefined) {
       case "bold":
         if (unreached(words)) return null;
         return (
-          <strong key={index} className="font-semibold">
+          <strong key={index} className="font-semibold text-foreground">
             {wordsOf(run.text, words)}
           </strong>
         );

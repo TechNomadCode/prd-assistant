@@ -13,8 +13,9 @@ import { expectNoAccessibilityViolations } from "./accessibility";
 const INTRO_TITLE = "You're the product manager of a shared grocery list app";
 const WORKSPACE_TITLE = "The chat and your PRD";
 const FAKE_NOTE = "(This is the local fake model";
-// The filled white button (docs/decisions.md, Design); quiet ones have none.
-const FILLED = "rgb(255, 255, 255)";
+// The filled button, in the palette's white (docs/decisions.md, Design);
+// quiet ones have none.
+const FILLED = "rgb(250, 250, 250)";
 const UNFILLED = "rgba(0, 0, 0, 0)";
 
 function draftButton(page: Page) {
@@ -31,6 +32,15 @@ function prd(page: Page) {
 
 function suggestion(page: Page) {
   return page.getByRole("group", { name: "Suggestion:", exact: true });
+}
+
+type Sampled = Window & { opacities?: number[] };
+
+/** Finishes what arrives, so its place can be measured. */
+async function settle(page: Page) {
+  await page.evaluate(() =>
+    document.getAnimations().forEach((animation) => animation.finish()),
+  );
 }
 
 /** The visitor's messages a request to /api/chat sent. */
@@ -62,7 +72,7 @@ async function holdNextAnswer(page: Page, then: "continue" | "abort") {
 }
 
 test.describe("the intro", () => {
-  test("says who the visitor is, what the interviews are and what their job is, with one filled button that drafts and, quieter, a link to the full interviews and a way to ask first", async ({
+  test("says who the visitor is, what they'll do and who was interviewed, each household linking to its interview, with one filled button that drafts and, quieter, a link to the full interviews and a way to ask first", async ({
     page,
   }) => {
     await page.goto("/");
@@ -72,11 +82,16 @@ test.describe("the intro", () => {
     );
     const main = page.getByRole("main");
     await expect(main).toContainText(
-      "A researcher already interviewed six households about it. Those transcripts are finished records: the AI reads and quotes them, and never asks their questions again.",
+      "Turn six household interviews into its product requirements document. The app checks every quote word for word.",
     );
     await expect(main).toContainText(
-      "Your job is to turn them into a product requirements document, a PRD. The AI proves every line with a quote, and the app's own code checks each one.",
+      "Interviewed: Maya, Henk, Daan, Sofia, Lena and Ravi",
     );
+    for (const name of ["Maya", "Henk", "Daan", "Sofia", "Lena", "Ravi"]) {
+      await expect(
+        main.getByRole("link", { name, exact: true }),
+      ).toHaveAttribute("href", `/transcripts#${name.toLowerCase()}`);
+    }
     await expect(draftButton(page)).toBeVisible();
     // Exactly one filled button, the one that drafts the first section; the
     // link to the full interviews and the way to ask first are quiet.
@@ -96,6 +111,96 @@ test.describe("the intro", () => {
     ).toHaveCount(0);
     await expect(prd(page)).toHaveCount(0);
   });
+
+  test("is centred on one screen, a glimpse of the chat beside the PRD under it that screen readers skip", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(draftButton(page)).not.toHaveAttribute("aria-disabled");
+    await settle(page);
+
+    const viewport = page.viewportSize()!;
+    const middle = viewport.width / 2;
+    for (const part of [
+      page.getByRole("heading", { level: 1 }),
+      draftButton(page),
+    ]) {
+      const box = (await part.boundingBox())!;
+      expect(Math.abs(box.x + box.width / 2 - middle)).toBeLessThan(2);
+    }
+    const glimpse = page.locator("main [aria-hidden] > svg");
+    await expect(glimpse).toBeVisible();
+    const box = (await glimpse.boundingBox())!;
+    expect(box.y).toBeGreaterThan((await draftButton(page).boundingBox())!.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    await expectNoAccessibilityViolations(page);
+  });
+
+  test.describe("on a phone", () => {
+    test.use({ viewport: { width: 375, height: 812 } });
+
+    test("leaves the glimpse out", async ({ page }) => {
+      await page.goto("/");
+      await expect(draftButton(page)).toBeVisible();
+      await expect(page.locator("main [aria-hidden] > svg")).toBeHidden();
+    });
+  });
+
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`arrives line by line as the page first shows, the glimpse last, never starting again (${reducedMotion} motion)`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      // The heading's opacity in every frame from the start, through the
+      // moment the browser's intro takes the place of the server's.
+      await page.addInitScript(() => {
+        const seen: number[] = [];
+        (window as Sampled).opacities = seen;
+        const sample = () => {
+          const heading = document.getElementById("intro-title");
+          if (heading) seen.push(Number(getComputedStyle(heading).opacity));
+          if (performance.now() < 4000) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await page.goto("/");
+      await expect(draftButton(page)).not.toHaveAttribute("aria-disabled");
+
+      const lines = page.locator("main .arrive");
+      await expect(lines).toHaveCount(5);
+      const delays = await lines.evaluateAll((elements) =>
+        elements.map((element) => getComputedStyle(element).animationDelay),
+      );
+      if (reducedMotion === "reduce") {
+        await expect(lines.first()).toHaveCSS("animation-name", "none");
+      } else {
+        await expect(lines.first()).toHaveCSS(
+          "animation-name",
+          "arrive, arrive-fade",
+        );
+        // One delay for both of a line's animations, the glimpse's last.
+        expect(delays).toEqual(["0s", "0.2s", "0.4s", "0.6s", "0.8s"]);
+      }
+
+      await page.waitForFunction(() => performance.now() > 2500, undefined, {
+        polling: 100,
+      });
+      const opacities = await page.evaluate(
+        () => (window as Sampled).opacities ?? [],
+      );
+      expect(opacities.length).toBeGreaterThan(0);
+      expect(opacities.at(-1)).toBe(1);
+      // Never fading again once it has come in part of the way.
+      for (let index = 1; index < opacities.length; index++) {
+        expect(opacities[index]).toBeGreaterThanOrEqual(
+          opacities[index - 1]! - 0.001,
+        );
+      }
+      if (reducedMotion === "reduce") {
+        expect(new Set(opacities)).toEqual(new Set([1]));
+      }
+    });
+  }
 
   test("its button drafts the first section with the shared request, and the chat with the PRD appears, focus on them", async ({
     page,

@@ -616,17 +616,48 @@ test.describe("the PRD", () => {
     });
   });
 
-  test("Start over asks once, then clears the chat and the PRD and brings the intro back", async ({
+  test("Start over asks once in a pop-over under its button, closed by Escape or a click outside, then clears the chat and the PRD and brings the intro back", async ({
     page,
   }) => {
     await draftFirstSection(page);
+    const startOver = page.getByRole("button", { name: "Start over" });
+    const question = page.getByRole("dialog", {
+      name: "Clear the chat and the PRD?",
+    });
+    // The row "Start over" sits in, with "Download as Markdown".
+    const row = startOver.locator("..");
+    const rowAtRest = await row.boundingBox();
 
-    await page.getByRole("button", { name: "Start over" }).click();
-    await page.getByRole("button", { name: "Keep them" }).click();
+    await startOver.click();
+    await expect(question).toBeVisible();
+    await expect(
+      question.getByRole("button", { name: "Keep them" }),
+    ).toBeFocused();
+    // It asks in a pop-over under its button, so the row stays as it was.
+    await question.evaluate((element) =>
+      element.getAnimations().forEach((animation) => animation.finish()),
+    );
+    expect(
+      under((await question.boundingBox())!, (await startOver.boundingBox())!),
+    ).toBe(true);
+    expect(await row.boundingBox()).toEqual(rowAtRest);
+
+    // Escape closes it, focus back on its button; so does a click outside.
+    await page.keyboard.press("Escape");
+    await expect(question).toBeHidden();
+    await expect(startOver).toBeFocused();
+    await startOver.click();
+    await expect(question).toBeVisible();
+    await page.mouse.click(5, 5);
+    await expect(question).toBeHidden();
+
+    await startOver.click();
+    await question.getByRole("button", { name: "Keep them" }).click();
+    await expect(question).toBeHidden();
     await expect(statements(page, INTRODUCTION)).toHaveCount(4);
 
-    await page.getByRole("button", { name: "Start over" }).click();
-    await page.getByRole("button", { name: "Clear both" }).click();
+    await startOver.click();
+    await question.getByRole("button", { name: "Clear both" }).click();
 
     await expect(
       page.getByRole("heading", { level: 1, name: INTRO_TITLE }),

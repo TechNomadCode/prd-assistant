@@ -156,7 +156,7 @@ test.describe("chat", () => {
     );
     await expect(thoughts.first()).toHaveCSS("font-size", "13px");
     await expect(thoughts.first()).toHaveCSS("line-height", "16px");
-    await expect(thoughts.first()).toHaveCSS("color", "rgb(180, 180, 180)");
+    await expect(thoughts.first()).toHaveCSS("color", "rgb(161, 161, 161)");
     await expect(thoughts.first().getByText("Thought")).toHaveCSS(
       "font-weight",
       "500",
@@ -299,7 +299,7 @@ test.describe("chat", () => {
         reducedMotion === "reduce" ? "none" : "shimmer",
       );
       if (reducedMotion === "reduce") {
-        await expect(working).toHaveCSS("color", "rgb(180, 180, 180)");
+        await expect(working).toHaveCSS("color", "rgb(161, 161, 161)");
       }
 
       release();
