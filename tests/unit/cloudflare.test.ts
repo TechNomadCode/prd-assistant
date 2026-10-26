@@ -776,6 +776,59 @@ describe("the chat when Cloudflare's reply is degenerate", () => {
   });
 });
 
+// gpt-oss-120b on staging (2026-10-26), asked "Add grocery delivery to the
+// PRD." after one search: the reply's whole text was this object.
+const STAGING_JSON_REPLY =
+  '{"question":"Should the app support ordering items for grocery delivery directly from the shared list?"}';
+
+describe("the chat when Cloudflare's reply is a bare JSON object", () => {
+  it("shows the sentence inside, as staging's reply of 2026-10-26 should have been", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { model } = chatModel(
+      chatReply({ role: "assistant", content: STAGING_JSON_REPLY }, "stop"),
+    );
+
+    expect(await answerTo(model)).toEqual({
+      text: "Should the app support ordering items for grocery delivery directly from the shared list?",
+      errors: [],
+    });
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["inside a code fence", "```json\n" + STAGING_JSON_REPLY + "\n```"],
+    ["with spaces around it", `\n  ${STAGING_JSON_REPLY}  \n`],
+  ])("unwraps it %s", async (_, content) => {
+    const { model } = chatModel(
+      chatReply({ role: "assistant", content }, "stop"),
+    );
+
+    const result = streamText({ model, prompt: "Hi" });
+
+    expect(await result.text).toBe(
+      "Should the app support ordering items for grocery delivery directly from the shared list?",
+    );
+  });
+
+  it.each([
+    ["plain words", "Nobody asked for grocery delivery."],
+    ["words around an object", 'The search returned {"question":"x"} only.'],
+    ["an object of two fields", '{"question":"Why?","answer":"Because."}'],
+    ["an object whose field isn't text", '{"count":3}'],
+    ["an object whose text is empty", '{"question":"  "}'],
+    ["an array", '["Should the app deliver groceries?"]'],
+    ["broken JSON", '{"question":"Should the app'],
+  ])("passes on %s as it came", async (_, content) => {
+    const { model } = chatModel(
+      chatReply({ role: "assistant", content }, "stop"),
+    );
+
+    const result = streamText({ model, prompt: "Hi" });
+
+    expect(await result.text).toBe(content);
+  });
+});
+
 describe("the Cloudflare reranker", () => {
   /** Cloudflare's reply format for bge-reranker-base: each score by index. */
   const rerankReply = (response: { id: number; score: number }[]) => () =>
