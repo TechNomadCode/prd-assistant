@@ -2,7 +2,7 @@
 
 ## Now
 <!-- Two lanes work in parallel, each in its own session (the owner, 2026-10-20; docs/decisions.md). A session works only in the lane the owner's first message names and updates only its own lane's section; the Stage line, the Lanes line and the shared rules change only with the owner. -->
-- **Stage:** 4 of 5 · Build, with a soft launch first (the owner, 2026-10-29; `docs/decisions.md`, Launch): production goes live on `prd.oualidfaouzi.dev` now, through the owner's hosted steps (the production Cloudflare token and `SUPABASE_SECRET_KEY` in Vercel's `prd-assistant` and GitHub's `production`, **Deploy production**, the domain in Vercel, `SITE_URL`, then a second deploy); stage 5's parts follow afterwards. Waiting on the owner: those steps, and the link, so the agent can check the domain, HTTPS and the `noindex` header.
+- **Stage:** 4 of 5 · Build, with a soft launch first (the owner, 2026-10-29; `docs/decisions.md`, Launch): production is live on `https://prd.oualidfaouzi.dev` since 2026-10-29, deployed from 0005385 (`9d26cea` skipped staging as a documents-only commit). Checked from this machine that day: HTTPS, the http redirect, the security headers, no `noindex` on the domain (`SITE_INDEXABLE_HOST` is set); no `robots.txt` or sitemap yet (stage 5, part 4). Stage 5's other parts follow afterwards. Waiting on the owner: the repository's website link on GitHub.
 - **Lanes:** two sessions at once, each named by the owner's first message, such as "continue as the measurement worker" or "continue as the build worker". A session that isn't told asks which lane it's in.
 
 ### Measurement lane

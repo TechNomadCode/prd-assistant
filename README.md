@@ -10,7 +10,7 @@
 
 Next.js · TypeScript · Vercel AI SDK · gpt-oss-120b on Cloudflare Workers AI · Supabase Postgres with pgvector · Playwright · GitHub Actions
 
-**Status:** built and running on a private staging site. The public demo opens at launch. [More below](#status).
+**[Try the live demo → prd.oualidfaouzi.dev](https://prd.oualidfaouzi.dev)** · No sign-up. Each visitor gets 10 messages a day. [More below](#status).
 
 ## The story
 
@@ -34,9 +34,8 @@ The check proves a quote is real, not that it's read fairly, which is why every 
 
 ## Status
 
-- **Built:** everything in the story, running on a private staging site (Vercel, Supabase in Frankfurt, Cloudflare Workers AI on its free plan), with a limit of 10 messages per visitor a day, so one visitor can't use up the free daily AI allowance.
+- **Live:** everything in the story, at [prd.oualidfaouzi.dev](https://prd.oualidfaouzi.dev) (Vercel, Supabase in Frankfurt, Cloudflare Workers AI on its free plan), with a limit of 10 messages per visitor a day, so one visitor can't use up the free daily AI allowance. When that allowance runs out for the day, the demo says so and points to the recording above.
 - **Measured:** the AI's behaviour, on fixed requests against a baseline ([how](#measuring-the-ais-behaviour)).
-- **Before launch:** the public demo, and a short screen recording here.
 
 The [product description](docs/product/prd.md), its [scope](docs/product/mvp.md), the [decisions](docs/decisions.md) and the [build plan](docs/plan.md) are all in the repository.
 
@@ -173,7 +172,7 @@ Every table and function starts closed to the public API and opens only through 
 | App | `npm run dev` | Vercel project `prd-assistant-staging`, private | Vercel project `prd-assistant`, public |
 | Who changes it | You, locally | GitHub Actions, after every merge to `main` | GitHub Actions, only when the owner starts it |
 
-The staging and production keys never sit on a development machine; a Workers AI token of your own may, in `.env.development.local`, for `npm run dev:real` and `npm run measure` only. Search engines index nothing: every address sends `noindex` until a production domain is set at launch.
+The staging and production keys never sit on a development machine; a Workers AI token of your own may, in `.env.development.local`, for `npm run dev:real` and `npm run measure` only. Search engines may index only the production domain, `SITE_INDEXABLE_HOST`; every other address, staging included, sends `noindex`.
 
 <details>
 <summary><strong>Secrets and settings</strong></summary>
