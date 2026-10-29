@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { site } from "@/lib/site";
 import { FAKE_CHAT_MODEL } from "@/server/ai/fake-chat-model";
 import { CHAT_MODEL, EMBEDDING_MODEL } from "@/server/ai/models";
 import { createChatModel, createEmbedder } from "@/server/ai/providers";
@@ -89,6 +90,13 @@ describe("choosing the chat model", () => {
 
   it("runs the chat on gpt-oss-120b (docs/decisions.md, 2026-10-18)", () => {
     expect(createChatModel(cloudflare).modelId).toBe("@cf/openai/gpt-oss-120b");
+  });
+
+  it("links the model name visitors see to the page of the model the chat runs on", () => {
+    const slug = CHAT_MODEL.split("/").at(-1);
+    expect(site.model.page).toBe(
+      `https://developers.cloudflare.com/workers-ai/models/${slug}/`,
+    );
   });
 
   it.each([["mistral"], ["openai"], ["Fake"], [undefined]])(
