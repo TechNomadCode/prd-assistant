@@ -7,6 +7,15 @@ export const site = {
   links: {
     repository: "https://github.com/TechNomadCode/prd-assistant",
   },
+  /**
+   * The chat model as visitors see it under the message box: a name that
+   * says what it is, linked to the page of the exact model in
+   * `src/server/ai/models.ts`.
+   */
+  model: {
+    name: "OpenAI open model",
+    page: "https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b/",
+  },
 } as const;
 
 /**

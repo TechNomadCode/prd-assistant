@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { QuotaNotice, type DayOver } from "@/features/workspace/quota";
 import { DEMO_BUSY, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
 import type { SectionName } from "@/lib/prd";
+import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { Conversation } from "./conversation";
 
@@ -361,10 +362,22 @@ export function Chat({
             {working ? "Stop" : "Send"}
           </Button>
         </div>
-        <p id="chat-notice" className="text-sm text-muted-foreground">
-          This is a demo with fictional interviews. Don&apos;t enter personal
-          information.
-        </p>
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>
+            <a
+              href={site.model.page}
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              {site.model.name}
+            </a>{" "}
+            · A free model: it can make mistakes, and follows short, specific
+            requests best.
+          </p>
+          <p id="chat-notice">
+            This is a demo with fictional interviews. Don&apos;t enter personal
+            information.
+          </p>
+        </div>
       </form>
 
       <p role="status" className="sr-only">

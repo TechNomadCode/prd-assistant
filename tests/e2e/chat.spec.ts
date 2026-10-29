@@ -643,6 +643,24 @@ test.describe("chat", () => {
     ).toBeVisible();
   });
 
+  test("names the model under the message box and says it can make mistakes", async ({
+    page,
+  }) => {
+    await openChat(page);
+
+    await expect(
+      page.getByRole("link", { name: "OpenAI open model", exact: true }),
+    ).toHaveAttribute(
+      "href",
+      "https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b/",
+    );
+    await expect(
+      page.getByText(
+        "A free model: it can make mistakes, and follows short, specific requests best.",
+      ),
+    ).toBeVisible();
+  });
+
   test("marks an answer that breaks off as unfinished, and trying again replaces it", async ({
     page,
   }, testInfo) => {
