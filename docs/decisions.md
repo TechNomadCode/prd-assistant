@@ -79,9 +79,10 @@ Decisions that shape the app, one line each: `YYYY-MM-DD · decision · conseque
 - 2026-10-17 · The README includes a short screen recording of the app working · Reviewers still see it work when the free quota is used up
 - 2026-10-17 · The per-visitor rate limit stays; the app shows a friendly message when the provider's free quota runs out · Visitors see a clear message instead of an error
 - 2026-10-18 · The quality check (slice 9) keeps its rules but measures instead of blocking launch: only the grocery delivery request has to pass before launch · Replaces two passing runs in a row of all five requests as the launch gate; since 2026-10-19 a failing rule may be tuned with measured changes (External services)
+- 2026-10-29 · Soft launch: production goes live now on `prd.oualidfaouzi.dev`, a subdomain of the owner's domain on Vercel, before stage 5's other parts (monitoring, the security policy, search and discoverability, legal pages, the cutover plan) and before the grocery delivery gate is defined; those follow after; the domain is set through `SITE_URL`, and `SITE_INDEXABLE_HOST` only if the owner wants it indexed (the owner, for their résumé and job applications) · Replaces "the domain settled as none" (Deferred, 2026-10-17); the per-visitor limit (slice 8) is already live, so one visitor can't use up the shared daily allocation
 
 ## Deferred
 <!-- YYYY-MM-DD · what · decide by <when> · affects <what> -->
-- 2026-10-17 · Legal pages, including whether a short privacy notice is needed; the domain, search engines, alerts, cookies, tracking, tax and receipts are already settled as none · decide in stage 5 · affects the launch
+- 2026-10-17 · Legal pages, including whether a short privacy notice is needed; search engines, alerts, cookies, tracking, tax and receipts are already settled as none · decide in stage 5 · affects the launch
 - 2026-10-17 · A short README section, "If this became a product", written from the PRD's later list: each item says what it adds and which part of the existing code it builds on; text only, about an hour, no new features · do in stage 5 · affects the README
 - 2026-10-19 · What "the grocery delivery request has to pass before launch" means once it's measured over several runs, and what happens after a miss · decide before launch · affects the launch
