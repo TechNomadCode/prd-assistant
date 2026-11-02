@@ -12,7 +12,7 @@ Next.js · TypeScript · Vercel AI SDK · gpt-oss-120b on Cloudflare Workers AI 
 
 **[Try the live demo → prd.oualidfaouzi.dev](https://prd.oualidfaouzi.dev)** · No sign-up. Each visitor gets 10 messages a day. [More below](#status).
 
-[![Deploy production](https://github.com/TechNomadCode/prd-assistant/actions/workflows/deploy-production.yml/badge.svg?branch=main&event=deployment)](https://github.com/TechNomadCode/prd-assistant/actions/workflows/deploy-production.yml)
+[![Deploy production](https://github.com/TechNomadCode/prd-assistant/actions/workflows/deploy-production.yml/badge.svg?branch=main)](https://github.com/TechNomadCode/prd-assistant/actions/workflows/deploy-production.yml)
 
 ## The story
 
