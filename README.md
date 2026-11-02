@@ -12,6 +12,8 @@ Next.js · TypeScript · Vercel AI SDK · gpt-oss-120b on Cloudflare Workers AI 
 
 **[Try the live demo → prd.oualidfaouzi.dev](https://prd.oualidfaouzi.dev)** · No sign-up. Each visitor gets 10 messages a day. [More below](#status).
 
+[![Deploy production](https://github.com/TechNomadCode/prd-assistant/actions/workflows/deploy-production.yml/badge.svg?branch=main&event=deployment)](https://github.com/TechNomadCode/prd-assistant/actions/workflows/deploy-production.yml)
+
 ## The story
 
 You're the product manager of a shared grocery list app, and a researcher has interviewed six fictional households. Click **Draft the first section**: the assistant searches the interviews and writes a PRD (product requirements document) beside the chat, one section at a time. Every statement names whose words back it, and a click on a name opens that person's answer with the quote highlighted. The PRD survives a reload and downloads as Markdown.
