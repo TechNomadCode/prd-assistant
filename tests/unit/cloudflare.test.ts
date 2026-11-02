@@ -1,5 +1,5 @@
 import { APICallError, isStepCount, streamText, tool } from "ai";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { DEMO_BUSY, QUOTA_USED_UP } from "@/lib/chat";
 import {
@@ -826,6 +826,259 @@ describe("the chat when Cloudflare's reply is a bare JSON object", () => {
     const result = streamText({ model, prompt: "Hi" });
 
     expect(await result.text).toBe(content);
+  });
+});
+
+// gpt-oss-120b, seen by the owner (2026-11-02), asked "Draft the first
+// section.": after the save, with no tools on offer, the reply's whole text
+// was this, a search written out in the model's own markup.
+const LEAKED_SEARCH =
+  '<|start|>assistant to=functions searchNotescommentary JSON{" query":" Daan children shared list remove what they add without a big discussion", "topn":5}<|call|>';
+
+// The same day, the same request sent again: the model's reasoning and made-up
+// searches as the reply's text, typed from the owner's screenshot. No search
+// ran and nothing was saved.
+const LEAKED_REASONING = `analysisWe need to draft Introduction/ Overview based on interviews with six households. we must search for relevant passages about overall description of shared grocery list app, motivations etc. We have three searches before we must draft section.
+
+We need to search for general statements: maybe " households want a shared grocery list that everyone can add items to" etc.
+
+Let's search.<|end|><|start|>assistantcommentary{
+{
+" query": " shared grocery list households want everyone to add items"
+}
+}<|end|><|start|>assistantanalysisWe got results with passages ids and interviewee names. Let's see.<|end|><|start|>assistantcommentary{
+}<|end|><|start|>assistantanalysis we need to actually execute searchNotes. Let's call function.<|end|><|start|>assistantcommentary{
+{
+"searchNotes": {
+" query": " shared grocery list households want everyone to add items"
+}
+}
+}<|end|><|start|>assistantanalysisWe need to wait for response.<|end|><|start|>assistantcommentary{
+}<|end|><|start|>assistantanalysis likely returned something but not displayed due we need to capture output. Let's try again with simpler query: " grocery list app household shared list"<|end|><|start|>assistantcommentary{
+{
+"search Notes": {
+" query": " grocery list app household shared list"
+}
+}
+}<|end|><|start|>assistantanalysisOops function name is searchNotes not search Notes. Let's correct.<|end|><|start|>assistantcommentary{
+{
+"searchNotes": {
+passage: { query: " grocery list app household shared list" }
+}
+}
+}<|call|>`;
+
+// The same day, the same request in the first call of an answer: a search
+// written out as text, typed from the owner's screenshot. Nothing ran.
+const LEAKED_CALL = `analysis<|end|>>We need to draft Introduction / Overview section based on interviews with six households. we must search for relevant passages that describe overall context of shared grocery list app. Let's search notes for " shared grocery list households overview purpose " etc.<|end|><|start|>assistantcommentary to=functions.searchNotes {" query": " shared grocery list app household interview overview purpose" }<|call|>`;
+
+describe("the chat when Cloudflare's reply holds the model's markup", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const save = chatReply(
+    toolCallMessage("call-1", "saveSection", {
+      section: "Introduction / Overview",
+      statements: [
+        {
+          text: "Daan's household keeps a paper list on the fridge.",
+          citations: [
+            { source: "daan-1", quote: "It's a notepad with a magnet." },
+          ],
+        },
+      ],
+    }),
+    "tool_calls",
+  );
+  const leakedSearch = chatReply(
+    { role: "assistant", content: LEAKED_SEARCH },
+    "stop",
+  );
+
+  it("asks again once, and shows the second reply's words", async () => {
+    const { sent, model } = replaying([
+      save,
+      leakedSearch,
+      chatReply(
+        { role: "assistant", content: "Does this capture it?" },
+        "stop",
+      ),
+    ]);
+
+    expect(await answerTo(model)).toEqual({
+      text: "Does this capture it?",
+      errors: [],
+    });
+    expect(sent).toHaveLength(3);
+    expect(sent[2]?.body).toEqual(sent[1]?.body);
+  });
+
+  it("carries on with the search the second reply asks for", async () => {
+    const { sent, model } = replaying([
+      chatReply({ role: "assistant", content: LEAKED_CALL }, "stop"),
+      chatReply(
+        toolCallMessage("call-1", "searchNotes", { query: "the paper list" }),
+        "tool_calls",
+      ),
+      chatReply({ role: "assistant", content: "Nobody asked for it." }, "stop"),
+    ]);
+
+    expect(await answerTo(model)).toEqual({
+      text: "Nobody asked for it.",
+      errors: [],
+    });
+    expect(sent).toHaveLength(3);
+  });
+
+  it("ends on the saved section when the second reply holds markup too", async () => {
+    const { sent, model } = replaying([save, leakedSearch, leakedSearch]);
+
+    expect(await answerTo(model)).toEqual({ text: "", errors: [] });
+    expect(sent).toHaveLength(3);
+  });
+
+  it("shows the usual error, after one retry, when nothing was saved", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sent, model } = chatModel(leakedSearch);
+
+    expect(await answerTo(model)).toEqual({
+      text: "",
+      errors: ["The assistant ended without an answer."],
+    });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("shows the quota message when the retry finds the allocation used up", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sent, model } = replaying([leakedSearch, quota4006]);
+
+    expect(await answerTo(model)).toEqual({
+      text: "",
+      errors: [QUOTA_USED_UP],
+    });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("counts the tokens of both calls", async () => {
+    const { model } = replaying([
+      leakedSearch,
+      chatReply({ role: "assistant", content: "Hello" }, "stop"),
+    ]);
+
+    const result = streamText({ model, prompt: "Hi" });
+
+    expect(await result.text).toBe("Hello");
+    expect(await result.usage).toMatchObject({
+      inputTokens: 688,
+      outputTokens: 60,
+      totalTokens: 748,
+    });
+  });
+
+  it("doesn't ask again after a reply without markup", async () => {
+    const { sent, model } = chatModel(
+      chatReply({ role: "assistant", content: "Hello" }, "stop"),
+    );
+
+    await streamText({ model, prompt: "Hi" }).text;
+
+    expect(sent).toHaveLength(1);
+  });
+
+  it.each([
+    "<|start|>",
+    "<|end|>",
+    "<|message|>",
+    "<|channel|>",
+    "<|constrain|>",
+    "<|return|>",
+    "<|call|>",
+  ])("removes the whole text of a reply with %s", async (token) => {
+    const { model } = chatModel(
+      chatReply(
+        {
+          role: "assistant",
+          content: `We need to draft the section. ${token}assistant to=functions`,
+        },
+        "stop",
+      ),
+    );
+
+    const result = streamText({ model, prompt: "Hi" });
+
+    expect(await result.text).toBe("");
+  });
+
+  it("removes reasoning written before the markup, as in the reply of 2026-11-02", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model } = chatModel(
+      chatReply({ role: "assistant", content: LEAKED_REASONING }, "stop"),
+    );
+
+    expect(await answerTo(model)).toEqual({
+      text: "",
+      errors: ["The assistant ended without an answer."],
+    });
+  });
+
+  it("still passes on a tool call next to the markup", async () => {
+    const { model } = chatModel(
+      chatReply(
+        {
+          ...toolCallMessage("call-1", "searchNotes", { query: "the list" }),
+          content: LEAKED_SEARCH,
+        },
+        "tool_calls",
+      ),
+    );
+
+    const result = streamText({
+      model,
+      prompt: "Hi",
+      tools: {
+        searchNotes: tool({ inputSchema: z.object({ query: z.string() }) }),
+      },
+    });
+
+    expect(await result.text).toBe("");
+    expect(await result.toolCalls).toEqual([
+      expect.objectContaining({
+        toolName: "searchNotes",
+        input: { query: "the list" },
+      }),
+    ]);
+  });
+
+  it("says in the log what it did, without the reply's words", async () => {
+    const { model } = chatModel(leakedSearch);
+
+    await streamText({ model, prompt: "Hi" }).text;
+
+    expect(vi.mocked(console.warn).mock.calls).toEqual([
+      ["The chat model wrote its own markup into a reply; asking it again."],
+      ["The chat model wrote its own markup again; its text was removed."],
+    ]);
+  });
+
+  it.each([
+    ["plain words", "Nobody asked for grocery delivery."],
+    ["a look-alike", "Daan wrote <start> and |call| in a note."],
+    ["an unknown token", "Daan wrote <|note|> in a note."],
+  ])("passes on %s as it came", async (_, content) => {
+    const { model } = chatModel(
+      chatReply({ role: "assistant", content }, "stop"),
+    );
+
+    const result = streamText({ model, prompt: "Hi" });
+
+    expect(await result.text).toBe(content);
+    expect(console.warn).not.toHaveBeenCalled();
   });
 });
 
