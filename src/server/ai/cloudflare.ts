@@ -297,6 +297,81 @@ const unwrappingJsonReplies: LanguageModelMiddleware = {
 };
 
 /**
+ * gpt-oss's own control tokens
+ * (https://github.com/openai/harmony/blob/main/docs/format.md, "Special Tokens").
+ */
+const MODEL_MARKUP =
+  /<[|](?:start|end|message|channel|constrain|return|call)[|]>/;
+
+/** Whether a reply's text holds the model's markup. */
+function holdsMarkup(content: readonly { type: string; text?: string }[]) {
+  return content.some(
+    (part) => part.type === "text" && MODEL_MARKUP.test(part.text ?? ""),
+  );
+}
+
+/** Two calls' count of one kind of token; undefined if neither reported it. */
+function addedTokens(first: number | undefined, second: number | undefined) {
+  if (first === undefined && second === undefined) return undefined;
+  return (first ?? 0) + (second ?? 0);
+}
+
+/**
+ * gpt-oss can write its own markup as the reply's text: a search after a save,
+ * its reasoning and made-up searches, or a search in an answer's first call,
+ * so nothing runs (seen by the owner, 2026-11-02; replayed in
+ * `tests/unit/cloudflare.test.ts`). The same request goes once more, and the
+ * reply carries both calls' tokens. If the second reply holds markup too, its
+ * whole text goes, since what comes before the first token can be reasoning.
+ * The chat then treats it as a reply without words: a saved section stands
+ * alone, and otherwise the visitor gets the usual error and "Try again".
+ */
+const retryingModelMarkup: LanguageModelMiddleware = {
+  specificationVersion: "v4",
+  async wrapGenerate({ doGenerate }) {
+    const first = await doGenerate();
+    if (!holdsMarkup(first.content)) return first;
+    console.warn(
+      "The chat model wrote its own markup into a reply; asking it again.",
+    );
+    const second = await doGenerate();
+    const { inputTokens: input, outputTokens: output } = first.usage;
+    const usage = {
+      ...second.usage,
+      inputTokens: {
+        total: addedTokens(input.total, second.usage.inputTokens.total),
+        noCache: addedTokens(input.noCache, second.usage.inputTokens.noCache),
+        cacheRead: addedTokens(
+          input.cacheRead,
+          second.usage.inputTokens.cacheRead,
+        ),
+        cacheWrite: addedTokens(
+          input.cacheWrite,
+          second.usage.inputTokens.cacheWrite,
+        ),
+      },
+      outputTokens: {
+        total: addedTokens(output.total, second.usage.outputTokens.total),
+        text: addedTokens(output.text, second.usage.outputTokens.text),
+        reasoning: addedTokens(
+          output.reasoning,
+          second.usage.outputTokens.reasoning,
+        ),
+      },
+    };
+    if (!holdsMarkup(second.content)) return { ...second, usage };
+    console.warn(
+      "The chat model wrote its own markup again; its text was removed.",
+    );
+    return {
+      ...second,
+      usage,
+      content: second.content.filter((part) => part.type !== "text"),
+    };
+  },
+};
+
+/**
  * The chat model, asked for whole replies. Streamed, Cloudflare sends
  * gpt-oss's tool calls as reasoning text without the tool's name and ends
  * with "stop", so the search never runs (seen on staging, 2026-10-17). A
@@ -314,6 +389,7 @@ export function createCloudflareChatModel(
     middleware: [
       simulateStreamingMiddleware(),
       unwrappingJsonReplies,
+      retryingModelMarkup,
       refusingDegenerateReplies,
     ],
   });
