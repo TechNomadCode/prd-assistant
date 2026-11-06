@@ -41,6 +41,21 @@ The check proves a quote is real, not that it's read fairly, which is why every 
 
 The [product description](docs/product/prd.md), its [scope](docs/product/mvp.md), the [decisions](docs/decisions.md) and the [build plan](docs/plan.md) are all in the repository.
 
+## Timeline
+
+Twelve days from the product brief to the live demo, built with Claude Code in about 90 sessions. From 20 October two sessions worked side by side: one measured and tuned the AI while the other built the interface.
+
+| When (2026) | Part | What was built | Time, approx. |
+| --- | --- | --- | --- |
+| 17 Oct | Plan and decide | The product brief, the PRD and its scope, the stack and the first AI provider. | ~1.5 h |
+| 17 Oct | Set up | Transcripts stored and listed end to end, the environment guard, CI, and the staging and production pipelines. | ~2.5 h |
+| 17–19 Oct | The core | The interview search, the chat that decides when to search, the move from Mistral to Cloudflare Workers AI's free plan, the system prompt, the citation check, the PRD beside the chat and the intro screen. | ~9 h |
+| 19–22 Oct | Measuring the AI | The measurement's recorder, runner, scoring and baseline, then tuning the prompt and settling on gpt-oss-120b. | ~15 h |
+| 20–26 Oct | The interface | The daily-allowance message, the PRD kept after a reload and downloadable, about twenty pieces of polish and motion, the README and its demo, and the owner's design review. | ~20 h |
+| 26 Oct–3 Nov | Launch | The limit of 10 messages a day, the launch on [prd.oualidfaouzi.dev](https://prd.oualidfaouzi.dev) on 29 October, the model's name under the message box, and two fixes for replies the model wrote in the wrong form. | ~2 h |
+
+About 47 hours in all. The times are estimates from the Claude Code session logs: the time a session was active, with any pause over 10 minutes left out, and parallel sessions on one part counted once. Added up session by session, it's about 65 hours. Time spent outside the sessions, such as setting up accounts and trying staging, isn't counted. Dates come from the [commit history](https://github.com/TechNomadCode/prd-assistant/commits/main) and the [build plan](docs/plan.md).
+
 ## How it works
 
 ```mermaid
