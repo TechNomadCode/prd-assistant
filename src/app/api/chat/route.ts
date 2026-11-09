@@ -6,8 +6,12 @@ import { admitMessage } from "@/server/rate-limit";
 // The chat's endpoint: the browser posts the conversation, and the answer
 // streams back as the AI SDK's UI message stream (server-sent events).
 
-/** Seconds for one answer: its searches and its reply. Hobby allows 300. */
-export const maxDuration = 60;
+/**
+ * Seconds for one answer: its searches, its reply and any retries. Hobby
+ * allows 300. At 60, one model call of 56 seconds used up an answer on
+ * staging (2026-11-09), and the visitor was left with a search and no reply.
+ */
+export const maxDuration = 180;
 
 /**
  * Requests longer than this are refused before they're parsed. A full PRD's

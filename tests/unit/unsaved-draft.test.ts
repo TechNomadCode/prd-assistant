@@ -254,11 +254,22 @@ describe("the chat when the model writes a section instead of saving it", () => 
     let now = 1_000_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);
     const { sent, model } = replaying([draft, save, checkedIn], () => {
-      now += 30_000;
+      now += 100_000;
     });
 
     expect((await answerTo(model)).text).toBe(SCREENSHOT);
     expect(sent).toHaveLength(1);
+  });
+
+  it("still reminds after a slow first reply", async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const { sent, model } = replaying([draft, save, checkedIn], () => {
+      now += 30_000;
+    });
+
+    expect((await answerTo(model)).saved).toBe(true);
+    expect(sent).toHaveLength(3);
   });
 
   it("logs what it did, without the reply's words", async () => {
