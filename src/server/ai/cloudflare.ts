@@ -6,6 +6,7 @@ import {
 } from "ai";
 import type { ChatModel } from "./chat-model.ts";
 import { CHAT_MODEL } from "./models.ts";
+import { looksLikeUnsavedDraft } from "./unsaved-draft.ts";
 
 // Cloudflare Workers AI through its OpenAI-compatible endpoint, used only on
 // staging and production. The account is on the free plan with no billing,
@@ -316,6 +317,27 @@ function addedTokens(first: number | undefined, second: number | undefined) {
   return (first ?? 0) + (second ?? 0);
 }
 
+type Usage = Awaited<ReturnType<ChatModel["doGenerate"]>>["usage"];
+
+/** What two calls used together, for one reply that took both. */
+function bothCalls(first: Usage, second: Usage): Usage {
+  const { inputTokens: input, outputTokens: output } = first;
+  return {
+    ...second,
+    inputTokens: {
+      total: addedTokens(input.total, second.inputTokens.total),
+      noCache: addedTokens(input.noCache, second.inputTokens.noCache),
+      cacheRead: addedTokens(input.cacheRead, second.inputTokens.cacheRead),
+      cacheWrite: addedTokens(input.cacheWrite, second.inputTokens.cacheWrite),
+    },
+    outputTokens: {
+      total: addedTokens(output.total, second.outputTokens.total),
+      text: addedTokens(output.text, second.outputTokens.text),
+      reasoning: addedTokens(output.reasoning, second.outputTokens.reasoning),
+    },
+  };
+}
+
 /**
  * gpt-oss can write its own markup as the reply's text: a search after a save,
  * its reasoning and made-up searches, or a search in an answer's first call,
@@ -335,30 +357,7 @@ const retryingModelMarkup: LanguageModelMiddleware = {
       "The chat model wrote its own markup into a reply; asking it again.",
     );
     const second = await doGenerate();
-    const { inputTokens: input, outputTokens: output } = first.usage;
-    const usage = {
-      ...second.usage,
-      inputTokens: {
-        total: addedTokens(input.total, second.usage.inputTokens.total),
-        noCache: addedTokens(input.noCache, second.usage.inputTokens.noCache),
-        cacheRead: addedTokens(
-          input.cacheRead,
-          second.usage.inputTokens.cacheRead,
-        ),
-        cacheWrite: addedTokens(
-          input.cacheWrite,
-          second.usage.inputTokens.cacheWrite,
-        ),
-      },
-      outputTokens: {
-        total: addedTokens(output.total, second.usage.outputTokens.total),
-        text: addedTokens(output.text, second.usage.outputTokens.text),
-        reasoning: addedTokens(
-          output.reasoning,
-          second.usage.outputTokens.reasoning,
-        ),
-      },
-    };
+    const usage = bothCalls(first.usage, second.usage);
     if (!holdsMarkup(second.content)) return { ...second, usage };
     console.warn(
       "The chat model wrote its own markup again; its text was removed.",
@@ -368,6 +367,82 @@ const retryingModelMarkup: LanguageModelMiddleware = {
       usage,
       content: second.content.filter((part) => part.type !== "text"),
     };
+  },
+};
+
+/** At most this many reminders to save, for one model call. */
+const MAX_SAVE_REMINDERS = 2;
+
+/**
+ * No reminder starts this long after the model call began. The chat route
+ * stops at 60 seconds, which would lose the whole answer; a recorded model
+ * call took up to 52 seconds and 20 at the 90th percentile.
+ */
+const SAVE_REMINDER_WINDOW_MS = 25_000;
+
+const SAVE_REMINDER =
+  "You wrote that section as text, so it was not saved. Call saveSection now with that section, and do not write it as text.";
+
+/**
+ * gpt-oss can write a section into its reply instead of saving it, with nothing
+ * saved or checked (seen by the owner, 2026-11-09, on "Draft the first
+ * section."). While saving is on offer, the model is shown its draft and told
+ * to save it, up to `MAX_SAVE_REMINDERS` times, and the visitor sees only what
+ * comes of that. If it never saves, the reply stays as the model first wrote
+ * it (the owner, 2026-11-09: the visitor gets no notice of this).
+ */
+const remindingToSave: LanguageModelMiddleware = {
+  specificationVersion: "v4",
+  async wrapGenerate({ doGenerate, params, model }) {
+    const started = Date.now();
+    const first = await doGenerate();
+    const offersSave = params.tools?.some(
+      (tool) => tool.name === "saveSection",
+    );
+    const text = first.content
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("");
+    if (
+      !offersSave ||
+      first.content.some((part) => part.type === "tool-call") ||
+      !looksLikeUnsavedDraft(text)
+    ) {
+      return first;
+    }
+
+    let usage = first.usage;
+    for (let reminders = 0; reminders < MAX_SAVE_REMINDERS; reminders += 1) {
+      if (Date.now() - started >= SAVE_REMINDER_WINDOW_MS) break;
+      console.warn(
+        "The chat model wrote a section without saving it; reminding it.",
+      );
+      const reply = await model.doGenerate({
+        ...params,
+        prompt: [
+          ...params.prompt,
+          { role: "assistant", content: [{ type: "text", text }] },
+          {
+            role: "user",
+            content: [{ type: "text", text: SAVE_REMINDER }],
+          },
+        ],
+      });
+      usage = bothCalls(usage, reply.usage);
+      const saves = reply.content.some(
+        (part) => part.type === "tool-call" && part.toolName === "saveSection",
+      );
+      if (saves) {
+        console.warn("The reminder got the section saved.");
+        return {
+          ...reply,
+          usage,
+          // Words beside the save would show the draft after all.
+          content: reply.content.filter((part) => part.type !== "text"),
+        };
+      }
+    }
+    console.warn("The chat model never saved the section it wrote.");
+    return { ...first, usage };
   },
 };
 
@@ -389,6 +464,7 @@ export function createCloudflareChatModel(
     middleware: [
       simulateStreamingMiddleware(),
       unwrappingJsonReplies,
+      remindingToSave,
       retryingModelMarkup,
       refusingDegenerateReplies,
     ],
