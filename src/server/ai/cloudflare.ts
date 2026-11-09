@@ -46,7 +46,7 @@ const QUOTA_CODES: readonly number[] = [3036, 4006];
 /**
  * The longest wait between tries that Cloudflare's retry headers may ask of
  * the AI SDK. A longer one is dropped, so the SDK's own backoff (2 seconds,
- * then 4) applies and an answer stays well inside the chat route's 60 seconds.
+ * then 4) applies and an answer stays inside the chat route's time limit.
  */
 export const MAX_RETRY_WAIT_MS = 5000;
 
@@ -375,10 +375,11 @@ const MAX_SAVE_REMINDERS = 2;
 
 /**
  * No reminder starts this long after the model call began. The chat route
- * stops at 60 seconds, which would lose the whole answer; a recorded model
- * call took up to 52 seconds and 20 at the 90th percentile.
+ * stops at 180 seconds, which would lose the whole answer; a recorded model
+ * call took up to 52 seconds and 20 at the 90th percentile, and one on staging
+ * 56.
  */
-const SAVE_REMINDER_WINDOW_MS = 25_000;
+const SAVE_REMINDER_WINDOW_MS = 90_000;
 
 const SAVE_REMINDER =
   "You wrote that section as text, so it was not saved. Call saveSection now with that section, and do not write it as text.";
